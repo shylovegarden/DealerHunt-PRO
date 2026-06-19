@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>DealerHunt</title>
+  <style>
+    body {
+      width: 300px;
+      padding: 16px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: #0a0a0c;
+      color: #e5e7eb;
+      margin: 0;
+    }
+    h2 {
+      margin-top: 0;
+      color: #fff;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .badge {
+      background: linear-gradient(to top right, #6366f1, #34d399);
+      width: 16px;
+      height: 16px;
+      border-radius: 4px;
+      display: inline-block;
+    }
+    button {
+      width: 100%;
+      padding: 10px;
+      background-color: #4f46e5;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: 10px;
+      transition: background-color 0.2s;
+    }
+    button:hover {
+      background-color: #4338ca;
+    }
+    .status {
+      margin-top: 12px;
+      font-size: 12px;
+      text-align: center;
+      color: #9ca3af;
+    }
+  </style>
+</head>
+<body>
+  <h2><div class="badge"></div> DealerHunt</h2>
+  <p style="font-size: 14px; color: #9ca3af;">Click below to scrape the current vehicle and send it to your dashboard.</p>
+  
+  <button id="scrapeBtn">Scrape & Send</button>
+  <div id="status" class="status">Waiting...</div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "DealerHunt Scraper",
+  "version": "1.0.0",
+  "description": "Scrape vehicles from Facebook Marketplace and Copart directly into DealerHunt.",
+  "permissions": [
+    "activeTab",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://*.facebook.com/*",
+    "https://*.copart.com/*",
+    "http://localhost:3000/*",
+    "https://*.vercel.app/*"
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.facebook.com/marketplace/*",
+        "https://*.copart.com/lot/*"
+      ],
+      "js": ["content.js"]
+    }
+  ]
+}
