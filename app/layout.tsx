@@ -1,11 +1,10 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
 import './globals.css'
 import { ResponsiveProvider } from '@/components/ui/responsive-design-system'
 import { Sidebar } from '@/components/Sidebar'
 import { BottomNav } from '@/components/BottomNav'
 
-const inter = Inter({ subsets: ['latin'] })
+const geist = 'var(--fn)'
 
 export const metadata: Metadata = {
   title: 'DealerHunt - Vehicle Sourcing Intelligence',
@@ -44,9 +43,9 @@ export default function RootLayout({
         <meta name="theme-color" content="#0a0a0c" />
         <meta name="color-scheme" content="dark" />
       </head>
-      <body className={`${inter.className} h-full bg-[#0a0a0c] text-white antialiased overflow-hidden`}>
+      <body style={{ fontFamily: geist }} className="h-full bg-[#07070A] text-[#FAFAFA] antialiased overflow-hidden">
         <ResponsiveProvider>
-          <div className="flex h-screen bg-[#0a0a0c]">
+          <div className="flex h-screen bg-[#07070A]">
             <Sidebar />
             <main className="flex-1 h-screen overflow-y-auto pb-16 md:pb-0">
               {children}
