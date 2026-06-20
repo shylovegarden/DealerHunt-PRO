@@ -1,21 +1,21 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Panel } from '@/components/shared/Panel'
 import { Tag } from '@/components/shared/Tag'
 import { Field } from '@/components/shared/Field'
 import { Btn } from '@/components/shared/Btn'
 
-const INTEGRATIONS = [
-  { name: 'Copart', status: 'connected' },
-  { name: 'IAAI', status: 'connected' },
-  { name: 'MarketCheck', status: 'disconnected' },
-  { name: 'Stripe Billing', status: 'connected' },
-]
+const isConfigured = (envKey?: string) => {
+  if (typeof envKey !== 'string') return false
+  return envKey.length > 0 && !envKey.includes('mock')
+}
 
 export default function SettingsPage() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [profile, setProfile] = useState({
     name: '',
     phone: '',
@@ -23,14 +23,56 @@ export default function SettingsPage() {
     state: '',
   })
 
-  const handleSave = () => {
+  const INTEGRATIONS = [
+    { name: 'Copart', status: isConfigured(process.env.NEXT_PUBLIC_COPART_USER) ? 'connected' : 'disconnected' },
+    { name: 'IAAI', status: isConfigured(process.env.NEXT_PUBLIC_IAA_USER) ? 'connected' : 'disconnected' },
+    { name: 'MarketCheck', status: isConfigured(process.env.NEXT_PUBLIC_MARKETCHECK_API_KEY) ? 'connected' : 'disconnected' },
+    { name: 'Stripe Billing', status: isConfigured(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY) ? 'connected' : 'disconnected' },
+  ]
+
+  useEffect(() => {
+    setLoading(true)
+    fetch('/api/profile')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.profile) {
+          setProfile({
+            name: data.profile.full_name || '',
+            phone: data.profile.phone || '',
+            city: data.profile.city || '',
+            state: data.profile.state || '',
+          })
+        } else if (data.error) {
+          setError(data.error)
+        }
+      })
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const handleSave = async () => {
     setSaving(true)
     setSaved(false)
-    // TODO: POST to /api/profile when auth is wired
-    setTimeout(() => {
-      setSaving(false)
+    setError(null)
+    try {
+      const res = await fetch('/api/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          full_name: profile.name,
+          phone: profile.phone,
+          city: profile.city,
+          state: profile.state,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Save failed')
       setSaved(true)
-    }, 800)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -42,7 +84,11 @@ export default function SettingsPage() {
 
       <Panel>
         <h2 className="text-sm font-semibold text-[#D1D1DC] uppercase tracking-wider mb-3">Dealer Profile</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {loading && <p className="text-sm text-[#9898A8]">Loading profile...</p>}
+        {error && <p className="text-sm text-[#EF4444] mb-3">{error}</p>}
+        {!loading && (
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field
             label="Dealership Name"
             value={profile.name}
@@ -72,6 +118,8 @@ export default function SettingsPage() {
           <Btn loading={saving} onClick={handleSave} className="w-full sm:w-auto">Save Profile</Btn>
           {saved && <span className="text-sm text-[#10B981]">Saved</span>}
         </div>
+        </>
+        )}
       </Panel>
 
       <Panel>

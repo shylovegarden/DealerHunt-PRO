@@ -6,10 +6,6 @@ async function run() {
   
   const results = await scrapeCopart('F-150', 'TX');
   
-  const fs = require('fs');
-  const html = await require('../tools/patchright-engine').fetchWithPatchright('https://www.copart.com/vehicleFinderSearch?query=F-150&state=TX');
-  fs.writeFileSync('copart-debug.html', html);
-  
   console.log(`\n✅ Success! Scraped ${results} F-150 vehicles from Copart in TX.`);
   console.log('The headless Chromium browser was successfully managed by Patchright.');
   process.exit(0);

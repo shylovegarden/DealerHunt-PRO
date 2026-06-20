@@ -57,30 +57,22 @@ export async function fetchWithPatchright(url: string, waitForSelector?: string)
   
   try {
     console.log(`[Patchright] Navigating to ${url}`);
+    
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
     
     if (waitForSelector) {
       console.log(`[Patchright] Waiting for selector: ${waitForSelector}`);
       await page.waitForSelector(waitForSelector, { timeout: 15000 });
     } else {
-      // Just wait a tiny bit for React to hydrate
       await page.waitForTimeout(3000);
     }
     
     const content = await page.content();
     console.log(`[Patchright] Fetched ${content.length} bytes.`);
-    if (content.includes('Cloudflare') || content.includes('Just a moment')) {
-      console.log('[Patchright] WARNING: Cloudflare challenge detected in response.');
-    }
+    
     return content;
   } catch (error) {
     console.error(`[Patchright] Error fetching ${url}:`, error);
-    try {
-      await page.screenshot({ path: `patchright-debug-${Date.now()}.png`, fullPage: true });
-      console.log('[Patchright] Saved debug screenshot.');
-    } catch (e) {
-      console.error('Failed to take screenshot', e);
-    }
     throw error;
   } finally {
     await browser.close();

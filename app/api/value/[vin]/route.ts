@@ -9,19 +9,19 @@ const supabase = createClient(
 export async function GET(req: NextRequest, { params }: { params: Promise<{ vin: string }> }) {
   const { vin } = await params;
   
-  // Check cache first (vehicles table has market_value)
+  // Check cache first (deals table has mmr_value)
   const { data: cached } = await supabase
-    .from('vehicles')
-    .select('market_value, updated_at')
+    .from('deals')
+    .select('mmr_value, updated_at')
     .eq('vin', vin)
-    .not('market_value', 'is', null)
+    .not('mmr_value', 'is', null)
     .gte('updated_at', new Date(Date.now() - 86400000).toISOString()) // 24hr cache
     .single();
   
-  if (cached?.market_value) {
+  if (cached?.mmr_value) {
     return NextResponse.json({
       vin,
-      marketValue: cached.market_value,
+      marketValue: cached.mmr_value,
       source: 'cache',
     });
   }

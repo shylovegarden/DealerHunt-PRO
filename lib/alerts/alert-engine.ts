@@ -11,31 +11,31 @@ export async function checkAlerts() {
     .from('alerts')
     .select('*, dealers(email, plan)')
     .eq('active', true);
-  
+
   if (!alerts?.length) return;
-  
-  // Get vehicles added in last 10 minutes
+
+  // Get deals added in last 10 minutes
   const since = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-  const { data: newVehicles } = await supabase
-    .from('vehicles')
+  const { data: newDeals } = await supabase
+    .from('deals')
     .select('*')
     .gte('scraped_at', since)
-    .eq('is_active', true);
-  
-  if (!newVehicles?.length) return;
-  
+    .eq('active', true);
+
+  if (!newDeals?.length) return;
+
   for (const alert of alerts) {
-    for (const vehicle of newVehicles) {
-      if (vehicleMatchesAlert(vehicle, alert)) {
+    for (const deal of newDeals) {
+      if (vehicleMatchesAlert(deal, alert)) {
         // Insert match
         await supabase.from('alert_matches').upsert({
           alert_id: alert.id,
-          vehicle_id: vehicle.id,
+          deal_id: deal.id,
           dealer_id: alert.dealer_id,
-          profit_estimate: vehicle.estimated_profit,
+          profit_estimate: deal.profit_estimate,
           notified: false,
-        }, { onConflict: 'alert_id,vehicle_id', ignoreDuplicates: true });
-        
+        }, { onConflict: 'alert_id,deal_id', ignoreDuplicates: true });
+
         // Update alert trigger count
         await supabase.from('alerts')
           .update({ last_triggered: new Date().toISOString() })

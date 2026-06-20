@@ -118,7 +118,6 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
   const [error, setError] = useState<string | null>(null)
   
   const [inputs, setInputs] = useState<DealInputs>(DEFAULT_INPUTS)
-  const [mmrLoading, setMmrLoading] = useState(false)
 
   useEffect(() => {
     fetch(`/api/deals/${id}`)
@@ -129,10 +128,6 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
         } else if (data.deal) {
           setDeal(data.deal)
           const d = data.deal as Deal
-          
-          // Trigger mock MMR loading
-          setMmrLoading(true)
-          setTimeout(() => setMmrLoading(false), 1200)
 
           setInputs((prev) => ({
             ...prev,
@@ -302,10 +297,7 @@ export default function DealPage({ params }: { params: Promise<{ id: string }> }
         <Panel>
           <h2 className="text-sm font-semibold text-[var(--t2)] uppercase tracking-wider mb-4">Sale</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="relative">
-              <Field label="Expected Sale Price ($)" type="number" value={inputs.salePrice} onChange={(e) => update({ salePrice: Number(e.target.value) })} />
-              {mmrLoading && <div className="absolute top-10 right-3 animate-spin w-4 h-4 border-2 border-[var(--amber)] border-t-transparent rounded-full" />}
-            </div>
+            <Field label="Expected Sale Price ($)" type="number" value={inputs.salePrice} onChange={(e) => update({ salePrice: Number(e.target.value) })} />
             <Field label="Selling Fee ($)" type="number" value={inputs.sellingFee} onChange={(e) => update({ sellingFee: Number(e.target.value) })} />
           </div>
         </Panel>

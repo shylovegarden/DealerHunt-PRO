@@ -193,7 +193,14 @@ export default function ScanPage() {
 
           <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
             {sources.slice(0, 12).map((src) => (
-              <div key={src.id} className="bg-[var(--s3)] border border-[var(--b1)] rounded-[var(--r2)] p-3 flex flex-col justify-between hover:border-[var(--b2)] transition-colors">
+              <button
+                key={src.id}
+                onClick={() => {
+                  setSourceFilter(src.id)
+                  setLogs((prev) => [...prev, `[FILTER] Source: ${src.name}`])
+                }}
+                className="bg-[var(--s3)] border border-[var(--b1)] rounded-[var(--r2)] p-3 flex flex-col justify-between hover:border-[var(--amber)] transition-colors text-left"
+              >
                 <div>
                   <div className="flex justify-between items-start mb-2">
                     <span className="font-bold text-[var(--t1)] truncate">{src.name}</span>
@@ -202,10 +209,10 @@ export default function ScanPage() {
                   <p className="text-xs text-[var(--t3)] line-clamp-2">{src.notes || 'Aggregated inventory pool.'}</p>
                 </div>
                 <div className="mt-3 flex justify-between items-end text-[10px] text-[var(--t4)] uppercase tracking-wider">
-                  <span>Every 5m</span>
-                  <span className="text-[var(--t2)] font-[var(--fm)]">14,209</span>
+                  <span>Click to filter</span>
+                  <span className="text-[var(--t2)] font-[var(--fm)]">{src.id}</span>
                 </div>
-              </div>
+              </button>
             ))}
             {sources.length > 12 && (
               <div className="bg-[var(--s3)] border border-[var(--b1)] border-dashed rounded-[var(--r2)] p-3 flex items-center justify-center text-[var(--t3)] hover:text-[var(--t1)] cursor-pointer">
