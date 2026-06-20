@@ -1,8 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import { ResponsiveProvider } from '@/components/ui/responsive-design-system'
-import { Sidebar } from '@/components/Sidebar'
-import { BottomNav } from '@/components/BottomNav'
 
 const geist = 'var(--fn)'
 
@@ -45,13 +43,7 @@ export default function RootLayout({
       </head>
       <body style={{ fontFamily: geist }} className="h-full bg-[#07070A] text-[#FAFAFA] antialiased overflow-hidden">
         <ResponsiveProvider>
-          <div className="flex h-screen bg-[#07070A]">
-            <Sidebar />
-            <main className="flex-1 h-screen overflow-y-auto pb-16 md:pb-0">
-              {children}
-            </main>
-            <BottomNav />
-          </div>
+          {children}
         </ResponsiveProvider>
       </body>
     </html>
