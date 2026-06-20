@@ -99,9 +99,14 @@ export class AdaptiveEngine {
       }
     }
 
-    const browserResult = await this.fetchBrowser(url, config, waitForSelector)
-    this.hostModeCache.set(host, 'browser')
-    return browserResult
+    try {
+      const browserResult = await this.fetchBrowser(url, config, waitForSelector)
+      this.hostModeCache.set(host, 'browser')
+      return browserResult
+    } catch (err) {
+      this.hostModeCache.set(host, 'browser')
+      throw err
+    }
   }
 
   private async fetchStatic(url: string, config: ScraperConfig): Promise<FetchResult> {

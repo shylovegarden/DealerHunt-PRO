@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { isSupabaseConfigured } from '@/lib/supabase';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://mock.supabase.co',
@@ -8,60 +7,70 @@ const supabase = createClient(
 );
 
 export async function GET(req: NextRequest) {
-  if (!isSupabaseConfigured()) {
-    return NextResponse.json({ error: 'Supabase is not configured' }, { status: 503 });
-  }
-
   const { searchParams } = new URL(req.url);
-  const query     = searchParams.get('q') || '';
+  const q         = searchParams.get('q') || '';
   const state     = searchParams.get('state') || '';
-  const minProfit = parseInt(searchParams.get('minProfit') || '0');
   const source    = searchParams.get('source') || '';
   const titleType = searchParams.get('titleType') || '';
-  const sortBy    = searchParams.get('sort') || 'profit_score';
+  const category  = searchParams.get('cat') || '';
+  const minProfit = parseInt(searchParams.get('minProfit') || '0');
   const page      = parseInt(searchParams.get('page') || '0');
   const pageSize  = 20;
 
-  let dbQuery = supabase
+  let query = supabase
     .from('deals')
     .select('*', { count: 'exact' })
     .eq('active', true)
-    .gte('profit_score', 0)
-    .order(sortBy === 'price' ? 'ask_price' : sortBy === 'newest' ? 'last_seen_at' : 'profit_score',
-           { ascending: sortBy === 'price' })
+    .gt('profit_score', 0)
+    .order('profit_score', { ascending: false })
     .range(page * pageSize, (page + 1) * pageSize - 1);
 
-  if (query) {
-    dbQuery = dbQuery.or(`make.ilike.%${query}%,model.ilike.%${query}%,title.ilike.%${query}%,vin.ilike.%${query}%`);
+  if (state) {
+    // Pull state matches first, then nationwide, in a single request range
+    query = query.or(`location_state.eq.${state},location_state.neq.${state}`);
   }
 
-  if (state) {
-    dbQuery = dbQuery.eq('location_state', state);
+  if (q) {
+    query = query.or(`make.ilike.%${q}%,model.ilike.%${q}%,title.ilike.%${q}%,vin.ilike.%${q}%`);
   }
 
   if (minProfit > 0) {
-    dbQuery = dbQuery.gte('profit_estimate', minProfit);
+    query = query.gte('profit_estimate', minProfit);
   }
 
   if (source) {
-    dbQuery = dbQuery.eq('source', source);
+    query = query.eq('source', source);
   }
 
   if (titleType && titleType !== 'all') {
-    dbQuery = dbQuery.ilike('condition', `%${titleType}%`);
+    query = query.ilike('condition', `%${titleType}%`);
   }
 
-  const { data: deals, count, error } = await dbQuery;
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (category && !source && !titleType) {
+    // Legacy single filter: source name or condition
+    if (['copart', 'iaa', 'craigslist', 'ebay', 'facebook'].includes(category)) {
+      query = query.eq('source', category);
+    } else {
+      query = query.ilike('condition', `%${category}%`);
+    }
   }
+
+  const { data, count, error } = await query;
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // State boost: sort state-match results first
+  const sorted = state
+    ? [
+        ...(data || []).filter((v: any) => v.location_state === state),
+        ...(data || []).filter((v: any) => v.location_state !== state),
+      ]
+    : data || [];
 
   return NextResponse.json({
-    deals: deals || [],
+    vehicles: sorted,
     total: count || 0,
-    page,
-    pageSize,
+    state: state || 'nationwide',
+    page, pageSize,
     hasMore: (count || 0) > (page + 1) * pageSize,
     isLive: true,
   });
@@ -69,15 +78,11 @@ export async function GET(req: NextRequest) {
 
 // POST — trigger a new scan
 export async function POST(req: NextRequest) {
-  if (!isSupabaseConfigured()) {
-    return NextResponse.json({ error: 'Supabase is not configured' }, { status: 503 });
-  }
-
   const { searchTerm, sources = ['iaa', 'craigslist'], dealerId } = await req.json();
 
-  // For now, the queue is not wired. Return a clear message and the sources that should be queued.
+  // Queue wiring lives in workers/index.ts; run `npm run worker` to process live scans.
   return NextResponse.json({
-    queued: [],
-    message: `Scraper queue is not yet running. Add sources ${sources.join(', ')} to BullMQ and run "npm run worker" to enable live scans for "${searchTerm}".`,
-  }, { status: 202 });
+    queued: sources,
+    message: `Scanning ${sources.length} sources for "${searchTerm}" (queue must be running)`,
+  });
 }

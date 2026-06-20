@@ -1,16 +1,16 @@
 import * as cheerio from 'cheerio';
-import { fetchWithCloudflareBypass } from '../tools/cloudflare-bypass';
+import { fetchWithPatchright } from '../tools/patchright-engine';
 import { enrichAndStore } from './shared';
 
 export async function scrapeCopart(searchTerm = '', state = '') {
-  // Copart requires Cloudflare bypass — must have FlareSolverr running
+  // Copart requires Cloudflare bypass — we use Patchright stealth Chromium
   const url = `https://www.copart.com/vehicleFinderSearch?query=${encodeURIComponent(searchTerm)}${state ? `&state=${state}` : ''}`;
   
   let html: string;
   try {
-    html = await fetchWithCloudflareBypass(url);
+    html = await fetchWithPatchright(url);
   } catch (e) {
-    console.error('[Copart] FlareSolverr not available:', e);
+    console.error('[Copart] Patchright failed:', e);
     // Fallback: try to intercept their API
     return await scrapeCopartAPI(searchTerm, state);
   }

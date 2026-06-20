@@ -1,11 +1,18 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { AdaptiveEngine } from './adaptive-engine'
 
+function createMockBrowserPool() {
+  return {
+    getPage: vi.fn().mockRejectedValue(new Error('Browser pool unavailable in unit tests')),
+    close: vi.fn().mockResolvedValue(undefined),
+  } as any
+}
+
 describe('AdaptiveEngine', () => {
   let engine: AdaptiveEngine
 
   beforeEach(() => {
-    engine = new AdaptiveEngine({ maxBrowserPages: 2 })
+    engine = new AdaptiveEngine({ maxBrowserPages: 2, browserPool: createMockBrowserPool() })
   })
 
   afterEach(async () => {
@@ -44,7 +51,6 @@ describe('AdaptiveEngine', () => {
       text: async () => '<html><body>Please wait while we verify you are human. Cloudflare protection.</body></html>',
     } as Response)
 
-    // Browser path will fail because Playwright isn't available in unit tests.
     await expect(engine.fetch('https://example.com/page', {
       name: 'test',
       baseUrl: 'https://example.com',
@@ -55,11 +61,20 @@ describe('AdaptiveEngine', () => {
       stealth: true,
       maxPages: 1,
     })).rejects.toThrow()
+
+    expect(engine.getHostModeCache()['example.com']).toBe('browser')
   })
 
   it('skips static when host is already known to need browser', async () => {
     const cache = engine.getHostModeCache()
     cache['example.com'] = 'browser'
+
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => '<html><body><h1>Hello</h1></body></html>',
+    } as Response)
+    globalThis.fetch = mockFetch
 
     await expect(engine.fetch('https://example.com/page', {
       name: 'test',

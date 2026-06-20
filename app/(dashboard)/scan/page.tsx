@@ -110,10 +110,10 @@ export default function ScanPage() {
     }
   }, [logs])
 
-  // Initial load
+  // Initial load and refetch when filters change
   useEffect(() => {
     fetchResults().catch((e) => setError(e.message))
-  }, [])
+  }, [state, minProfit, titleType, sourceFilter, sort])
 
   const runScan = async () => {
     if (!search) return
