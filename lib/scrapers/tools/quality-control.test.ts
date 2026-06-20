@@ -9,10 +9,10 @@ describe('QualityController', () => {
       { source: 'test', title: '2020 Toyota Camry', ask_price: 15000 },
     ])
     expect(report.score).toBe(100)
-    expect(report.validListings.length).toBe(2)
+    expect(report.validDeals.length).toBe(2)
   })
 
-  it('rejects invalid listings', () => {
+  it('rejects invalid deals', () => {
     const qc = new QualityController()
     const report = qc.validateBatch('test', [
       { source: 'test', title: '', ask_price: 12000 },
@@ -21,7 +21,7 @@ describe('QualityController', () => {
     ])
     expect(report.valid).toBe(0)
     expect(report.invalid).toBe(3)
-    expect(report.validListings.length).toBe(0)
+    expect(report.validDeals.length).toBe(0)
   })
 
   it('detects duplicates within a batch', () => {

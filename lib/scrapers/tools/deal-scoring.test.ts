@@ -24,8 +24,8 @@ describe('DealScoringService', () => {
     expect(result.profitEstimate).toBe(7000)
   })
 
-  it('scores a listing object', () => {
-    const listing = scorer.scoreListing({
+  it('scores a deal object', () => {
+    const deal = scorer.scoreDeal({
       source: 'copart',
       title: '2019 Honda Accord',
       ask_price: 8000,
@@ -35,8 +35,8 @@ describe('DealScoringService', () => {
       mileage: 45000,
       year: 2019,
     })
-    expect(listing.profit_estimate).toBeGreaterThan(0)
-    expect(listing.profit_score).toBeGreaterThan(0)
-    expect(listing.is_arbitrage_opportunity).toBe(true)
+    expect(deal.profit_estimate).toBeGreaterThan(0)
+    expect(deal.profit_score).toBeGreaterThan(0)
+    expect(deal.is_arbitrage_opportunity).toBe(true)
   })
 })

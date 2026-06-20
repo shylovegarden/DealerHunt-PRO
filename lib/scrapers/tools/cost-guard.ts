@@ -3,27 +3,27 @@
 
 export interface CostGuardOptions {
   maxDurationMs?: number
-  maxListingsPerRun?: number
+  maxDealsPerRun?: number
   maxPagesPerRun?: number
   maxConcurrentBrowsers?: number
-  estimateCostPerListing?: number
+  estimateCostPerDeal?: number
   estimateCostPerBrowserPage?: number
 }
 
 export interface BudgetSnapshot {
   elapsedMs: number
-  listingsSoFar: number
+  dealsSoFar: number
   pagesSoFar: number
   browsersSoFar: number
   estimatedCostCents: number
   remainingDurationMs: number
-  remainingListings: number
+  remainingDeals: number
   remainingPages: number
 }
 
 export class CostGuard {
   private startMs: number
-  private listings = 0
+  private deals = 0
   private pages = 0
   private browsers = 0
   private options: Required<CostGuardOptions>
@@ -32,10 +32,10 @@ export class CostGuard {
     this.startMs = Date.now()
     this.options = {
       maxDurationMs: 10 * 60 * 1000, // 10 min
-      maxListingsPerRun: 5000,
+      maxDealsPerRun: 5000,
       maxPagesPerRun: 200,
       maxConcurrentBrowsers: 3,
-      estimateCostPerListing: 0, // cents
+      estimateCostPerDeal: 0, // cents
       estimateCostPerBrowserPage: 5, // ~$0.05 per browser page on cloud
       ...options,
     }
@@ -44,29 +44,29 @@ export class CostGuard {
   snapshot(): BudgetSnapshot {
     const elapsedMs = Date.now() - this.startMs
     const estimatedCostCents =
-      this.listings * this.options.estimateCostPerListing +
+      this.deals * this.options.estimateCostPerDeal +
       this.pages * this.options.estimateCostPerBrowserPage
 
     return {
       elapsedMs,
-      listingsSoFar: this.listings,
+      dealsSoFar: this.deals,
       pagesSoFar: this.pages,
       browsersSoFar: this.browsers,
       estimatedCostCents,
       remainingDurationMs: Math.max(0, this.options.maxDurationMs - elapsedMs),
-      remainingListings: Math.max(0, this.options.maxListingsPerRun - this.listings),
+      remainingDeals: Math.max(0, this.options.maxDealsPerRun - this.deals),
       remainingPages: Math.max(0, this.options.maxPagesPerRun - this.pages),
     }
   }
 
-  check(reason: 'listing' | 'page' | 'browser' | 'time'): { allowed: boolean; why?: string } {
+  check(reason: 'deal' | 'page' | 'browser' | 'time'): { allowed: boolean; why?: string } {
     const s = this.snapshot()
 
     if (s.remainingDurationMs <= 0) {
       return { allowed: false, why: `Run exceeded max duration ${this.options.maxDurationMs}ms` }
     }
-    if (reason === 'listing' && s.remainingListings <= 0) {
-      return { allowed: false, why: `Run exceeded max listings ${this.options.maxListingsPerRun}` }
+    if (reason === 'deal' && s.remainingDeals <= 0) {
+      return { allowed: false, why: `Run exceeded max deals ${this.options.maxDealsPerRun}` }
     }
     if (reason === 'page' && s.remainingPages <= 0) {
       return { allowed: false, why: `Run exceeded max pages ${this.options.maxPagesPerRun}` }
@@ -78,8 +78,8 @@ export class CostGuard {
     return { allowed: true }
   }
 
-  trackListings(count: number): void {
-    this.listings += count
+  trackDeals(count: number): void {
+    this.deals += count
   }
 
   trackPages(count: number): void {

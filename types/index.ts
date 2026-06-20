@@ -1,9 +1,9 @@
 // DealerHunt shared types
 
-export interface Listing {
+export interface Deal {
   id?: string
   source: string
-  source_listing_id?: string
+  source_deal_id?: string
   source_url?: string
   dealer_id?: string
   title: string
@@ -42,8 +42,8 @@ export interface Listing {
 export interface ScrapeResult {
   source: string
   success: boolean
-  listingsFound: number
-  listingsSaved?: number
+  dealsFound: number
+  dealsSaved?: number
   duration: number
   error?: string
   metadata?: Record<string, unknown>
@@ -54,8 +54,8 @@ export interface ScraperRun {
   source: string
   source_id?: string
   status: 'running' | 'success' | 'error' | 'completed'
-  listings_found: number
-  listings_saved?: number
+  deals_found: number
+  deals_saved?: number
   duration_ms?: number
   error_message?: string
   started_at?: string
@@ -74,7 +74,7 @@ export interface DealerProfile {
   email?: string
   website?: string
   type?: string
-  total_listings?: number
+  total_deals?: number
   avg_price?: number
   rating?: number
   reviews?: number

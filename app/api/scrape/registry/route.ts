@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
       autoDisableThreshold: s.autoDisableThreshold,
       lastRun: s.lastRun?.toISOString(),
       averageDurationMs: s.averageDurationMs,
-      estimatedListingsPerRun: s.estimatedListingsPerRun,
+      estimatedDealsPerRun: s.estimatedDealsPerRun,
     }))
 
     let sources = all

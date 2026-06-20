@@ -16,7 +16,7 @@ describe('ConcurrentOrchestrator', () => {
       stealthRequired: false,
       fn: async () => 10,
       enabled: true,
-      estimatedListingsPerRun: 10,
+      estimatedDealsPerRun: 10,
     })
     registry.register({
       id: 'two',
@@ -28,7 +28,7 @@ describe('ConcurrentOrchestrator', () => {
       stealthRequired: false,
       fn: async () => 20,
       enabled: true,
-      estimatedListingsPerRun: 20,
+      estimatedDealsPerRun: 20,
     })
     registry.register({
       id: 'disabled',
@@ -40,7 +40,7 @@ describe('ConcurrentOrchestrator', () => {
       stealthRequired: false,
       fn: async () => 5,
       enabled: false,
-      estimatedListingsPerRun: 5,
+      estimatedDealsPerRun: 5,
     })
 
     const orchestrator = new ConcurrentOrchestrator(registry, {
@@ -53,8 +53,8 @@ describe('ConcurrentOrchestrator', () => {
     expect(results).toHaveLength(2)
     expect(results.map(r => r.source).sort()).toEqual(['one', 'two'])
     expect(results.every(r => r.success)).toBe(true)
-    expect(results.find(r => r.source === 'one')?.listingsFound).toBe(10)
-    expect(results.find(r => r.source === 'two')?.listingsFound).toBe(20)
+    expect(results.find(r => r.source === 'one')?.dealsFound).toBe(10)
+    expect(results.find(r => r.source === 'two')?.dealsFound).toBe(20)
   })
 
   it('records failures and tracks consecutive failures', async () => {
@@ -71,14 +71,14 @@ describe('ConcurrentOrchestrator', () => {
         throw new Error('boom')
       },
       enabled: true,
-      estimatedListingsPerRun: 10,
+      estimatedDealsPerRun: 10,
       autoDisableThreshold: 1,
     })
 
     const executor = new ScraperExecutor()
     const result = await executor.execute(registry.get('failing')!, { maxRetries: 0, timeoutMs: 1000 })
 
-    await registry.updateStats('failing', result.success, result.durationMs, result.listingsFound)
+    await registry.updateStats('failing', result.success, result.durationMs, result.dealsFound)
 
     expect(result.success).toBe(false)
     expect(result.error).toContain('boom')
@@ -98,7 +98,7 @@ describe('ConcurrentOrchestrator', () => {
       stealthRequired: false,
       fn: async () => 1,
       enabled: true,
-      estimatedListingsPerRun: 1,
+      estimatedDealsPerRun: 1,
     })
 
     const onProgress = vi.fn()

@@ -20,7 +20,7 @@ export async function GET() {
     const sourceIds = sources.map(s => s.id)
     const { data: recentRuns, error } = await supabase
       .from('scraper_runs')
-      .select('source, status, completed_at, error_message, listings_found, duration_ms')
+      .select('source, status, completed_at, error_message, deals_found, duration_ms')
       .in('source', sourceIds)
       .order('completed_at', { ascending: false })
       .limit(1000)
@@ -60,7 +60,7 @@ export async function GET() {
         totalRuns,
         failedRuns,
         successRate,
-        estimatedListingsPerRun: source.estimatedListingsPerRun,
+        estimatedDealsPerRun: source.estimatedDealsPerRun,
       }
     })
 

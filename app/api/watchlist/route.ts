@@ -5,7 +5,7 @@ import { createServerComponentClient } from '@/lib/supabase'
 import { z } from 'zod'
 
 const watchlistSchema = z.object({
-  listing_id: z.string().uuid(),
+  deal_id: z.string().uuid(),
   alert_threshold: z.number().optional(),
   notes: z.string().optional()
 })
@@ -22,14 +22,14 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { listing_id, alert_threshold, notes } = watchlistSchema.parse(body)
+    const { deal_id, alert_threshold, notes } = watchlistSchema.parse(body)
 
     // Check if already in watchlist
     const { data: existing } = await supabase
       .from('watchlist')
       .select('id')
       .eq('user_id', user.id)
-      .eq('listing_id', listing_id)
+      .eq('deal_id', deal_id)
       .single()
 
     if (existing) {
@@ -41,13 +41,13 @@ export async function POST(request: NextRequest) {
       .from('watchlist')
       .insert({
         user_id: user.id,
-        listing_id,
+        deal_id,
         alert_threshold,
         notes
       })
       .select(`
         *,
-        listing:listing_id (
+        deal:deal_id (
           id, title, year, make, model, ask_price, 
           profit_estimate, images, source_url
         )
@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
       .from('watchlist')
       .select(`
         *,
-        listing:listing_id (
+        deal:deal_id (
           id, title, year, make, model, ask_price, 
           profit_estimate, images, source_url, auction_end_at
         )
@@ -93,7 +93,7 @@ export async function GET(request: NextRequest) {
       // This would need price history join - simplified for now
       query = query
     } else if (filter === 'ending_soon') {
-      query = query.lte('listing.auction_end_at', new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString())
+      query = query.lte('deal.auction_end_at', new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString())
     }
 
     const { data, error } = await query.order('created_at', { ascending: false })
@@ -119,17 +119,17 @@ export async function DELETE(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url)
-    const listing_id = searchParams.get('listing_id')
+    const deal_id = searchParams.get('deal_id')
 
-    if (!listing_id) {
-      return NextResponse.json({ error: 'listing_id required' }, { status: 400 })
+    if (!deal_id) {
+      return NextResponse.json({ error: 'deal_id required' }, { status: 400 })
     }
 
     const { error } = await supabase
       .from('watchlist')
       .delete()
       .eq('user_id', user.id)
-      .eq('listing_id', listing_id)
+      .eq('deal_id', deal_id)
 
     if (error) throw error
 

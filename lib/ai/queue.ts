@@ -44,14 +44,14 @@ aiParsingQueue.process(async (job) => {
     throw new Error('Failed to extract data using AI');
   }
   
-  const sourceListingId = new URL(sourceUrl).pathname.replace(/[^a-zA-Z0-9]/g, '') || Date.now().toString();
+  const sourceDealId = new URL(sourceUrl).pathname.replace(/[^a-zA-Z0-9]/g, '') || Date.now().toString();
   const dbSource = source || 'independent_dealer';
 
   // Hand off to the valuation queue instead of saving immediately
   // This allows parsing to be fast and valuation to be retried independently
   await aiValuationQueue.add({
-    listingData: extractedData,
-    sourceListingId,
+    dealData: extractedData,
+    sourceDealId,
     source: dbSource,
     sourceUrl,
     dealerId
@@ -62,16 +62,16 @@ aiParsingQueue.process(async (job) => {
 
 // --- 2. VALUATION QUEUE ---
 aiValuationQueue.process(async (job) => {
-  const { listingData, sourceListingId, source, sourceUrl, dealerId } = job.data;
-  console.log(`[AI Valuation] Valuing ${listingData.year} ${listingData.make} ${listingData.model}`);
+  const { dealData, sourceDealId, source, sourceUrl, dealerId } = job.data;
+  console.log(`[AI Valuation] Valuing ${dealData.year} ${dealData.make} ${dealData.model}`);
 
   const valuation = await predictVehicleValuation({
-    make: listingData.make,
-    model: listingData.model,
-    year: listingData.year,
-    mileage: listingData.mileage || 0,
-    condition: listingData.condition,
-    ask_price: listingData.ask_price,
+    make: dealData.make,
+    model: dealData.model,
+    year: dealData.year,
+    mileage: dealData.mileage || 0,
+    condition: dealData.condition,
+    ask_price: dealData.ask_price,
     location_state: 'Unknown' // Ideally passed down from dealer info
   });
 
@@ -83,37 +83,37 @@ aiValuationQueue.process(async (job) => {
   const estimatedRepairCost = valuation.estimatedRepairCost || 0;
 
   // Calculate true net profit
-  const trueNetProfit = valuation.estimatedWholesalePrice - listingData.ask_price - estimatedTransportCost - estimatedRepairCost;
+  const trueNetProfit = valuation.estimatedWholesalePrice - dealData.ask_price - estimatedTransportCost - estimatedRepairCost;
 
   // Calculate true profit score (0-100) based on true margin
   let profitScore = 0;
   if (trueNetProfit > 0) {
-     profitScore = Math.min(100, Math.floor((trueNetProfit / listingData.ask_price) * 100));
+     profitScore = Math.min(100, Math.floor((trueNetProfit / dealData.ask_price) * 100));
   }
 
   const supabase = createServerComponentClient();
   
-  const listingRecord = {
+  const dealRecord = {
     source,
     dealer_id: dealerId || null,
-    source_listing_id: sourceListingId,
+    source_deal_id: sourceDealId,
     source_url: sourceUrl,
-    title: listingData.title,
-    make: listingData.make,
-    model: listingData.model,
-    year: listingData.year,
-    ask_price: listingData.ask_price,
-    mileage: listingData.mileage || null,
-    vin: listingData.vin || null,
-    condition: listingData.condition,
-    damage_type: listingData.damage_type || null,
-    color: listingData.color || null,
-    body_style: listingData.body_style || null,
-    fuel_type: listingData.fuel_type || null,
-    transmission: listingData.transmission || null,
-    drivetrain: listingData.drivetrain || null,
-    engine: listingData.engine || null,
-    images: listingData.images || [],
+    title: dealData.title,
+    make: dealData.make,
+    model: dealData.model,
+    year: dealData.year,
+    ask_price: dealData.ask_price,
+    mileage: dealData.mileage || null,
+    vin: dealData.vin || null,
+    condition: dealData.condition,
+    damage_type: dealData.damage_type || null,
+    color: dealData.color || null,
+    body_style: dealData.body_style || null,
+    fuel_type: dealData.fuel_type || null,
+    transmission: dealData.transmission || null,
+    drivetrain: dealData.drivetrain || null,
+    engine: dealData.engine || null,
+    images: dealData.images || [],
     mmr_value: valuation.estimatedWholesalePrice, // This automatically triggers profit_estimate generation via DB trigger/generated column
     profit_score: profitScore,
     ai_wholesale_estimate: valuation.estimatedWholesalePrice,
@@ -128,16 +128,16 @@ aiValuationQueue.process(async (job) => {
   };
 
   const { error } = await supabase
-    .from('listings')
-    .upsert(listingRecord, { onConflict: 'source, source_listing_id' });
+    .from('deals')
+    .upsert(dealRecord, { onConflict: 'source, source_deal_id' });
 
   if (error) {
     console.error(`[AI Valuation] Database error:`, error);
     throw new Error(`Database error: ${error.message}`);
   }
 
-  console.log(`[AI Valuation] Successfully upserted listing into database.`);
-  return { listingData, valuation };
+  console.log(`[AI Valuation] Successfully upserted deal into database.`);
+  return { dealData, valuation };
 });
 
 // Helper function to add VDP URLs to the queue

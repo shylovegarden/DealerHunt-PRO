@@ -4,7 +4,7 @@ import { structuredModel } from '../config';
 
 // Define the schema for the vehicle data we want to extract to match the DB
 const VehicleDataSchema = z.object({
-  title: z.string().describe('The full title of the listing (e.g., 2018 Ford F-150 XLT)'),
+  title: z.string().describe('The full title of the deal (e.g., 2018 Ford F-150 XLT)'),
   make: z.string().describe('The make or brand of the vehicle (e.g., Ford, Toyota)'),
   model: z.string().describe('The specific model of the vehicle'),
   year: z.number().describe('The manufacturing year of the vehicle'),
@@ -20,7 +20,7 @@ const VehicleDataSchema = z.object({
   drivetrain: z.string().optional(),
   engine: z.string().optional(),
   images: z.array(z.string()).describe('An array of image URLs found on the page').default([]),
-  description: z.string().optional().describe('A summary of the listing description and notable features'),
+  description: z.string().optional().describe('A summary of the deal description and notable features'),
 });
 
 export type ExtractedVehicleData = z.infer<typeof VehicleDataSchema>;

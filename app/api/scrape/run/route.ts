@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
       total: results.length,
       successful: results.filter(r => r.success).length,
       failed: results.filter(r => !r.success).length,
-      totalListings: results.reduce((sum, r) => sum + r.listingsFound, 0),
+      totalDeals: results.reduce((sum, r) => sum + r.dealsFound, 0),
       totalDuration: results.reduce((sum, r) => sum + r.duration, 0),
       results,
     }

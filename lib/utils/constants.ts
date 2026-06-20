@@ -72,6 +72,6 @@ export const DAMAGE_TYPES = [
 
 export const PLAN_TIERS = [
   { id: 'scout', name: 'Scout', price: 49, description: '50 scans/day, 1 alert' },
-  { id: 'pro', name: 'Pro', price: 149, description: 'Unlimited scans, fleet + listing blast' },
+  { id: 'pro', name: 'Pro', price: 149, description: 'Unlimited scans, fleet + deal blast' },
   { id: 'elite', name: 'Elite', price: 349, description: 'Outreach, API, unlimited alerts' },
 ]

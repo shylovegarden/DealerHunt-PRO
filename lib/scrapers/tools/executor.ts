@@ -1,7 +1,7 @@
 // lib/scrapers/tools/executor.ts
 // Executes a single scraper with retry, error handling, and result normalization.
 
-import { ScrapeResult, Listing } from '@/types'
+import { ScrapeResult, Deal } from '@/types'
 import { RegisteredScraper, ScraperArgs } from './registry'
 import { CostGuard, CostGuardOptions } from './cost-guard'
 import { CircuitBreakerRegistry, CircuitBreakerOptions } from './circuit-breaker'
@@ -20,11 +20,11 @@ export interface ExecutorOptions {
 
 export interface ExecutorResult {
   success: boolean
-  listingsFound: number
-  listingsSaved: number
+  dealsFound: number
+  dealsSaved: number
   durationMs: number
   error?: string
-  listings?: Listing[]
+  deals?: Deal[]
 }
 
 export class ScraperExecutor {
@@ -42,8 +42,8 @@ export class ScraperExecutor {
     if (!budget.allowed) {
       return {
         success: false,
-        listingsFound: 0,
-        listingsSaved: 0,
+        dealsFound: 0,
+        dealsSaved: 0,
         durationMs: 0,
         error: budget.why,
       }
@@ -53,8 +53,8 @@ export class ScraperExecutor {
     if (!circuit.allowed) {
       return {
         success: false,
-        listingsFound: 0,
-        listingsSaved: 0,
+        dealsFound: 0,
+        dealsSaved: 0,
         durationMs: 0,
         error: circuit.reason,
       }
@@ -64,8 +64,8 @@ export class ScraperExecutor {
       if (abortSignal?.aborted) {
         return {
           success: false,
-          listingsFound: 0,
-          listingsSaved: 0,
+          dealsFound: 0,
+          dealsSaved: 0,
           durationMs: Date.now() - start,
           error: 'Aborted by user',
         }
@@ -76,8 +76,8 @@ export class ScraperExecutor {
           await this.simulateScrape(scraper)
           return {
             success: true,
-            listingsFound: scraper.estimatedListingsPerRun || Math.floor(Math.random() * 50),
-            listingsSaved: scraper.estimatedListingsPerRun || Math.floor(Math.random() * 50),
+            dealsFound: scraper.estimatedDealsPerRun || Math.floor(Math.random() * 50),
+            dealsSaved: scraper.estimatedDealsPerRun || Math.floor(Math.random() * 50),
             durationMs: Date.now() - start,
           }
         }
@@ -85,16 +85,16 @@ export class ScraperExecutor {
         const result = await this.runWithTimeout(scraper, timeoutMs, abortSignal)
         const durationMs = Date.now() - start
 
-        const listingsFound = this.countResult(result)
-        const remaining = guard.snapshot().remainingListings
-        const cappedListings = Math.min(listingsFound, remaining)
-        guard.trackListings(cappedListings)
+        const dealsFound = this.countResult(result)
+        const remaining = guard.snapshot().remainingDeals
+        const cappedDeals = Math.min(dealsFound, remaining)
+        guard.trackDeals(cappedDeals)
 
         breaker.recordSuccess(scraper.id)
         return {
           success: true,
-          listingsFound: cappedListings,
-          listingsSaved: cappedListings,
+          dealsFound: cappedDeals,
+          dealsSaved: cappedDeals,
           durationMs,
         }
       } catch (error) {
@@ -110,14 +110,14 @@ export class ScraperExecutor {
     breaker.recordFailure(scraper.id)
     return {
       success: false,
-      listingsFound: 0,
-      listingsSaved: 0,
+      dealsFound: 0,
+      dealsSaved: 0,
       durationMs,
       error: lastError?.message || 'Unknown error',
     }
   }
 
-  private async runWithTimeout(scraper: RegisteredScraper, timeoutMs: number, abortSignal?: AbortSignal): Promise<number | Listing[]> {
+  private async runWithTimeout(scraper: RegisteredScraper, timeoutMs: number, abortSignal?: AbortSignal): Promise<number | Deal[]> {
     return new Promise(async (resolve, reject) => {
       const timeoutId = setTimeout(() => {
         reject(new Error(`Scraper ${scraper.id} timed out after ${timeoutMs}ms`))
@@ -149,7 +149,7 @@ export class ScraperExecutor {
     await this.delay(delay)
   }
 
-  private countResult(result: number | Listing[]): number {
+  private countResult(result: number | Deal[]): number {
     if (typeof result === 'number') return result
     if (Array.isArray(result)) return result.length
     return 0

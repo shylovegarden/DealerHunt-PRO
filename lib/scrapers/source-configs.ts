@@ -12,7 +12,7 @@ export const SCRAPER_CONFIGS: EnhancedScraperConfig[] = [
     proxyRotation: true,
     stealthMode: true,
     selectors: {
-      listingContainer: 'div.lot-item',
+      dealContainer: 'div.lot-item',
       title: 'span.lot-title',
       price: 'span.lot-price',
       year: 'span.lot-year',
@@ -44,7 +44,7 @@ export const SCRAPER_CONFIGS: EnhancedScraperConfig[] = [
     proxyRotation: true,
     stealthMode: true,
     selectors: {
-      listingContainer: 'div.vehicle-item',
+      dealContainer: 'div.vehicle-item',
       title: 'h3.vehicle-title',
       price: 'span.bid-current',
       year: 'span.vehicle-year',
@@ -76,7 +76,7 @@ export const SCRAPER_CONFIGS: EnhancedScraperConfig[] = [
     proxyRotation: true,
     stealthMode: true,
     selectors: {
-      listingContainer: 'div.auction-item',
+      dealContainer: 'div.auction-item',
       title: 'h4.lot-title',
       price: 'span.current-bid',
       year: 'span.lot-year',
@@ -108,7 +108,7 @@ export const SCRAPER_CONFIGS: EnhancedScraperConfig[] = [
     proxyRotation: true,
     stealthMode: true,
     selectors: {
-      listingContainer: 'div.vehicle-card',
+      dealContainer: 'div.vehicle-card',
       title: 'h3.vehicle-title',
       price: 'span.bid-amount',
       year: 'span.vehicle-year',
@@ -142,7 +142,7 @@ export const SCRAPER_CONFIGS: EnhancedScraperConfig[] = [
     proxyRotation: true,
     stealthMode: true,
     selectors: {
-      listingContainer: 'div.listing-item',
+      dealContainer: 'div.deal-item',
       title: 'h2.vehicle-title',
       price: 'span.current-price',
       year: 'span.vehicle-year',
@@ -176,7 +176,7 @@ export const SCRAPER_CONFIGS: EnhancedScraperConfig[] = [
     proxyRotation: true,
     stealthMode: true,
     selectors: {
-      listingContainer: 'div[data-testid="marketplace-search-item"]',
+      dealContainer: 'div[data-testid="marketplace-search-item"]',
       title: 'span[data-testid="marketplace-search-item-title"]',
       price: 'span[data-testid="marketplace-search-item-price"]',
       location: 'span[data-testid="marketplace-search-item-location"]',
@@ -201,7 +201,7 @@ export const SCRAPER_CONFIGS: EnhancedScraperConfig[] = [
     proxyRotation: true,
     stealthMode: false,
     selectors: {
-      listingContainer: 'li.result-row',
+      dealContainer: 'li.result-row',
       title: 'a.result-title',
       price: 'span.result-price',
       location: 'span.result-hood',
@@ -225,7 +225,7 @@ export const SCRAPER_CONFIGS: EnhancedScraperConfig[] = [
     proxyRotation: true,
     stealthMode: false,
     selectors: {
-      listingContainer: 'div.s-item',
+      dealContainer: 'div.s-item',
       title: 'h3.s-item__title',
       price: 'span.s-item__price',
       mileage: 'div.s-item__subtitle',
@@ -254,7 +254,7 @@ export const SCRAPER_CONFIGS: EnhancedScraperConfig[] = [
     proxyRotation: true,
     stealthMode: false,
     selectors: {
-      listingContainer: 'div.part-item',
+      dealContainer: 'div.part-item',
       title: 'h4.part-title',
       price: 'span.part-price',
       location: 'span.part-location',
@@ -282,7 +282,7 @@ export const SCRAPER_CONFIGS: EnhancedScraperConfig[] = [
     proxyRotation: false,
     stealthMode: false,
     selectors: {
-      listingContainer: 'div.vehicle-item',
+      dealContainer: 'div.vehicle-item',
       title: 'h3.vehicle-title',
       price: 'span.vehicle-price',
       year: 'span.vehicle-year',
@@ -312,7 +312,7 @@ export const SCRAPER_CONFIGS: EnhancedScraperConfig[] = [
     proxyRotation: false,
     stealthMode: false,
     selectors: {
-      listingContainer: 'div.inventory-item',
+      dealContainer: 'div.inventory-item',
       title: 'h2.car-title',
       price: 'span.car-price',
       year: 'span.car-year',
@@ -342,7 +342,7 @@ export const SCRAPER_CONFIGS: EnhancedScraperConfig[] = [
     proxyRotation: false,
     stealthMode: false,
     selectors: {
-      listingContainer: 'div.wholesale-item',
+      dealContainer: 'div.wholesale-item',
       title: 'h3.unit-title',
       price: 'span.unit-price',
       year: 'span.unit-year',

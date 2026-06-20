@@ -1,8 +1,8 @@
 // lib/scrapers/tools/deal-scoring.ts
-// Rule-based deal scoring. Avoids AI costs on every listing while still giving customers an edge.
+// Rule-based deal scoring. Avoids AI costs on every deal while still giving customers an edge.
 // Optional AI enrichment only for high-confidence opportunities.
 
-import { Listing } from '@/types'
+import { Deal } from '@/types'
 
 export interface DealScoreInput {
   askPrice: number
@@ -103,22 +103,22 @@ export class DealScoringService {
     return 1.25
   }
 
-  // Apply scoring to a listing object and return enriched fields
-  scoreListing(listing: Partial<Listing>): Partial<Listing> {
+  // Apply scoring to a deal object and return enriched fields
+  scoreDeal(deal: Partial<Deal>): Partial<Deal> {
     const score = this.score({
-      askPrice: listing.ask_price || 0,
-      wholesaleEstimate: listing.ai_wholesale_estimate,
-      retailEstimate: listing.ai_retail_estimate,
-      transportCost: listing.transport_cost,
-      repairEstimate: listing.repair_estimate,
-      mileage: listing.mileage,
-      year: listing.year,
-      condition: listing.condition,
-      source: listing.source,
+      askPrice: deal.ask_price || 0,
+      wholesaleEstimate: deal.ai_wholesale_estimate,
+      retailEstimate: deal.ai_retail_estimate,
+      transportCost: deal.transport_cost,
+      repairEstimate: deal.repair_estimate,
+      mileage: deal.mileage,
+      year: deal.year,
+      condition: deal.condition,
+      source: deal.source,
     })
 
     return {
-      ...listing,
+      ...deal,
       profit_estimate: score.profitEstimate,
       profit_score: score.profitScore,
       is_arbitrage_opportunity: score.arbitrage,

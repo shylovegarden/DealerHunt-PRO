@@ -1,10 +1,10 @@
 // lib/scrapers/sources/facebook-marketplace.ts
 // ─── Facebook Marketplace scraper (requires login / heavy anti-bot) ───────────
 
-import type { Listing } from '@/types'
+import type { Deal } from '@/types'
 import * as cheerio from 'cheerio'
 import { paginate, extractPrice, extractMileage, extractYear, normalizeUrl, type ScraperConfig } from '../engine'
-import { upsertListings } from '../pipeline'
+import { upsertDeals } from '../pipeline'
 
 export const FACEBOOK_MARKETPLACE_CONFIG: ScraperConfig = {
   name: 'Facebook Marketplace',
@@ -32,17 +32,17 @@ export async function scrapeFacebookMarketplace(
   maxPagesPerSearch = 3
 ) {
   console.log('[Facebook Marketplace] Starting scrape...')
-  const allListings: Partial<Listing>[] = []
+  const allDeals: Partial<Deal>[] = []
 
   for (const query of searches) {
     const config = { ...FACEBOOK_MARKETPLACE_CONFIG, maxPages: maxPagesPerSearch }
-    const gen = paginate<Partial<Listing>>(
+    const gen = paginate<Partial<Deal>>(
       config,
       (page) =>
         `https://www.facebook.com/marketplace/vehicles/search/?query=${encodeURIComponent(query)}`,
       async (input) => {
         const $ = typeof input === 'string' ? cheerio.load(input) : input
-        const items: Partial<Listing>[] = []
+        const items: Partial<Deal>[] = []
 
         $('div[data-testid="marketplace-search-item"]').each((_: number, el: any) => {
           const row = $(el)
@@ -61,7 +61,7 @@ export async function scrapeFacebookMarketplace(
 
           items.push({
             source: 'facebook_marketplace',
-            source_listing_id: itemId,
+            source_deal_id: itemId,
             source_url: link ? normalizeUrl(link, 'https://www.facebook.com') : '',
             title,
             year: extractYear(title),
@@ -85,11 +85,11 @@ export async function scrapeFacebookMarketplace(
     )
 
     for await (const batch of gen) {
-      allListings.push(...batch)
+      allDeals.push(...batch)
     }
   }
 
-  console.log(`[Facebook Marketplace] Found ${allListings.length} listings (requires active login for live data)`)
-  await upsertListings(allListings)
-  return allListings.length
+  console.log(`[Facebook Marketplace] Found ${allDeals.length} deals (requires active login for live data)`)
+  await upsertDeals(allDeals)
+  return allDeals.length
 }

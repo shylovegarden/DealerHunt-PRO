@@ -18,7 +18,7 @@ export interface Dealer {
     website?: string
   }
   inventory: {
-    totalListings: number
+    totalDeals: number
     avgPrice: number
     priceRange: { min: number; max: number }
     popularMakes: string[]
@@ -471,7 +471,7 @@ export class DealersService {
         website: dbRecord.website
       },
       inventory: {
-        totalListings: dbRecord.total_listings || 0,
+        totalDeals: dbRecord.total_deals || 0,
         avgPrice: parseFloat(dbRecord.avg_price) || 0,
         priceRange: {
           min: dbRecord.price_range ? parseFloat(dbRecord.price_range[0]) : 0,
@@ -524,7 +524,7 @@ export class DealersService {
       phone: dealer.contact?.phone,
       email: dealer.contact?.email,
       website: dealer.contact?.website,
-      total_listings: dealer.inventory?.totalListings,
+      total_deals: dealer.inventory?.totalDeals,
       avg_price: dealer.inventory?.avgPrice,
       price_range: dealer.inventory?.priceRange 
         ? `[${dealer.inventory.priceRange.min}, ${dealer.inventory.priceRange.max}]`

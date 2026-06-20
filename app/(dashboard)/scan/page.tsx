@@ -61,7 +61,7 @@ export default function ScanPage() {
       step++
       if (step === 1) setLogs((prev) => [...prev, `[SCAN] Querying Salvage Auctions...`])
       if (step === 3) setLogs((prev) => [...prev, `[MATCH] Found 2019 Ford F-150 at Copart TX (+ $4.2k est)`])
-      if (step === 5) setLogs((prev) => [...prev, `[SCAN] Querying Private Listings (CL/FB)...`])
+      if (step === 5) setLogs((prev) => [...prev, `[SCAN] Querying Private Deals (CL/FB)...`])
       if (step === 7) setLogs((prev) => [...prev, `[MATCH] Found 2018 F-150 Lariat on FB Marketplace TX (+ $3.1k est)`])
       if (step === 9) setLogs((prev) => [...prev, `[SCAN] Querying Wholesale (Manheim/ADESA)...`])
       if (step === 11) {

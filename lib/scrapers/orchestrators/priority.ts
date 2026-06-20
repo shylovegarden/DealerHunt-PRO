@@ -91,18 +91,18 @@ export class PriorityOrchestrator extends BaseScraperOrchestrator {
         await this.logScrapeComplete(
           runId,
           scraper.id,
-          execResult.listingsFound,
-          execResult.listingsSaved,
+          execResult.dealsFound,
+          execResult.dealsSaved,
           duration,
           execResult.success ? 'success' : 'error'
         )
 
-        await this.registry.updateStats(scraper.id, execResult.success, duration, execResult.listingsFound)
+        await this.registry.updateStats(scraper.id, execResult.success, duration, execResult.dealsFound)
         await this.recordResult({
           source: scraper.id,
           success: execResult.success,
-          listingsFound: execResult.listingsFound,
-          listingsSaved: execResult.listingsSaved,
+          dealsFound: execResult.dealsFound,
+          dealsSaved: execResult.dealsSaved,
           duration,
           error: execResult.error,
         })
@@ -111,7 +111,7 @@ export class PriorityOrchestrator extends BaseScraperOrchestrator {
         const message = error instanceof Error ? error.message : 'Unknown error'
         await this.logScrapeError(runId, error)
         await this.registry.updateStats(scraper.id, false, duration, 0)
-        await this.recordResult({ source: scraper.id, success: false, listingsFound: 0, duration, error: message })
+        await this.recordResult({ source: scraper.id, success: false, dealsFound: 0, duration, error: message })
       } finally {
         this.emitProgress()
       }

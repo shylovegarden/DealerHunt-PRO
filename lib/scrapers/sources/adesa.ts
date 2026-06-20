@@ -1,10 +1,10 @@
 // lib/scrapers/sources/adesa.ts
 // ─── ADESA auction scraper (requires dealer account / API token) ────────────────
 
-import type { Listing } from '@/types'
+import type { Deal } from '@/types'
 import * as cheerio from 'cheerio'
 import { paginate, extractPrice, extractMileage, extractYear, normalizeUrl, type ScraperConfig } from '../engine'
-import { upsertListings } from '../pipeline'
+import { upsertDeals } from '../pipeline'
 
 export const ADESA_CONFIG: ScraperConfig = {
   name: 'ADESA',
@@ -22,17 +22,17 @@ export async function scrapeAdesa(maxPages = ADESA_CONFIG.maxPages) {
   console.log('[ADESA] Starting scrape...')
 
   // ADESA requires a dealer account. Attempt public lot search; if blocked, return 0.
-  const allListings: Partial<Listing>[] = []
+  const allDeals: Partial<Deal>[] = []
   const config = { ...ADESA_CONFIG, maxPages }
 
-  const gen = paginate<Partial<Listing>>(
+  const gen = paginate<Partial<Deal>>(
     config,
     (page) => `https://www.adesa.com/locations/public-sales?page=${page}`,
     async (input) => {
       const $ = typeof input === 'string' ? cheerio.load(input) : input
-      const items: Partial<Listing>[] = []
+      const items: Partial<Deal>[] = []
 
-      $('div.auction-item, div.lot-card, .vehicle-listing').each((_: number, el: any) => {
+      $('div.auction-item, div.lot-card, .vehicle-deal').each((_: number, el: any) => {
         const row = $(el)
         const title = row.find('h4.lot-title, .lot-title').text().trim()
         if (!title) return
@@ -50,7 +50,7 @@ export async function scrapeAdesa(maxPages = ADESA_CONFIG.maxPages) {
 
         items.push({
           source: 'adesa',
-          source_listing_id: itemId,
+          source_deal_id: itemId,
           source_url: link ? normalizeUrl(link, ADESA_CONFIG.baseUrl) : '',
           title,
           year: extractYear(title),
@@ -73,10 +73,10 @@ export async function scrapeAdesa(maxPages = ADESA_CONFIG.maxPages) {
   )
 
   for await (const batch of gen) {
-    allListings.push(...batch)
+    allDeals.push(...batch)
   }
 
-  console.log(`[ADESA] Found ${allListings.length} listings (requires dealer account for live inventory)`)
-  await upsertListings(allListings)
-  return allListings.length
+  console.log(`[ADESA] Found ${allDeals.length} deals (requires dealer account for live inventory)`)
+  await upsertDeals(allDeals)
+  return allDeals.length
 }

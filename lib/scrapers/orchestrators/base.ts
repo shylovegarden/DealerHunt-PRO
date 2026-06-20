@@ -97,12 +97,12 @@ export abstract class BaseScraperOrchestrator {
   protected async logScrapeComplete(
     runId: string,
     source: string,
-    listingsFound: number,
-    listingsSaved: number,
+    dealsFound: number,
+    dealsSaved: number,
     duration: number,
     status: 'success' | 'error' = 'success'
   ) {
-    this.log(`${source}: ${status} in ${duration}ms, found ${listingsFound}, saved ${listingsSaved}`)
+    this.log(`${source}: ${status} in ${duration}ms, found ${dealsFound}, saved ${dealsSaved}`)
 
     if (this.options.dryRun) return
 
@@ -110,8 +110,8 @@ export abstract class BaseScraperOrchestrator {
       .from('scraper_runs')
       .update({
         status,
-        listings_found: listingsFound,
-        listings_saved: listingsSaved,
+        deals_found: dealsFound,
+        deals_saved: dealsSaved,
         duration_ms: duration,
         completed_at: new Date().toISOString(),
       })

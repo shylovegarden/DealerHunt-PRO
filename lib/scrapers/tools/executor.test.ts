@@ -15,13 +15,13 @@ describe('ScraperExecutor', () => {
       stealthRequired: false,
       fn: async () => 42,
       enabled: true,
-      estimatedListingsPerRun: 10,
+      estimatedDealsPerRun: 10,
     })
 
     const result = await executor.execute(scraper, { timeoutMs: 1000 })
     expect(result.success).toBe(true)
-    expect(result.listingsFound).toBe(42)
-    expect(result.listingsSaved).toBe(42)
+    expect(result.dealsFound).toBe(42)
+    expect(result.dealsSaved).toBe(42)
   })
 
   it('returns error after exhausting retries', async () => {
@@ -38,13 +38,13 @@ describe('ScraperExecutor', () => {
         throw new Error('network error')
       },
       enabled: true,
-      estimatedListingsPerRun: 10,
+      estimatedDealsPerRun: 10,
     })
 
     const result = await executor.execute(scraper, { maxRetries: 1, retryDelayMs: 10, timeoutMs: 1000 })
     expect(result.success).toBe(false)
     expect(result.error).toContain('network error')
-    expect(result.listingsFound).toBe(0)
+    expect(result.dealsFound).toBe(0)
   })
 
   it('respects abort signal', async () => {
@@ -62,7 +62,7 @@ describe('ScraperExecutor', () => {
         return 1
       },
       enabled: true,
-      estimatedListingsPerRun: 10,
+      estimatedDealsPerRun: 10,
     })
 
     const controller = new AbortController()
@@ -86,15 +86,15 @@ describe('ScraperExecutor', () => {
       stealthRequired: false,
       fn: async () => 0,
       enabled: true,
-      estimatedListingsPerRun: 50,
+      estimatedDealsPerRun: 50,
     })
 
     const result = await executor.execute(scraper, { dryRun: true })
     expect(result.success).toBe(true)
-    expect(result.listingsFound).toBe(50)
+    expect(result.dealsFound).toBe(50)
   })
 
-  it('enforces a cost guard listing budget', async () => {
+  it('enforces a cost guard deal budget', async () => {
     const executor = new ScraperExecutor()
     const scraper = new ScraperRegistry().register({
       id: 'budget',
@@ -106,14 +106,14 @@ describe('ScraperExecutor', () => {
       stealthRequired: false,
       fn: async () => 100,
       enabled: true,
-      estimatedListingsPerRun: 100,
+      estimatedDealsPerRun: 100,
     })
 
     const result = await executor.execute(scraper, {
       timeoutMs: 1000,
-      costGuardOptions: { maxListingsPerRun: 5 },
+      costGuardOptions: { maxDealsPerRun: 5 },
     })
     expect(result.success).toBe(true)
-    expect(result.listingsFound).toBeLessThanOrEqual(5)
+    expect(result.dealsFound).toBeLessThanOrEqual(5)
   })
 })

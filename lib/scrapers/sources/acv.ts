@@ -1,10 +1,10 @@
 // lib/scrapers/sources/acv.ts
 // ─── ACV Auctions wholesale scraper (requires dealer account) ─────────────────
 
-import type { Listing } from '@/types'
+import type { Deal } from '@/types'
 import * as cheerio from 'cheerio'
 import { paginate, extractPrice, extractMileage, extractYear, normalizeUrl, type ScraperConfig } from '../engine'
-import { upsertListings } from '../pipeline'
+import { upsertDeals } from '../pipeline'
 
 export const ACV_CONFIG: ScraperConfig = {
   name: 'ACV Auctions',
@@ -20,17 +20,17 @@ export const ACV_CONFIG: ScraperConfig = {
 
 export async function scrapeAcv(maxPages = ACV_CONFIG.maxPages) {
   console.log('[ACV Auctions] Starting scrape...')
-  const allListings: Partial<Listing>[] = []
+  const allDeals: Partial<Deal>[] = []
 
   const config = { ...ACV_CONFIG, maxPages }
-  const gen = paginate<Partial<Listing>>(
+  const gen = paginate<Partial<Deal>>(
     config,
     (page) => `https://www.acvauctions.com/marketplace?page=${page}`,
     async (input) => {
       const $ = typeof input === 'string' ? cheerio.load(input) : input
-      const items: Partial<Listing>[] = []
+      const items: Partial<Deal>[] = []
 
-      $('div.listing-item, div[data-testid="vehicle-card"], .vehicle-listing').each((_: number, el: any) => {
+      $('div.deal-item, div[data-testid="vehicle-card"], .vehicle-deal').each((_: number, el: any) => {
         const row = $(el)
         const title = row.find('h2.vehicle-title, .vehicle-title').text().trim()
         if (!title) return
@@ -48,7 +48,7 @@ export async function scrapeAcv(maxPages = ACV_CONFIG.maxPages) {
 
         items.push({
           source: 'acv',
-          source_listing_id: itemId,
+          source_deal_id: itemId,
           source_url: link ? normalizeUrl(link, ACV_CONFIG.baseUrl) : '',
           title,
           year: extractYear(title),
@@ -71,10 +71,10 @@ export async function scrapeAcv(maxPages = ACV_CONFIG.maxPages) {
   )
 
   for await (const batch of gen) {
-    allListings.push(...batch)
+    allDeals.push(...batch)
   }
 
-  console.log(`[ACV Auctions] Found ${allListings.length} listings (requires dealer account for live data)`)
-  await upsertListings(allListings)
-  return allListings.length
+  console.log(`[ACV Auctions] Found ${allDeals.length} deals (requires dealer account for live data)`)
+  await upsertDeals(allDeals)
+  return allDeals.length
 }

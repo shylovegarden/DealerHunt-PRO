@@ -27,8 +27,8 @@ export interface ScrapeJob {
   startedAt?: string
   completedAt?: string
   durationMs?: number
-  listingsFound?: number
-  listingsSaved?: number
+  dealsFound?: number
+  dealsSaved?: number
 }
 
 export class QueueOrchestrator extends BaseScraperOrchestrator {
@@ -168,26 +168,26 @@ export class QueueOrchestrator extends BaseScraperOrchestrator {
       const duration = Date.now() - start
       job.status = execResult.success ? 'completed' : 'failed'
       job.durationMs = duration
-      job.listingsFound = execResult.listingsFound
-      job.listingsSaved = execResult.listingsSaved
+      job.dealsFound = execResult.dealsFound
+      job.dealsSaved = execResult.dealsSaved
       job.error = execResult.error
       job.completedAt = new Date().toISOString()
 
       await this.logScrapeComplete(
         runId,
         scraper.id,
-        execResult.listingsFound,
-        execResult.listingsSaved,
+        execResult.dealsFound,
+        execResult.dealsSaved,
         duration,
         execResult.success ? 'success' : 'error'
       )
 
-      await this.registry.updateStats(scraper.id, execResult.success, duration, execResult.listingsFound)
+      await this.registry.updateStats(scraper.id, execResult.success, duration, execResult.dealsFound)
       await this.recordResult({
         source: scraper.id,
         success: execResult.success,
-        listingsFound: execResult.listingsFound,
-        listingsSaved: execResult.listingsSaved,
+        dealsFound: execResult.dealsFound,
+        dealsSaved: execResult.dealsSaved,
         duration,
         error: execResult.error,
       })
@@ -200,7 +200,7 @@ export class QueueOrchestrator extends BaseScraperOrchestrator {
       job.completedAt = new Date().toISOString()
       await this.logScrapeError(runId, error)
       await this.registry.updateStats(scraper.id, false, duration, 0)
-      await this.recordResult({ source: scraper.id, success: false, listingsFound: 0, duration, error: message })
+      await this.recordResult({ source: scraper.id, success: false, dealsFound: 0, duration, error: message })
     } finally {
       await this.updateJob(job)
       this.emitProgress()
@@ -281,8 +281,8 @@ export class QueueOrchestrator extends BaseScraperOrchestrator {
       attempts: job.attempts,
       error: job.error || '',
       durationMs: job.durationMs || 0,
-      listingsFound: job.listingsFound || 0,
-      listingsSaved: job.listingsSaved || 0,
+      dealsFound: job.dealsFound || 0,
+      dealsSaved: job.dealsSaved || 0,
     })
   }
 
@@ -298,8 +298,8 @@ export class QueueOrchestrator extends BaseScraperOrchestrator {
       maxAttempts: parseInt(data.maxAttempts) || 0,
       error: data.error || undefined,
       durationMs: parseInt(data.durationMs) || 0,
-      listingsFound: parseInt(data.listingsFound) || 0,
-      listingsSaved: parseInt(data.listingsSaved) || 0,
+      dealsFound: parseInt(data.dealsFound) || 0,
+      dealsSaved: parseInt(data.dealsSaved) || 0,
     }
   }
 
@@ -332,8 +332,8 @@ export class QueueOrchestrator extends BaseScraperOrchestrator {
         maxAttempts: parseInt(data.maxAttempts) || 0,
         error: data.error || undefined,
         durationMs: parseInt(data.durationMs) || 0,
-        listingsFound: parseInt(data.listingsFound) || 0,
-        listingsSaved: parseInt(data.listingsSaved) || 0,
+        dealsFound: parseInt(data.dealsFound) || 0,
+        dealsSaved: parseInt(data.dealsSaved) || 0,
       })
     }
     return jobs

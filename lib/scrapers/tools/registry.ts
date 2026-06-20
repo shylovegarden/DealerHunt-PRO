@@ -1,10 +1,10 @@
 // lib/scrapers/tools/registry.ts
 // Dynamic registry of scraper sources. Add or remove sources at runtime.
 
-import { ScrapeResult, Listing } from '@/types'
+import { ScrapeResult, Deal } from '@/types'
 import { ScraperStateManager } from './state'
 
-export type ScraperFunction = (args?: ScraperArgs) => Promise<number | Listing[]>
+export type ScraperFunction = (args?: ScraperArgs) => Promise<number | Deal[]>
 
 export interface ScraperArgs {
   states?: string[]
@@ -33,7 +33,7 @@ export interface RegisteredScraper {
   runCount: number
   averageDurationMs: number
   successRate: number
-  estimatedListingsPerRun: number
+  estimatedDealsPerRun: number
   consecutiveFailures: number
   autoDisableThreshold: number
 }
@@ -106,7 +106,7 @@ export class ScraperRegistry {
     })
   }
 
-  async updateStats(id: string, success: boolean, durationMs: number, listingsFound: number): Promise<void> {
+  async updateStats(id: string, success: boolean, durationMs: number, dealsFound: number): Promise<void> {
     const scraper = this.scrapers.get(id)
     if (!scraper) return
 
@@ -132,9 +132,9 @@ export class ScraperRegistry {
     const successCount = Math.round(scraper.successRate * prevWeight) + (success ? 1 : 0)
     scraper.successRate = successCount / scraper.runCount
 
-    // Rolling listings per run
-    scraper.estimatedListingsPerRun =
-      (scraper.estimatedListingsPerRun * prevWeight + listingsFound) / scraper.runCount
+    // Rolling deals per run
+    scraper.estimatedDealsPerRun =
+      (scraper.estimatedDealsPerRun * prevWeight + dealsFound) / scraper.runCount
 
     await this.persistState(id)
   }
@@ -163,7 +163,7 @@ export class ScraperRegistry {
       if (priorityOrder[a.priority] !== priorityOrder[b.priority]) {
         return priorityOrder[a.priority] - priorityOrder[b.priority]
       }
-      return (b.successRate * b.estimatedListingsPerRun) - (a.successRate * a.estimatedListingsPerRun)
+      return (b.successRate * b.estimatedDealsPerRun) - (a.successRate * a.estimatedDealsPerRun)
     })
   }
 }

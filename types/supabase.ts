@@ -14,6 +14,125 @@ export type Database = {
   }
   public: {
     Tables: {
+      alert_log: {
+        Row: {
+          alert_type: string
+          deal_id: string | null
+          drop_amount: number | null
+          drop_percentage: number | null
+          id: string
+          message: string | null
+          new_price: number | null
+          old_price: number | null
+          read_at: string | null
+          sent_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          alert_type?: string
+          deal_id?: string | null
+          drop_amount?: number | null
+          drop_percentage?: number | null
+          id?: string
+          message?: string | null
+          new_price?: number | null
+          old_price?: number | null
+          read_at?: string | null
+          sent_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          alert_type?: string
+          deal_id?: string | null
+          drop_amount?: number | null
+          drop_percentage?: number | null
+          id?: string
+          message?: string | null
+          new_price?: number | null
+          old_price?: number | null
+          read_at?: string | null
+          sent_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alert_log_listing_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alert_log_listing_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "top_deals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      alert_matches: {
+        Row: {
+          alert_id: string | null
+          created_at: string | null
+          deal_id: string | null
+          dealer_id: string | null
+          id: string
+          notified: boolean | null
+          profit_estimate: number | null
+          viewed: boolean | null
+        }
+        Insert: {
+          alert_id?: string | null
+          created_at?: string | null
+          deal_id?: string | null
+          dealer_id?: string | null
+          id?: string
+          notified?: boolean | null
+          profit_estimate?: number | null
+          viewed?: boolean | null
+        }
+        Update: {
+          alert_id?: string | null
+          created_at?: string | null
+          deal_id?: string | null
+          dealer_id?: string | null
+          id?: string
+          notified?: boolean | null
+          profit_estimate?: number | null
+          viewed?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alert_matches_alert_id_fkey"
+            columns: ["alert_id"]
+            isOneToOne: false
+            referencedRelation: "alerts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alert_matches_dealer_id_fkey"
+            columns: ["dealer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alert_matches_listing_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alert_matches_listing_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "top_deals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       alerts: {
         Row: {
           active: boolean | null
@@ -55,7 +174,7 @@ export type Database = {
       }
       dealers: {
         Row: {
-          active_listings: number | null
+          active_deals: number | null
           address: string | null
           avg_ask_price: number | null
           avg_mmr_value: number | null
@@ -83,7 +202,7 @@ export type Database = {
           zip: string | null
         }
         Insert: {
-          active_listings?: number | null
+          active_deals?: number | null
           address?: string | null
           avg_ask_price?: number | null
           avg_mmr_value?: number | null
@@ -111,7 +230,7 @@ export type Database = {
           zip?: string | null
         }
         Update: {
-          active_listings?: number | null
+          active_deals?: number | null
           address?: string | null
           avg_ask_price?: number | null
           avg_mmr_value?: number | null
@@ -140,7 +259,7 @@ export type Database = {
         }
         Relationships: []
       }
-      listings: {
+      deals: {
         Row: {
           active: boolean | null
           ai_rationale: string | null
@@ -157,8 +276,12 @@ export type Database = {
           damage_type: string | null
           dealer_id: string | null
           drivetrain: string | null
+          duplicate_confidence: number | null
+          duplicate_of_id: string | null
           embedding: string | null
           engine: string | null
+          estimated_repair_cost: number | null
+          estimated_transport_cost: number | null
           first_seen_at: string
           fuel_type: string | null
           id: string
@@ -167,6 +290,7 @@ export type Database = {
           kbb_retail: number | null
           kbb_trade_in: number | null
           keys_present: boolean | null
+          last_price_change_at: string | null
           last_seen_at: string
           lat: number | null
           lng: number | null
@@ -181,12 +305,13 @@ export type Database = {
           profit_estimate: number | null
           profit_score: number | null
           run_drive: boolean | null
-          source: Database["public"]["Enums"]["listing_source"]
-          source_listing_id: string
+          source: Database["public"]["Enums"]["deal_source"]
+          source_deal_id: string
           source_url: string
           title: string
           transmission: string | null
           trim: string | null
+          true_net_profit: number | null
           updated_at: string
           vin: string | null
           year: number
@@ -207,8 +332,12 @@ export type Database = {
           damage_type?: string | null
           dealer_id?: string | null
           drivetrain?: string | null
+          duplicate_confidence?: number | null
+          duplicate_of_id?: string | null
           embedding?: string | null
           engine?: string | null
+          estimated_repair_cost?: number | null
+          estimated_transport_cost?: number | null
           first_seen_at?: string
           fuel_type?: string | null
           id?: string
@@ -217,6 +346,7 @@ export type Database = {
           kbb_retail?: number | null
           kbb_trade_in?: number | null
           keys_present?: boolean | null
+          last_price_change_at?: string | null
           last_seen_at?: string
           lat?: number | null
           lng?: number | null
@@ -231,12 +361,13 @@ export type Database = {
           profit_estimate?: number | null
           profit_score?: number | null
           run_drive?: boolean | null
-          source: Database["public"]["Enums"]["listing_source"]
-          source_listing_id: string
+          source: Database["public"]["Enums"]["deal_source"]
+          source_deal_id: string
           source_url: string
           title: string
           transmission?: string | null
           trim?: string | null
+          true_net_profit?: number | null
           updated_at?: string
           vin?: string | null
           year: number
@@ -257,8 +388,12 @@ export type Database = {
           damage_type?: string | null
           dealer_id?: string | null
           drivetrain?: string | null
+          duplicate_confidence?: number | null
+          duplicate_of_id?: string | null
           embedding?: string | null
           engine?: string | null
+          estimated_repair_cost?: number | null
+          estimated_transport_cost?: number | null
           first_seen_at?: string
           fuel_type?: string | null
           id?: string
@@ -267,6 +402,7 @@ export type Database = {
           kbb_retail?: number | null
           kbb_trade_in?: number | null
           keys_present?: boolean | null
+          last_price_change_at?: string | null
           last_seen_at?: string
           lat?: number | null
           lng?: number | null
@@ -281,12 +417,13 @@ export type Database = {
           profit_estimate?: number | null
           profit_score?: number | null
           run_drive?: boolean | null
-          source?: Database["public"]["Enums"]["listing_source"]
-          source_listing_id?: string
+          source?: Database["public"]["Enums"]["deal_source"]
+          source_deal_id?: string
           source_url?: string
           title?: string
           transmission?: string | null
           trim?: string | null
+          true_net_profit?: number | null
           updated_at?: string
           vin?: string | null
           year?: number
@@ -301,36 +438,243 @@ export type Database = {
           },
         ]
       }
+      inventory: {
+        Row: {
+          auction_fee: number | null
+          color: string | null
+          condition: string | null
+          created_at: string | null
+          daily_floor_rate: number | null
+          deal_id: string | null
+          dealer_id: string
+          description: string | null
+          floor_date: string | null
+          holding_cost: number | null
+          id: string
+          lead_count: number | null
+          list_price: number | null
+          listed_platforms: string[] | null
+          make: string
+          market_value: number | null
+          model: string
+          notes: string | null
+          odometer: number | null
+          other_costs: number | null
+          photos: string[] | null
+          purchase_price: number
+          purchased_city: string | null
+          purchased_from: string | null
+          purchased_state: string | null
+          recon_cost: number | null
+          repair_cost: number | null
+          sold_date: string | null
+          sold_price: number | null
+          stage: string | null
+          title_fee: number | null
+          total_cost: number | null
+          transport_cost: number | null
+          trim: string | null
+          updated_at: string | null
+          vin: string
+          year: number
+        }
+        Insert: {
+          auction_fee?: number | null
+          color?: string | null
+          condition?: string | null
+          created_at?: string | null
+          daily_floor_rate?: number | null
+          deal_id?: string | null
+          dealer_id: string
+          description?: string | null
+          floor_date?: string | null
+          holding_cost?: number | null
+          id?: string
+          lead_count?: number | null
+          list_price?: number | null
+          listed_platforms?: string[] | null
+          make: string
+          market_value?: number | null
+          model: string
+          notes?: string | null
+          odometer?: number | null
+          other_costs?: number | null
+          photos?: string[] | null
+          purchase_price?: number
+          purchased_city?: string | null
+          purchased_from?: string | null
+          purchased_state?: string | null
+          recon_cost?: number | null
+          repair_cost?: number | null
+          sold_date?: string | null
+          sold_price?: number | null
+          stage?: string | null
+          title_fee?: number | null
+          total_cost?: number | null
+          transport_cost?: number | null
+          trim?: string | null
+          updated_at?: string | null
+          vin: string
+          year: number
+        }
+        Update: {
+          auction_fee?: number | null
+          color?: string | null
+          condition?: string | null
+          created_at?: string | null
+          daily_floor_rate?: number | null
+          deal_id?: string | null
+          dealer_id?: string
+          description?: string | null
+          floor_date?: string | null
+          holding_cost?: number | null
+          id?: string
+          lead_count?: number | null
+          list_price?: number | null
+          listed_platforms?: string[] | null
+          make?: string
+          market_value?: number | null
+          model?: string
+          notes?: string | null
+          odometer?: number | null
+          other_costs?: number | null
+          photos?: string[] | null
+          purchase_price?: number
+          purchased_city?: string | null
+          purchased_from?: string | null
+          purchased_state?: string | null
+          recon_cost?: number | null
+          repair_cost?: number | null
+          sold_date?: string | null
+          sold_price?: number | null
+          stage?: string | null
+          title_fee?: number | null
+          total_cost?: number | null
+          transport_cost?: number | null
+          trim?: string | null
+          updated_at?: string | null
+          vin?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_dealer_id_fkey"
+            columns: ["dealer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_vehicle_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_vehicle_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "top_deals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leads: {
+        Row: {
+          ask_price: number | null
+          created_at: string | null
+          days_listed: number | null
+          dealer_id: string | null
+          estimated_margin: number | null
+          id: string
+          listing_url: string | null
+          market_value: number | null
+          notes: string | null
+          outreach_message: string | null
+          outreach_status: string | null
+          seller_email: string | null
+          seller_phone: string | null
+          source: string
+          updated_at: string | null
+          vehicle: string
+        }
+        Insert: {
+          ask_price?: number | null
+          created_at?: string | null
+          days_listed?: number | null
+          dealer_id?: string | null
+          estimated_margin?: number | null
+          id?: string
+          listing_url?: string | null
+          market_value?: number | null
+          notes?: string | null
+          outreach_message?: string | null
+          outreach_status?: string | null
+          seller_email?: string | null
+          seller_phone?: string | null
+          source: string
+          updated_at?: string | null
+          vehicle: string
+        }
+        Update: {
+          ask_price?: number | null
+          created_at?: string | null
+          days_listed?: number | null
+          dealer_id?: string | null
+          estimated_margin?: number | null
+          id?: string
+          listing_url?: string | null
+          market_value?: number | null
+          notes?: string | null
+          outreach_message?: string | null
+          outreach_status?: string | null
+          seller_email?: string | null
+          seller_phone?: string | null
+          source?: string
+          updated_at?: string | null
+          vehicle?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leads_dealer_id_fkey"
+            columns: ["dealer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       price_history: {
         Row: {
+          deal_id: string
           id: number
-          listing_id: string
           observed_at: string
           price: number
         }
         Insert: {
+          deal_id: string
           id?: number
-          listing_id: string
           observed_at?: string
           price: number
         }
         Update: {
+          deal_id?: string
           id?: number
-          listing_id?: string
           observed_at?: string
           price?: number
         }
         Relationships: [
           {
             foreignKeyName: "price_history_listing_id_fkey"
-            columns: ["listing_id"]
+            columns: ["deal_id"]
             isOneToOne: false
-            referencedRelation: "listings"
+            referencedRelation: "deals"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "price_history_listing_id_fkey"
-            columns: ["listing_id"]
+            columns: ["deal_id"]
             isOneToOne: false
             referencedRelation: "top_deals"
             referencedColumns: ["id"]
@@ -339,10 +683,15 @@ export type Database = {
       }
       profiles: {
         Row: {
+          city: string | null
           created_at: string
+          daily_floor_rate: number | null
+          default_auction_fee: number | null
+          default_recon: number | null
           email: string
           full_name: string | null
           id: string
+          license_number: string | null
           min_profit_target: number | null
           phone: string | null
           plan: Database["public"]["Enums"]["user_plan"]
@@ -350,14 +699,22 @@ export type Database = {
           preferred_types: Database["public"]["Enums"]["dealer_type"][] | null
           price_range_max: number | null
           price_range_min: number | null
+          state: string | null
           stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          target_profit: number | null
           updated_at: string
         }
         Insert: {
+          city?: string | null
           created_at?: string
+          daily_floor_rate?: number | null
+          default_auction_fee?: number | null
+          default_recon?: number | null
           email: string
           full_name?: string | null
           id: string
+          license_number?: string | null
           min_profit_target?: number | null
           phone?: string | null
           plan?: Database["public"]["Enums"]["user_plan"]
@@ -365,14 +722,22 @@ export type Database = {
           preferred_types?: Database["public"]["Enums"]["dealer_type"][] | null
           price_range_max?: number | null
           price_range_min?: number | null
+          state?: string | null
           stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          target_profit?: number | null
           updated_at?: string
         }
         Update: {
+          city?: string | null
           created_at?: string
+          daily_floor_rate?: number | null
+          default_auction_fee?: number | null
+          default_recon?: number | null
           email?: string
           full_name?: string | null
           id?: string
+          license_number?: string | null
           min_profit_target?: number | null
           phone?: string | null
           plan?: Database["public"]["Enums"]["user_plan"]
@@ -380,47 +745,164 @@ export type Database = {
           preferred_types?: Database["public"]["Enums"]["dealer_type"][] | null
           price_range_max?: number | null
           price_range_min?: number | null
+          state?: string | null
           stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          target_profit?: number | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      recon_stages: {
+        Row: {
+          actual_cost: number | null
+          completed_at: string | null
+          dealer_id: string | null
+          estimated_completion: string | null
+          estimated_cost: number | null
+          id: string
+          inventory_id: string | null
+          notes: string | null
+          shop_name: string | null
+          stage: string
+          started_at: string | null
+        }
+        Insert: {
+          actual_cost?: number | null
+          completed_at?: string | null
+          dealer_id?: string | null
+          estimated_completion?: string | null
+          estimated_cost?: number | null
+          id?: string
+          inventory_id?: string | null
+          notes?: string | null
+          shop_name?: string | null
+          stage: string
+          started_at?: string | null
+        }
+        Update: {
+          actual_cost?: number | null
+          completed_at?: string | null
+          dealer_id?: string | null
+          estimated_completion?: string | null
+          estimated_cost?: number | null
+          id?: string
+          inventory_id?: string | null
+          notes?: string | null
+          shop_name?: string | null
+          stage?: string
+          started_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recon_stages_dealer_id_fkey"
+            columns: ["dealer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recon_stages_inventory_id_fkey"
+            columns: ["inventory_id"]
+            isOneToOne: false
+            referencedRelation: "inventory"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scraper_credentials: {
+        Row: {
+          payload: string
+          source_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          payload: string
+          source_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          payload?: string
+          source_id?: string
+          updated_at?: string | null
         }
         Relationships: []
       }
       scraper_runs: {
         Row: {
           completed_at: string | null
+          deals_found: number | null
+          deals_new: number | null
+          deals_updated: number | null
           duration_ms: number | null
           error_message: string | null
           id: string
-          listings_found: number | null
-          listings_new: number | null
-          listings_updated: number | null
-          source: Database["public"]["Enums"]["listing_source"]
+          source: Database["public"]["Enums"]["deal_source"]
           started_at: string
           status: Database["public"]["Enums"]["scraper_status"]
         }
         Insert: {
           completed_at?: string | null
+          deals_found?: number | null
+          deals_new?: number | null
+          deals_updated?: number | null
           duration_ms?: number | null
           error_message?: string | null
           id?: string
-          listings_found?: number | null
-          listings_new?: number | null
-          listings_updated?: number | null
-          source: Database["public"]["Enums"]["listing_source"]
+          source: Database["public"]["Enums"]["deal_source"]
           started_at?: string
           status?: Database["public"]["Enums"]["scraper_status"]
         }
         Update: {
           completed_at?: string | null
+          deals_found?: number | null
+          deals_new?: number | null
+          deals_updated?: number | null
           duration_ms?: number | null
           error_message?: string | null
           id?: string
-          listings_found?: number | null
-          listings_new?: number | null
-          listings_updated?: number | null
-          source?: Database["public"]["Enums"]["listing_source"]
+          source?: Database["public"]["Enums"]["deal_source"]
           started_at?: string
           status?: Database["public"]["Enums"]["scraper_status"]
+        }
+        Relationships: []
+      }
+      scraper_state: {
+        Row: {
+          auto_disable_threshold: number | null
+          average_duration_ms: number | null
+          consecutive_failures: number | null
+          enabled: boolean | null
+          estimated_listings_per_run: number | null
+          last_run_at: string | null
+          run_count: number | null
+          source_id: string
+          success_rate: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          auto_disable_threshold?: number | null
+          average_duration_ms?: number | null
+          consecutive_failures?: number | null
+          enabled?: boolean | null
+          estimated_listings_per_run?: number | null
+          last_run_at?: string | null
+          run_count?: number | null
+          source_id: string
+          success_rate?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          auto_disable_threshold?: number | null
+          average_duration_ms?: number | null
+          consecutive_failures?: number | null
+          enabled?: boolean | null
+          estimated_listings_per_run?: number | null
+          last_run_at?: string | null
+          run_count?: number | null
+          source_id?: string
+          success_rate?: number | null
+          updated_at?: string | null
         }
         Relationships: []
       }
@@ -448,42 +930,147 @@ export type Database = {
         }
         Relationships: []
       }
+      transports: {
+        Row: {
+          actual_delivery: string | null
+          booked_price: number | null
+          carrier: string | null
+          carrier_contact: string | null
+          created_at: string | null
+          dealer_id: string | null
+          estimated_delivery: string | null
+          from_state: string | null
+          from_zip: string | null
+          id: string
+          inventory_id: string | null
+          miles: number | null
+          notes: string | null
+          pickup_date: string | null
+          quoted_price: number | null
+          status: string | null
+          to_state: string | null
+          to_zip: string | null
+          tracking_url: string | null
+          trailer_type: string | null
+        }
+        Insert: {
+          actual_delivery?: string | null
+          booked_price?: number | null
+          carrier?: string | null
+          carrier_contact?: string | null
+          created_at?: string | null
+          dealer_id?: string | null
+          estimated_delivery?: string | null
+          from_state?: string | null
+          from_zip?: string | null
+          id?: string
+          inventory_id?: string | null
+          miles?: number | null
+          notes?: string | null
+          pickup_date?: string | null
+          quoted_price?: number | null
+          status?: string | null
+          to_state?: string | null
+          to_zip?: string | null
+          tracking_url?: string | null
+          trailer_type?: string | null
+        }
+        Update: {
+          actual_delivery?: string | null
+          booked_price?: number | null
+          carrier?: string | null
+          carrier_contact?: string | null
+          created_at?: string | null
+          dealer_id?: string | null
+          estimated_delivery?: string | null
+          from_state?: string | null
+          from_zip?: string | null
+          id?: string
+          inventory_id?: string | null
+          miles?: number | null
+          notes?: string | null
+          pickup_date?: string | null
+          quoted_price?: number | null
+          status?: string | null
+          to_state?: string | null
+          to_zip?: string | null
+          tracking_url?: string | null
+          trailer_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transports_dealer_id_fkey"
+            columns: ["dealer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transports_inventory_id_fkey"
+            columns: ["inventory_id"]
+            isOneToOne: false
+            referencedRelation: "inventory"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          created_at: string | null
+          id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          role?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       watchlist: {
         Row: {
           alert_threshold: number | null
           created_at: string
+          deal_id: string
           id: string
-          listing_id: string
           notes: string | null
           user_id: string
         }
         Insert: {
           alert_threshold?: number | null
           created_at?: string
+          deal_id: string
           id?: string
-          listing_id: string
           notes?: string | null
           user_id: string
         }
         Update: {
           alert_threshold?: number | null
           created_at?: string
+          deal_id?: string
           id?: string
-          listing_id?: string
           notes?: string | null
           user_id?: string
         }
         Relationships: [
           {
             foreignKeyName: "watchlist_listing_id_fkey"
-            columns: ["listing_id"]
+            columns: ["deal_id"]
             isOneToOne: false
-            referencedRelation: "listings"
+            referencedRelation: "deals"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "watchlist_listing_id_fkey"
-            columns: ["listing_id"]
+            columns: ["deal_id"]
             isOneToOne: false
             referencedRelation: "top_deals"
             referencedColumns: ["id"]
@@ -574,7 +1161,7 @@ export type Database = {
           profit_score: number | null
           roi_pct: number | null
           run_drive: boolean | null
-          source: Database["public"]["Enums"]["listing_source"] | null
+          source: Database["public"]["Enums"]["deal_source"] | null
           source_listing_id: string | null
           source_url: string | null
           title: string | null
@@ -726,7 +1313,7 @@ export type Database = {
       dealers_near: {
         Args: { radius_miles?: number; user_lat: number; user_lng: number }
         Returns: {
-          active_listings: number | null
+          active_deals: number | null
           address: string | null
           avg_ask_price: number | null
           avg_mmr_value: number | null
@@ -759,6 +1346,10 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      detect_duplicates_by_vin: {
+        Args: { vin_filter?: string[] }
+        Returns: undefined
       }
       disablelongtransactions: { Args: never; Returns: string }
       dropgeometrycolumn:
@@ -893,7 +1484,7 @@ export type Database = {
       geomfromewkt: { Args: { "": string }; Returns: unknown }
       gettransactionid: { Args: never; Returns: unknown }
       longtransactionsenabled: { Args: never; Returns: boolean }
-      match_listings: {
+      match_deals: {
         Args: {
           match_count: number
           match_threshold: number
@@ -945,7 +1536,7 @@ export type Database = {
       }
       postgis_version: { Args: never; Returns: string }
       postgis_wagyu_version: { Args: never; Returns: string }
-      search_listings: {
+      search_deals: {
         Args: { query: string }
         Returns: {
           active: boolean | null
@@ -963,8 +1554,12 @@ export type Database = {
           damage_type: string | null
           dealer_id: string | null
           drivetrain: string | null
+          duplicate_confidence: number | null
+          duplicate_of_id: string | null
           embedding: string | null
           engine: string | null
+          estimated_repair_cost: number | null
+          estimated_transport_cost: number | null
           first_seen_at: string
           fuel_type: string | null
           id: string
@@ -973,6 +1568,7 @@ export type Database = {
           kbb_retail: number | null
           kbb_trade_in: number | null
           keys_present: boolean | null
+          last_price_change_at: string | null
           last_seen_at: string
           lat: number | null
           lng: number | null
@@ -987,19 +1583,20 @@ export type Database = {
           profit_estimate: number | null
           profit_score: number | null
           run_drive: boolean | null
-          source: Database["public"]["Enums"]["listing_source"]
-          source_listing_id: string
+          source: Database["public"]["Enums"]["deal_source"]
+          source_deal_id: string
           source_url: string
           title: string
           transmission: string | null
           trim: string | null
+          true_net_profit: number | null
           updated_at: string
           vin: string | null
           year: number
         }[]
         SetofOptions: {
           from: "*"
-          to: "listings"
+          to: "deals"
           isOneToOne: false
           isSetofReturn: true
         }
@@ -1605,6 +2202,20 @@ export type Database = {
         | "new_listing"
         | "auction_ending"
         | "dealer_update"
+      deal_source:
+        | "copart"
+        | "iaa"
+        | "adesa"
+        | "manheim"
+        | "facebook_marketplace"
+        | "craigslist"
+        | "ebay_motors"
+        | "autotrader"
+        | "cars_com"
+        | "gov_auction"
+        | "repo_network"
+        | "independent_dealer"
+        | "cargurus"
       dealer_type:
         | "auction_reseller"
         | "salvage_rebuild"
@@ -1622,20 +2233,6 @@ export type Database = {
         | "flood"
         | "fire"
         | "hail"
-      listing_source:
-        | "copart"
-        | "iaa"
-        | "adesa"
-        | "manheim"
-        | "facebook_marketplace"
-        | "craigslist"
-        | "ebay_motors"
-        | "autotrader"
-        | "cars_com"
-        | "gov_auction"
-        | "repo_network"
-        | "independent_dealer"
-        | "cargurus"
       scraper_status: "idle" | "running" | "success" | "error" | "rate_limited"
       user_plan: "scout" | "dealer_pro" | "dealer_elite" | "api"
     }
@@ -1779,6 +2376,21 @@ export const Constants = {
         "auction_ending",
         "dealer_update",
       ],
+      deal_source: [
+        "copart",
+        "iaa",
+        "adesa",
+        "manheim",
+        "facebook_marketplace",
+        "craigslist",
+        "ebay_motors",
+        "autotrader",
+        "cars_com",
+        "gov_auction",
+        "repo_network",
+        "independent_dealer",
+        "cargurus",
+      ],
       dealer_type: [
         "auction_reseller",
         "salvage_rebuild",
@@ -1797,21 +2409,6 @@ export const Constants = {
         "flood",
         "fire",
         "hail",
-      ],
-      listing_source: [
-        "copart",
-        "iaa",
-        "adesa",
-        "manheim",
-        "facebook_marketplace",
-        "craigslist",
-        "ebay_motors",
-        "autotrader",
-        "cars_com",
-        "gov_auction",
-        "repo_network",
-        "independent_dealer",
-        "cargurus",
       ],
       scraper_status: ["idle", "running", "success", "error", "rate_limited"],
       user_plan: ["scout", "dealer_pro", "dealer_elite", "api"],

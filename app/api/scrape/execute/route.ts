@@ -96,49 +96,49 @@ async function executeScraping(configs: any[], scrapingEngine: InstanceType<type
           .single()
 
         // Scrape the source
-        const listings = await scrapingEngine.scrapeSource(config)
+        const deals = await scrapingEngine.scrapeSource(config)
         
-        // Save listings to database
-        if (listings.length > 0) {
-          // Convert listings to database format
-          const dbListings = listings.map(listing => ({
-            id: listing.id,
-            source: listing.source,
-            source_type: listing.sourceType,
-            title: listing.title,
-            price: listing.price,
-            currency: listing.currency,
-            year: listing.year,
-            make: listing.make,
-            model: listing.model,
-            vin: listing.vin,
-            mileage: listing.mileage,
-            location: listing.location,
-            description: listing.description,
-            images: listing.images,
-            auction_end: listing.auctionEnd?.toISOString(),
-            bid_count: listing.bidCount,
-            seller: listing.seller,
-            seller_type: listing.sellerType,
-            condition: listing.condition,
-            transport_cost: listing.transportCost,
-            repair_estimate: listing.repairEstimate,
-            profit_score: listing.profitScore,
-            scraped_at: listing.scrapedAt.toISOString(),
-            url: listing.url,
-            metadata: listing.metadata
+        // Save deals to database
+        if (deals.length > 0) {
+          // Convert deals to database format
+          const dbDeals = deals.map(deal => ({
+            id: deal.id,
+            source: deal.source,
+            source_type: deal.sourceType,
+            title: deal.title,
+            price: deal.price,
+            currency: deal.currency,
+            year: deal.year,
+            make: deal.make,
+            model: deal.model,
+            vin: deal.vin,
+            mileage: deal.mileage,
+            location: deal.location,
+            description: deal.description,
+            images: deal.images,
+            auction_end: deal.auctionEnd?.toISOString(),
+            bid_count: deal.bidCount,
+            seller: deal.seller,
+            seller_type: deal.sellerType,
+            condition: deal.condition,
+            transport_cost: deal.transportCost,
+            repair_estimate: deal.repairEstimate,
+            profit_score: deal.profitScore,
+            scraped_at: deal.scrapedAt.toISOString(),
+            url: deal.url,
+            metadata: deal.metadata
           }))
 
-          // Insert listings
+          // Insert deals
           const { error: insertError } = await supabase
-            .from('listings')
-            .upsert(dbListings, {
+            .from('deals')
+            .upsert(dbDeals, {
               onConflict: 'id',
               ignoreDuplicates: false
             })
 
           if (insertError) {
-            console.error('Error saving listings:', insertError)
+            console.error('Error saving deals:', insertError)
           }
         }
 
@@ -148,14 +148,14 @@ async function executeScraping(configs: any[], scrapingEngine: InstanceType<type
           .update({
             status: 'completed',
             completed_at: new Date().toISOString(),
-            listings_found: listings.length,
-            listings_saved: listings.length
+            deals_found: deals.length,
+            deals_saved: deals.length
           })
           .eq('id', runData.id)
 
         completedSources++
         updateProgress()
-        console.log(`Completed scrape for ${config.name}: ${listings.length} listings`)
+        console.log(`Completed scrape for ${config.name}: ${deals.length} deals`)
 
       } catch (error) {
         console.error(`Failed to scrape ${config.name}:`, error)

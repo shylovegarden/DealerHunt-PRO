@@ -1,11 +1,11 @@
 // lib/scrapers/tools/quality-control.ts
 // Validates scraped data, detects duplicates, and computes quality scores.
 
-import { Listing } from '@/types'
+import { Deal } from '@/types'
 
 export interface ValidationRule {
   name: string
-  validate: (listing: Partial<Listing>) => { valid: boolean; reason?: string }
+  validate: (deal: Partial<Deal>) => { valid: boolean; reason?: string }
 }
 
 export interface QualityReport {
@@ -14,7 +14,7 @@ export interface QualityReport {
   valid: number
   invalid: number
   duplicates: number
-  validListings: Partial<Listing>[]
+  validDeals: Partial<Deal>[]
   issues: { index: number; field: string; reason: string }[]
   score: number
   recommendations: string[]
@@ -75,17 +75,17 @@ export class QualityController {
     ]
   }
 
-  validateBatch(source: string, listings: Partial<Listing>[]): QualityReport {
+  validateBatch(source: string, deals: Partial<Deal>[]): QualityReport {
     const issues: { index: number; field: string; reason: string }[] = []
-    const validListings: Partial<Listing>[] = []
+    const validDeals: Partial<Deal>[] = []
     let duplicates = 0
 
-    for (let i = 0; i < listings.length; i++) {
-      const listing = listings[i]
+    for (let i = 0; i < deals.length; i++) {
+      const deal = deals[i]
       let isValid = true
 
       for (const rule of this.rules) {
-        const result = rule.validate(listing)
+        const result = rule.validate(deal)
         if (!result.valid) {
           isValid = false
           issues.push({ index: i, field: rule.name, reason: result.reason || 'validation failed' })
@@ -93,19 +93,19 @@ export class QualityController {
       }
 
       if (isValid) {
-        const key = this.makeKey(listing)
+        const key = this.makeKey(deal)
         if (this.seenKeys.has(key)) {
           duplicates += 1
           issues.push({ index: i, field: 'duplicate', reason: 'duplicate within batch' })
         } else {
           this.seenKeys.add(key)
-          validListings.push(listing)
+          validDeals.push(deal)
         }
       }
     }
 
-    const total = listings.length
-    const valid = validListings.length
+    const total = deals.length
+    const valid = validDeals.length
     const invalid = total - valid - duplicates
     const score = total > 0 ? Math.round((valid / total) * 100) : 0
 
@@ -115,27 +115,27 @@ export class QualityController {
       valid,
       invalid,
       duplicates,
-      validListings,
+      validDeals,
       issues,
       score,
       recommendations: this.generateRecommendations(total, valid, duplicates, issues),
     }
   }
 
-  private makeKey(listing: Partial<Listing>): string {
+  private makeKey(deal: Partial<Deal>): string {
     return [
-      listing.source,
-      listing.vin || listing.title?.toLowerCase(),
-      listing.ask_price,
-      listing.location_state,
-      listing.location_city,
+      deal.source,
+      deal.vin || deal.title?.toLowerCase(),
+      deal.ask_price,
+      deal.location_state,
+      deal.location_city,
     ].join('|')
   }
 
   private generateRecommendations(total: number, valid: number, duplicates: number, issues: { field: string }[]): string[] {
     const recs: string[] = []
-    if (total === 0) recs.push('No listings were scraped; check source health.')
-    if (valid / total < 0.8) recs.push('Low valid-listing rate; review extraction selectors.')
+    if (total === 0) recs.push('No deals were scraped; check source health.')
+    if (valid / total < 0.8) recs.push('Low valid-deal rate; review extraction selectors.')
     if (duplicates > 0) recs.push(`${duplicates} duplicates detected; improve deduplication.`)
     const fieldCounts = issues.reduce((acc, issue) => {
       acc[issue.field] = (acc[issue.field] || 0) + 1

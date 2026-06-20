@@ -1,10 +1,10 @@
 // lib/scrapers/sources/carparts-com.ts
 // ─── CarParts.com parts marketplace scraper ───────────────────────────────────
 
-import type { Listing } from '@/types'
+import type { Deal } from '@/types'
 import * as cheerio from 'cheerio'
 import { paginate, extractPrice, normalizeUrl, type ScraperConfig } from '../engine'
-import { upsertListings } from '../pipeline'
+import { upsertDeals } from '../pipeline'
 
 export const CARPARTS_COM_CONFIG: ScraperConfig = {
   name: 'CarParts.com',
@@ -30,17 +30,17 @@ const PART_QUERIES = [
 
 export async function scrapeCarPartsCom(maxPagesPerSearch = CARPARTS_COM_CONFIG.maxPages) {
   console.log('[CarParts.com] Starting scrape...')
-  const allListings: Partial<Listing>[] = []
+  const allDeals: Partial<Deal>[] = []
 
   for (const query of PART_QUERIES) {
     const config = { ...CARPARTS_COM_CONFIG, maxPages: maxPagesPerSearch }
-    const gen = paginate<Partial<Listing>>(
+    const gen = paginate<Partial<Deal>>(
       config,
       (page) =>
         `https://www.carparts.com/search?q=${encodeURIComponent(query)}&page=${page}`,
       async (input) => {
         const $ = typeof input === 'string' ? cheerio.load(input) : input
-        const items: Partial<Listing>[] = []
+        const items: Partial<Deal>[] = []
 
         $('div.part-item, div.product-item, [data-testid="product-card"]').each((_: number, el: any) => {
           const row = $(el)
@@ -58,7 +58,7 @@ export async function scrapeCarPartsCom(maxPagesPerSearch = CARPARTS_COM_CONFIG.
 
           items.push({
             source: 'carparts_com',
-            source_listing_id: itemId,
+            source_deal_id: itemId,
             source_url: link ? normalizeUrl(link, CARPARTS_COM_CONFIG.baseUrl) : '',
             title,
             ask_price: price,
@@ -77,11 +77,11 @@ export async function scrapeCarPartsCom(maxPagesPerSearch = CARPARTS_COM_CONFIG.
     )
 
     for await (const batch of gen) {
-      allListings.push(...batch)
+      allDeals.push(...batch)
     }
   }
 
-  console.log(`[CarParts.com] Found ${allListings.length} listings`)
-  await upsertListings(allListings)
-  return allListings.length
+  console.log(`[CarParts.com] Found ${allDeals.length} deals`)
+  await upsertDeals(allDeals)
+  return allDeals.length
 }

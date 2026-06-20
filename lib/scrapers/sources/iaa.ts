@@ -1,10 +1,10 @@
 // lib/scrapers/sources/iaa.ts
 // ─── IAA salvage auction scraper (requires dealer license / auth) ─────────────
 
-import type { Listing } from '@/types'
+import type { Deal } from '@/types'
 import * as cheerio from 'cheerio'
 import { paginate, extractPrice, extractMileage, extractYear, normalizeUrl, type ScraperConfig } from '../engine'
-import { upsertListings } from '../pipeline'
+import { upsertDeals } from '../pipeline'
 
 export const IAA_CONFIG: ScraperConfig = {
   name: 'IAA',
@@ -20,17 +20,17 @@ export const IAA_CONFIG: ScraperConfig = {
 
 export async function scrapeIaa(searchTerms: string[] = ['ford', 'toyota', 'chevrolet'], maxPagesPerSearch = IAA_CONFIG.maxPages) {
   console.log('[IAA] Starting scrape...')
-  const allListings: Partial<Listing>[] = []
+  const allDeals: Partial<Deal>[] = []
 
   for (const term of searchTerms) {
     const config = { ...IAA_CONFIG, maxPages: maxPagesPerSearch }
-    const gen = paginate<Partial<Listing>>(
+    const gen = paginate<Partial<Deal>>(
       config,
       (page) =>
         `https://www.iaai.com/vehicles?searchQuery=${encodeURIComponent(term)}&page=${page}&pageSize=100`,
       async (input) => {
         const $ = typeof input === 'string' ? cheerio.load(input) : input
-        const items: Partial<Listing>[] = []
+        const items: Partial<Deal>[] = []
 
         $('div.vehicle-item, div[data-testid="vehicle-card"], .search-results .vehicle').each((_: number, el: any) => {
           const row = $(el)
@@ -50,7 +50,7 @@ export async function scrapeIaa(searchTerms: string[] = ['ford', 'toyota', 'chev
 
           items.push({
             source: 'iaa',
-            source_listing_id: itemId,
+            source_deal_id: itemId,
             source_url: link ? normalizeUrl(link, IAA_CONFIG.baseUrl) : '',
             title,
             year: extractYear(title),
@@ -72,11 +72,11 @@ export async function scrapeIaa(searchTerms: string[] = ['ford', 'toyota', 'chev
     )
 
     for await (const batch of gen) {
-      allListings.push(...batch)
+      allDeals.push(...batch)
     }
   }
 
-  console.log(`[IAA] Found ${allListings.length} listings (requires dealer auth for live data)`)
-  await upsertListings(allListings)
-  return allListings.length
+  console.log(`[IAA] Found ${allDeals.length} deals (requires dealer auth for live data)`)
+  await upsertDeals(allDeals)
+  return allDeals.length
 }

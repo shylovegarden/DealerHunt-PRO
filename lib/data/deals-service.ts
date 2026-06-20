@@ -76,7 +76,7 @@ export class DealsService {
 
   private buildQuery(filters: DealFilters = {}) {
     let query = this.supabase
-      .from('listings')
+      .from('deals')
       .select('*', { count: 'exact' })
       .eq('active', true)
 
@@ -155,7 +155,7 @@ export class DealsService {
     hasMore: boolean
   }> {
     let query = this.supabase
-      .from('listings')
+      .from('deals')
       .select('*', { count: 'exact' })
       .eq('active', true)
       .or(`title.ilike.%${searchTerm}%,make.ilike.%${searchTerm}%,model.ilike.%${searchTerm}%,vin.ilike.%${searchTerm}%`)
@@ -189,7 +189,7 @@ export class DealsService {
 
   async getHotDeals(limit = 10): Promise<Deal[]> {
     const { data, error } = await this.supabase
-      .from('listings')
+      .from('deals')
       .select('*')
       .eq('active', true)
       .gte('profit_score', 70)
@@ -205,14 +205,14 @@ export class DealsService {
 
   async getDealById(id: string): Promise<Deal | null> {
     const { data, error } = await this.supabase
-      .from('listings')
+      .from('deals')
       .select('*')
       .eq('id', id)
       .single()
 
     if (error) {
       if (error.code === 'PGRST116') return null
-      throw new Error(`Failed to fetch listing: ${error.message}`)
+      throw new Error(`Failed to fetch deal: ${error.message}`)
     }
 
     return this.mapDbToDeal(data)
@@ -220,7 +220,7 @@ export class DealsService {
 
   async getAvailableSources(): Promise<string[]> {
     const { data, error } = await this.supabase
-      .from('listings')
+      .from('deals')
       .select('source')
       .eq('active', true)
       .not('source', 'is', null)
@@ -238,7 +238,7 @@ export class DealsService {
 
   async getAvailableMakes(): Promise<string[]> {
     const { data, error } = await this.supabase
-      .from('listings')
+      .from('deals')
       .select('make')
       .eq('active', true)
       .not('make', 'is', null)

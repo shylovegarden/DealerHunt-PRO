@@ -15,7 +15,7 @@ export interface EnhancedScraperConfig {
   proxyRotation: boolean
   stealthMode: boolean
   selectors: {
-    listingContainer: string
+    dealContainer: string
     title: string
     price: string
     mileage?: string
@@ -40,8 +40,8 @@ export interface EnhancedScraperConfig {
   }
 }
 
-// Enhanced listing data structure
-export interface EnhancedListing {
+// Enhanced deal data structure
+export interface EnhancedDeal {
   id: string
   source: string
   sourceType: string
@@ -162,20 +162,20 @@ export class EnhancedScrapingEngine {
     return this.rateLimiters.get(key)
   }
 
-  // Extract listing data from page
-  private async extractListings(page: Page, config: EnhancedScraperConfig): Promise<EnhancedListing[]> {
-    const listings: EnhancedListing[] = []
+  // Extract deal data from page
+  private async extractDeals(page: Page, config: EnhancedScraperConfig): Promise<EnhancedDeal[]> {
+    const deals: EnhancedDeal[] = []
     
     try {
-      // Wait for listings to load
-      await page.waitForSelector(config.selectors.listingContainer, { timeout: 10000 })
+      // Wait for deals to load
+      await page.waitForSelector(config.selectors.dealContainer, { timeout: 10000 })
       
-      // Get all listing containers
-      const containers = await page.$$(config.selectors.listingContainer)
+      // Get all deal containers
+      const containers = await page.$$(config.selectors.dealContainer)
       
       for (const container of containers) {
         try {
-          const listing: Partial<EnhancedListing> = {
+          const deal: Partial<EnhancedDeal> = {
             source: config.name,
             sourceType: config.type,
             images: [],
@@ -184,82 +184,82 @@ export class EnhancedScrapingEngine {
           }
 
           // Extract basic info
-          listing.title = await container.$eval(config.selectors.title, el => el.textContent?.trim() || '')
-          listing.price = await this.extractPrice(container, config.selectors.price)
+          deal.title = await container.$eval(config.selectors.title, el => el.textContent?.trim() || '')
+          deal.price = await this.extractPrice(container, config.selectors.price)
           
           // Extract optional fields
           if (config.selectors.year) {
             const yearText = await container.$eval(config.selectors.year, el => el.textContent?.trim() || '')
-            listing.year = this.extractYear(yearText)
+            deal.year = this.extractYear(yearText)
           }
           
           if (config.selectors.make) {
-            listing.make = await container.$eval(config.selectors.make, el => el.textContent?.trim() || '')
+            deal.make = await container.$eval(config.selectors.make, el => el.textContent?.trim() || '')
           }
           
           if (config.selectors.model) {
-            listing.model = await container.$eval(config.selectors.model, el => el.textContent?.trim() || '')
+            deal.model = await container.$eval(config.selectors.model, el => el.textContent?.trim() || '')
           }
           
           if (config.selectors.vin) {
-            listing.vin = await container.$eval(config.selectors.vin, el => el.textContent?.trim() || '')
+            deal.vin = await container.$eval(config.selectors.vin, el => el.textContent?.trim() || '')
           }
           
           if (config.selectors.mileage) {
             const mileageText = await container.$eval(config.selectors.mileage, el => el.textContent?.trim() || '')
-            listing.mileage = this.extractMileage(mileageText)
+            deal.mileage = this.extractMileage(mileageText)
           }
           
           if (config.selectors.location) {
-            listing.location = await container.$eval(config.selectors.location, el => el.textContent?.trim() || '')
+            deal.location = await container.$eval(config.selectors.location, el => el.textContent?.trim() || '')
           }
           
           if (config.selectors.description) {
-            listing.description = await container.$eval(config.selectors.description, el => el.textContent?.trim() || '')
+            deal.description = await container.$eval(config.selectors.description, el => el.textContent?.trim() || '')
           }
           
           if (config.selectors.images) {
-            listing.images = await container.$$eval(config.selectors.images, (els: Element[]) => 
+            deal.images = await container.$$eval(config.selectors.images, (els: Element[]) => 
               els.map(el => el.getAttribute('src') || '').filter(Boolean)
             )
           }
           
           if (config.selectors.auctionEnd) {
             const endText = await container.$eval(config.selectors.auctionEnd, el => el.textContent?.trim() || '')
-            listing.auctionEnd = this.parseAuctionEnd(endText)
+            deal.auctionEnd = this.parseAuctionEnd(endText)
           }
           
           if (config.selectors.bidCount) {
             const bidText = await container.$eval(config.selectors.bidCount, el => el.textContent?.trim() || '')
-            listing.bidCount = this.extractNumber(bidText)
+            deal.bidCount = this.extractNumber(bidText)
           }
           
           if (config.selectors.seller) {
-            listing.seller = await container.$eval(config.selectors.seller, el => el.textContent?.trim() || '')
+            deal.seller = await container.$eval(config.selectors.seller, el => el.textContent?.trim() || '')
           }
           
           // Generate unique ID
-          listing.id = this.generateListingId(listing)
+          deal.id = this.generateDealId(deal)
           
-          // Get listing URL
+          // Get deal URL
           const linkElement = await container.$('a')
           if (linkElement) {
-            listing.url = await linkElement.getAttribute('href') || ''
+            deal.url = await linkElement.getAttribute('href') || ''
           }
           
           // Calculate profit score
-          listing.profitScore = this.calculateProfitScore(listing as EnhancedListing)
+          deal.profitScore = this.calculateProfitScore(deal as EnhancedDeal)
           
-          listings.push(listing as EnhancedListing)
+          deals.push(deal as EnhancedDeal)
         } catch (error) {
-          console.error(`Error extracting listing from ${config.name}:`, error)
+          console.error(`Error extracting deal from ${config.name}:`, error)
         }
       }
     } catch (error) {
-      console.error(`Error waiting for listings on ${config.name}:`, error)
+      console.error(`Error waiting for deals on ${config.name}:`, error)
     }
     
-    return listings
+    return deals
   }
 
   // Extract price from text
@@ -309,53 +309,53 @@ export class EnhancedScrapingEngine {
     return undefined
   }
 
-  // Generate unique listing ID
-  private generateListingId(listing: Partial<EnhancedListing>): string {
+  // Generate unique deal ID
+  private generateDealId(deal: Partial<EnhancedDeal>): string {
     const parts = [
-      listing.source,
-      listing.year || '',
-      listing.make || '',
-      listing.model || '',
-      listing.vin || '',
-      listing.price || ''
+      deal.source,
+      deal.year || '',
+      deal.make || '',
+      deal.model || '',
+      deal.vin || '',
+      deal.price || ''
     ].filter(Boolean).join('-').toLowerCase()
     
     return Buffer.from(parts).toString('base64').replace(/[^a-zA-Z0-9]/g, '').substring(0, 16)
   }
 
   // Calculate profit score
-  private calculateProfitScore(listing: EnhancedListing): number {
+  private calculateProfitScore(deal: EnhancedDeal): number {
     let score = 50 // Base score
     
     // Price factors
-    if (listing.price < 5000) score += 20
-    else if (listing.price < 10000) score += 15
-    else if (listing.price < 20000) score += 10
+    if (deal.price < 5000) score += 20
+    else if (deal.price < 10000) score += 15
+    else if (deal.price < 20000) score += 10
     
     // Age factors
-    if (listing.year) {
-      const age = new Date().getFullYear() - listing.year
+    if (deal.year) {
+      const age = new Date().getFullYear() - deal.year
       if (age <= 3) score += 15
       else if (age <= 7) score += 10
       else if (age <= 12) score += 5
     }
     
     // Mileage factors
-    if (listing.mileage) {
-      if (listing.mileage < 50000) score += 10
-      else if (listing.mileage < 100000) score += 5
+    if (deal.mileage) {
+      if (deal.mileage < 50000) score += 10
+      else if (deal.mileage < 100000) score += 5
     }
     
     // Condition factors
-    if (listing.condition === 'clean') score += 15
-    else if (listing.condition === 'rebuilt') score -= 10
-    else if (listing.condition === 'parts') score -= 20
+    if (deal.condition === 'clean') score += 15
+    else if (deal.condition === 'rebuilt') score -= 10
+    else if (deal.condition === 'parts') score -= 20
     
     return Math.min(100, Math.max(0, score))
   }
 
   // Scrape single source
-  async scrapeSource(config: EnhancedScraperConfig): Promise<EnhancedListing[]> {
+  async scrapeSource(config: EnhancedScraperConfig): Promise<EnhancedDeal[]> {
     const limiter = this.getRateLimiter(config)
     
     return limiter(async () => {
@@ -374,15 +374,15 @@ export class EnhancedScrapingEngine {
             await this.handleAuthentication(page, config)
           }
           
-          const allListings: EnhancedListing[] = []
+          const allDeals: EnhancedDeal[] = []
           let currentPage = 1
           
           while (currentPage <= (config.pagination?.maxPages || 1)) {
             console.log(`Scraping page ${currentPage} of ${config.name}...`)
             
-            // Extract listings from current page
-            const listings = await this.extractListings(page, config)
-            allListings.push(...listings)
+            // Extract deals from current page
+            const deals = await this.extractDeals(page, config)
+            allDeals.push(...deals)
             
             // Check if there's a next page
             if (config.pagination) {
@@ -399,8 +399,8 @@ export class EnhancedScrapingEngine {
             }
           }
           
-          console.log(`Scraped ${allListings.length} listings from ${config.name}`)
-          return allListings
+          console.log(`Scraped ${allDeals.length} deals from ${config.name}`)
+          return allDeals
           
         } finally {
           await context.close()
@@ -420,34 +420,34 @@ export class EnhancedScrapingEngine {
     console.log(`Handling authentication for ${config.name}...`)
   }
 
-  // Save listings to database
-  async saveListings(listings: EnhancedListing[]): Promise<void> {
-    if (listings.length === 0) return
+  // Save deals to database
+  async saveDeals(deals: EnhancedDeal[]): Promise<void> {
+    if (deals.length === 0) return
     
     try {
       // Batch upsert to database
       const { data, error } = await this.supabase
-        .from('listings')
-        .upsert(listings, {
+        .from('deals')
+        .upsert(deals, {
           onConflict: 'id',
           ignoreDuplicates: false
         })
       
       if (error) {
-        console.error('Error saving listings:', error)
+        console.error('Error saving deals:', error)
       } else {
-        console.log(`Saved ${listings.length} listings to database`)
+        console.log(`Saved ${deals.length} deals to database`)
       }
       
       // Cache in Redis for quick access
       const pipeline = this.redis.pipeline()
-      for (const listing of listings) {
-        pipeline.setex(`listing:${listing.id}`, 3600, JSON.stringify(listing))
+      for (const deal of deals) {
+        pipeline.setex(`deal:${deal.id}`, 3600, JSON.stringify(deal))
       }
       await pipeline.exec()
       
     } catch (error) {
-      console.error('Error in saveListings:', error)
+      console.error('Error in saveDeals:', error)
     }
   }
 
@@ -465,19 +465,19 @@ export class EnhancedScrapingEngine {
     )
     
     // Process results
-    const allListings: EnhancedListing[] = []
+    const allDeals: EnhancedDeal[] = []
     for (const result of results) {
       if (result.status === 'fulfilled') {
-        allListings.push(...result.value)
+        allDeals.push(...result.value)
       } else {
         console.error('Source scraping failed:', result.reason)
       }
     }
     
-    // Save all listings
-    await this.saveListings(allListings)
+    // Save all deals
+    await this.saveDeals(allDeals)
     
-    console.log(`Scraping complete. Total listings: ${allListings.length}`)
+    console.log(`Scraping complete. Total deals: ${allDeals.length}`)
   }
 
   // Close browser

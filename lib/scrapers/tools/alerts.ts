@@ -14,12 +14,12 @@ export interface AlertServiceOptions {
 export interface PriceDropAlert {
   id: string
   userId: string
-  listingId: string
+  dealId: string
   oldPrice: number
   newPrice: number
   dropAmount: number
   dropPercentage: number
-  listingTitle?: string
+  dealTitle?: string
 }
 
 export class ScraperAlertService {
@@ -44,7 +44,7 @@ export class ScraperAlertService {
   async getPendingPriceDropAlerts(): Promise<PriceDropAlert[]> {
     const { data, error } = await this.supabase
       .from('alert_log')
-      .select('id, user_id, listing_id, old_price, new_price, drop_amount, drop_percentage, listings(title, year, make, model)')
+      .select('id, user_id, deal_id, old_price, new_price, drop_amount, drop_percentage, deals(title, year, make, model)')
       .is('sent_at', null)
       .eq('alert_type', 'price_drop')
 
@@ -56,12 +56,12 @@ export class ScraperAlertService {
     return (data || []).map((row: any) => ({
       id: row.id,
       userId: row.user_id,
-      listingId: row.listing_id,
+      dealId: row.deal_id,
       oldPrice: row.old_price,
       newPrice: row.new_price,
       dropAmount: row.drop_amount,
       dropPercentage: row.drop_percentage,
-      listingTitle: row.listings?.title || `${row.listings?.year} ${row.listings?.make} ${row.listings?.model}`,
+      dealTitle: row.deals?.title || `${row.deals?.year} ${row.deals?.make} ${row.deals?.model}`,
     }))
   }
 
@@ -102,16 +102,16 @@ export class ScraperAlertService {
       await resend.emails.send({
         from: this.options.fromEmail!,
         to: user.email,
-        subject: `Price Drop Alert: ${alert.listingTitle}`,
+        subject: `Price Drop Alert: ${alert.dealTitle}`,
         html: `
           <h2>Price Drop Alert</h2>
           <p>A vehicle you are watching just dropped in price.</p>
           <div style="border: 1px solid #ddd; padding: 20px; margin: 20px 0;">
-            <h3>${alert.listingTitle}</h3>
+            <h3>${alert.dealTitle}</h3>
             <p><strong>Old Price:</strong> $${alert.oldPrice.toLocaleString()}</p>
             <p><strong>New Price:</strong> $${alert.newPrice.toLocaleString()}</p>
             <p><strong>Drop:</strong> $${alert.dropAmount.toLocaleString()} (${alert.dropPercentage.toFixed(1)}%)</p>
-            <a href="${this.options.appUrl}/listings/${alert.listingId}" style="background: #F5A623; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Listing</a>
+            <a href="${this.options.appUrl}/deals/${alert.dealId}" style="background: #F5A623; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Deal</a>
           </div>
         `,
       })

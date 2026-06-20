@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { createClientComponentClient } from '@/lib/supabase'
 
 type WatchlistItem = any & {
-  listing: any
+  deal: any
 }
 
 export function useWatchlist(filter: 'all' | 'price_drops' | 'ending_soon' = 'all') {
@@ -50,12 +50,12 @@ export function useWatchlist(filter: 'all' | 'price_drops' | 'ending_soon' = 'al
     }
   }
 
-  async function addToWatchlist(listingId: string, alertThreshold?: number, notes?: string) {
+  async function addToWatchlist(dealId: string, alertThreshold?: number, notes?: string) {
     try {
       const response = await fetch('/api/watchlist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ listing_id: listingId, alert_threshold: alertThreshold, notes })
+        body: JSON.stringify({ deal_id: dealId, alert_threshold: alertThreshold, notes })
       })
 
       if (!response.ok) {
@@ -69,15 +69,15 @@ export function useWatchlist(filter: 'all' | 'price_drops' | 'ending_soon' = 'al
     }
   }
 
-  async function removeFromWatchlist(listingId: string) {
+  async function removeFromWatchlist(dealId: string) {
     try {
-      const response = await fetch(`/api/watchlist?listing_id=${listingId}`, {
+      const response = await fetch(`/api/watchlist?deal_id=${dealId}`, {
         method: 'DELETE'
       })
 
       if (!response.ok) throw new Error('Failed to remove from watchlist')
       
-      setWatchlist(prev => prev.filter(item => item.listing.id !== listingId))
+      setWatchlist(prev => prev.filter(item => item.deal.id !== dealId))
     } catch (err) {
       throw new Error(err instanceof Error ? err.message : 'Failed to remove from watchlist')
     }

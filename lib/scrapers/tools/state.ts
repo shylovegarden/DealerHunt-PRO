@@ -42,7 +42,7 @@ export class ScraperStateManager {
       if (typeof row.run_count === 'number') scraper.runCount = row.run_count
       if (typeof row.success_rate === 'number') scraper.successRate = row.success_rate
       if (typeof row.average_duration_ms === 'number') scraper.averageDurationMs = row.average_duration_ms
-      if (typeof row.estimated_listings_per_run === 'number') scraper.estimatedListingsPerRun = row.estimated_listings_per_run
+      if (typeof row.estimated_deals_per_run === 'number') scraper.estimatedDealsPerRun = row.estimated_deals_per_run
     }
 
     console.log(`[StateManager] Hydrated ${states?.length || 0} source states`)
@@ -81,7 +81,7 @@ export class ScraperStateManager {
       run_count: s.runCount,
       success_rate: s.successRate,
       average_duration_ms: s.averageDurationMs,
-      estimated_listings_per_run: s.estimatedListingsPerRun,
+      estimated_deals_per_run: s.estimatedDealsPerRun,
       updated_at: new Date().toISOString(),
     }
   }

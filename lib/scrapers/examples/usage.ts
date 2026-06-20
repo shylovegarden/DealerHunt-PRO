@@ -44,7 +44,7 @@ export async function exampleSpecificSources() {
       console.log(`Progress: ${progress.percentage}% (${progress.completed}/${progress.total})`)
     },
     onSourceComplete: (result) => {
-      console.log(`Completed ${result.source}: ${result.listingsFound} listings`)
+      console.log(`Completed ${result.source}: ${result.dealsFound} deals`)
     },
   })
   return results
@@ -102,13 +102,13 @@ export async function exampleBrowserAndProxy() {
 // Example 8: Quality control
 export async function exampleQualityControl() {
   const controller = new QualityController()
-  const sampleListings = [
+  const sampleDeals = [
     { source: 'copart', title: '2019 Ford F-150', ask_price: 14200, mileage: 78000, year: 2019 },
     { source: 'copart', title: 'Bad', ask_price: -100, mileage: 78000, year: 2019 },
     { source: 'craigslist', title: '2020 Toyota Camry', ask_price: 16500, mileage: 42000, year: 2020 },
   ]
 
-  const report = controller.validateBatch('test', sampleListings)
+  const report = controller.validateBatch('test', sampleDeals)
   console.log('Quality report:', report)
   return report
 }
@@ -130,7 +130,7 @@ export async function exampleCustomRegistry() {
       return 42
     },
     enabled: true,
-    estimatedListingsPerRun: 50,
+    estimatedDealsPerRun: 50,
   })
 
   const orchestrator = new ConcurrentOrchestrator(registry, { concurrency: 2 })
@@ -149,43 +149,43 @@ export async function exampleSwitchableOrchestrator(type: 'sequential' | 'concur
 // Example 11: Direct scraper examples for all new sources
 export async function exampleEbayMotors() {
   const count = await scrapeEbayMotors(3)
-  console.log(`eBay Motors scraped ${count} listings`)
+  console.log(`eBay Motors scraped ${count} deals`)
   return count
 }
 
 export async function exampleIaa() {
   const count = await scrapeIaa(['ford', 'toyota'], 2)
-  console.log(`IAA scraped ${count} listings`)
+  console.log(`IAA scraped ${count} deals`)
   return count
 }
 
 export async function exampleAcv() {
   const count = await scrapeAcv(2)
-  console.log(`ACV scraped ${count} listings`)
+  console.log(`ACV scraped ${count} deals`)
   return count
 }
 
 export async function exampleCarPartsCom() {
   const count = await scrapeCarPartsCom(2)
-  console.log(`CarParts.com scraped ${count} listings`)
+  console.log(`CarParts.com scraped ${count} deals`)
   return count
 }
 
 export async function exampleFacebookMarketplace() {
   const count = await scrapeFacebookMarketplace(['ford f150'], 1)
-  console.log(`Facebook Marketplace scraped ${count} listings`)
+  console.log(`Facebook Marketplace scraped ${count} deals`)
   return count
 }
 
 export async function exampleAdesa() {
   const count = await scrapeAdesa(2)
-  console.log(`ADESA scraped ${count} listings`)
+  console.log(`ADESA scraped ${count} deals`)
   return count
 }
 
 export async function exampleManheim() {
   const count = await scrapeManheim(2)
-  console.log(`Manheim scraped ${count} listings`)
+  console.log(`Manheim scraped ${count} deals`)
   return count
 }
 

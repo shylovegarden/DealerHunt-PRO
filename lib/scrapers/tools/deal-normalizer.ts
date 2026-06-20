@@ -1,7 +1,7 @@
-// lib/scrapers/tools/listing-normalizer.ts
-// Normalize scraped listing fields before validation and persistence to improve accuracy and deduplication.
+// lib/scrapers/tools/deal-normalizer.ts
+// Normalize scraped deal fields before validation and persistence to improve accuracy and deduplication.
 
-import type { Listing } from '@/types'
+import type { Deal } from '@/types'
 
 const MAKES = [
   'Acura', 'Audi', 'BMW', 'Buick', 'Cadillac', 'Chevrolet', 'Chrysler', 'Dodge', 'Ford',
@@ -55,8 +55,8 @@ export function normalizeLocation(location?: string): string | undefined {
     .trim()
 }
 
-export function normalizeListing(listing: Partial<Listing>): Partial<Listing> {
-  const normalized = { ...listing }
+export function normalizeDeal(deal: Partial<Deal>): Partial<Deal> {
+  const normalized = { ...deal }
 
   normalized.vin = normalizeVin(normalized.vin)
   normalized.title = normalizeTitle(normalized.title)
@@ -76,6 +76,6 @@ export function normalizeListing(listing: Partial<Listing>): Partial<Listing> {
   return normalized
 }
 
-export function normalizeListings(listings: Partial<Listing>[]): Partial<Listing>[] {
-  return listings.map(normalizeListing)
+export function normalizeDeals(deals: Partial<Deal>[]): Partial<Deal>[] {
+  return deals.map(normalizeDeal)
 }

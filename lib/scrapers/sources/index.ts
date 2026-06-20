@@ -1,13 +1,13 @@
 // lib/scrapers/sources/index.ts
 // ─── Per-source scraper implementations ──────────────────────────────────────
 
-import type { Listing } from '@/types'
+import type { Deal } from '@/types'
 import {
   fetchBrowser, fetchHtml, paginate,
   extractPrice, extractMileage, extractYear, normalizeUrl,
   type ScraperConfig
 } from '../engine'
-import { upsertListings } from '../pipeline'
+import { upsertDeals } from '../pipeline'
 
 // ════════════════════════════════════════════════════════════
 //  COPART — salvage auction
@@ -26,16 +26,16 @@ export const COPART_CONFIG: ScraperConfig = {
 
 export async function scrapeCopart(searchTerms: string[] = [], states: string[] = []) {
   console.log('[Copart] Starting scrape...')
-  const allListings: Partial<Listing>[] = []
+  const allDeals: Partial<Deal>[] = []
 
   for (const state of (states.length ? states : ['FL', 'TX', 'CA', 'NY', 'IL'])) {
-    const gen = paginate<Partial<Listing>>(
+    const gen = paginate<Partial<Deal>>(
       COPART_CONFIG,
       (page) => `https://www.copart.com/lotSearchResults/?free=true&query=${encodeURIComponent(state)}&page=${page}&size=100`,
       async (html) => {
         const cheerio = await import('cheerio')
         const $ = cheerio.load(typeof html === 'string' ? html : '')
-        const items: Partial<Listing>[] = []
+        const items: Partial<Deal>[] = []
 
         // Copart renders a table — each row is a lot
         $('tr[ng-repeat], .lot-row, [data-uname="lotRow"]').each((_, el) => {
@@ -52,7 +52,7 @@ export async function scrapeCopart(searchTerms: string[] = [], states: string[] 
 
           items.push({
             source: 'copart',
-            source_listing_id: lotUrl?.split('/lot/')[1]?.split('?')[0] || '',
+            source_deal_id: lotUrl?.split('/lot/')[1]?.split('?')[0] || '',
             source_url: lotUrl ? normalizeUrl(lotUrl, COPART_CONFIG.baseUrl) : '',
             title,
             year: extractYear(title),
@@ -74,13 +74,13 @@ export async function scrapeCopart(searchTerms: string[] = [], states: string[] 
     )
 
     for await (const batch of gen) {
-      allListings.push(...batch)
+      allDeals.push(...batch)
     }
   }
 
-  console.log(`[Copart] Found ${allListings.length} listings`)
-  await upsertListings(allListings)
-  return allListings.length
+  console.log(`[Copart] Found ${allDeals.length} deals`)
+  await upsertDeals(allDeals)
+  return allDeals.length
 }
 
 // ════════════════════════════════════════════════════════════
@@ -110,10 +110,10 @@ export const CL_CONFIG: ScraperConfig = {
 
 export async function scrapeCraigslist(query = 'cars+trucks', minPrice = 500, maxPrice = 35000) {
   console.log(`[Craigslist] Scanning ${CL_CITIES.length} cities...`)
-  const allListings: Partial<Listing>[] = []
+  const allDeals: Partial<Deal>[] = []
 
   for (const city of CL_CITIES) {
-    const gen = paginate<Partial<Listing>>(
+    const gen = paginate<Partial<Deal>>(
       CL_CONFIG,
       (page) =>
         `https://${city}.craigslist.org/search/cta?` +
@@ -121,7 +121,7 @@ export async function scrapeCraigslist(query = 'cars+trucks', minPrice = 500, ma
       async ($raw) => {
         const cheerio = await import('cheerio')
         const $ = typeof $raw === 'string' ? cheerio.load($raw) : ($raw as ReturnType<typeof cheerio.load>)
-        const items: Partial<Listing>[] = []
+        const items: Partial<Deal>[] = []
 
         $('.cl-search-result, li.result-row').each((_, el) => {
           const row = $(el)
@@ -135,7 +135,7 @@ export async function scrapeCraigslist(query = 'cars+trucks', minPrice = 500, ma
 
           items.push({
             source: 'craigslist',
-            source_listing_id: url?.split('/').pop()?.replace('.html', '') || '',
+            source_deal_id: url?.split('/').pop()?.replace('.html', '') || '',
             source_url: url ? normalizeUrl(url, `https://${city}.craigslist.org`) : '',
             title,
             year: extractYear(title),
@@ -155,12 +155,12 @@ export async function scrapeCraigslist(query = 'cars+trucks', minPrice = 500, ma
       }
     )
 
-    for await (const batch of gen) allListings.push(...batch)
+    for await (const batch of gen) allDeals.push(...batch)
   }
 
-  console.log(`[Craigslist] Found ${allListings.length} listings`)
-  await upsertListings(allListings)
-  return allListings.length
+  console.log(`[Craigslist] Found ${allDeals.length} deals`)
+  await upsertDeals(allDeals)
+  return allDeals.length
 }
 
 // ════════════════════════════════════════════════════════════
@@ -188,7 +188,7 @@ interface DealerProfile {
   inventoryUrl: string
   // CSS selectors for each data point
   selectors: {
-    listingCard: string
+    dealCard: string
     title: string
     price: string
     mileage?: string
@@ -216,7 +216,7 @@ export const DEALER_PROFILES: DealerProfile[] = [
     inventoryUrl: '/inventory',
     renderMode: 'browser',
     selectors: {
-      listingCard: '.vehicle-card, .inventory-listing, [class*="VehicleCard"]',
+      dealCard: '.vehicle-card, .inventory-deal, [class*="VehicleCard"]',
       title: '.vehicle-title, h2.title, [class*="vehicleTitle"]',
       price: '.price, [class*="Price"], .vehicle-price',
       mileage: '.mileage, [class*="mileage"]',
@@ -233,12 +233,12 @@ export const DEALER_PROFILES: DealerProfile[] = [
     inventoryUrl: '/inventory',
     renderMode: 'static',
     selectors: {
-      listingCard: '.vehicle_listing, .car-listing, article.type-auto_listings',
-      title: 'h2.wpl-listing-title, .vehicle-name, h3.entry-title',
+      dealCard: '.vehicle_deal, .car-deal, article.type-auto_deals',
+      title: 'h2.wpl-deal-title, .vehicle-name, h3.entry-title',
       price: '.wpl-price, .price, .vehicle-price',
       mileage: '.wpl-mileage, .mileage',
-      image: '.vehicle-image img, .listing-image img',
-      link: 'a.listing-link, .vehicle-title a',
+      image: '.vehicle-image img, .deal-image img',
+      link: 'a.deal-link, .vehicle-title a',
     },
     pagination: { param: 'paged', style: 'page', perPage: 12 },
   },
@@ -249,11 +249,11 @@ export async function scrapeIndependentDealer(
   baseUrl: string
 ): Promise<number> {
   console.log(`[IndiDealer] Scraping ${profile.name} at ${baseUrl}`)
-  const allListings: Partial<Listing>[] = []
+  const allDeals: Partial<Deal>[] = []
   const config = { ...INDI_CONFIG, baseUrl, renderMode: profile.renderMode || 'browser' }
   const sel = profile.selectors
 
-  const gen = paginate<Partial<Listing>>(
+  const gen = paginate<Partial<Deal>>(
     config,
     (page) => {
       const url = new URL(profile.inventoryUrl, baseUrl)
@@ -268,9 +268,9 @@ export async function scrapeIndependentDealer(
     async (rawHtml) => {
       const cheerio = await import('cheerio')
       const $ = cheerio.load(typeof rawHtml === 'string' ? rawHtml : '')
-      const items: Partial<Listing>[] = []
+      const items: Partial<Deal>[] = []
 
-      $(sel.listingCard).each((_, el) => {
+      $(sel.dealCard).each((_, el) => {
         const card = $(el)
         const title = card.find(sel.title).first().text().trim()
         const priceText = card.find(sel.price).first().text().trim()
@@ -285,7 +285,7 @@ export async function scrapeIndependentDealer(
 
         items.push({
           source: 'independent_dealer',
-          source_listing_id: href?.split('/').pop() || `${Date.now()}-${Math.random()}`,
+          source_deal_id: href?.split('/').pop() || `${Date.now()}-${Math.random()}`,
           source_url: href ? normalizeUrl(href, baseUrl) : baseUrl,
           title,
           year: extractYear(title),
@@ -306,11 +306,11 @@ export async function scrapeIndependentDealer(
     }
   )
 
-  for await (const batch of gen) allListings.push(...batch)
+  for await (const batch of gen) allDeals.push(...batch)
 
-  console.log(`[IndiDealer] ${profile.name}: Found ${allListings.length} listings`)
-  await upsertListings(allListings.map(l => ({ ...l, dealer_id: profile.dealerId })))
-  return allListings.length
+  console.log(`[IndiDealer] ${profile.name}: Found ${allDeals.length} deals`)
+  await upsertDeals(allDeals.map(l => ({ ...l, dealer_id: profile.dealerId })))
+  return allDeals.length
 }
 
 // ── Generic "discover and crawl any dealer site" ─────────────────────────────
@@ -344,7 +344,7 @@ export async function autoDiscoverAndCrawl(dealerWebsite: string): Promise<numbe
 
   // Try to match a known profile pattern
   const matchedProfile = DEALER_PROFILES.find(p =>
-    p.selectors.listingCard.split(',').some(sel => $(sel.trim()).length > 0)
+    p.selectors.dealCard.split(',').some(sel => $(sel.trim()).length > 0)
   )
 
   const profile: DealerProfile = matchedProfile || {
@@ -355,8 +355,8 @@ export async function autoDiscoverAndCrawl(dealerWebsite: string): Promise<numbe
     renderMode: 'browser',
     selectors: {
       // Best-effort generic selectors
-      listingCard: [
-        '[class*="vehicle"], [class*="listing"], [class*="inventory"], [class*="car-card"]',
+      dealCard: [
+        '[class*="vehicle"], [class*="deal"], [class*="inventory"], [class*="car-card"]',
         'article, .grid-item, .card',
       ].join(','),
       title: 'h1, h2, h3, [class*="title"], [class*="name"]',

@@ -144,12 +144,12 @@ export default function ListPage() {
         className="w-full"
         onClick={handleBlast}
       >
-        {done ? 'Blast Complete' : 'Blast Listings'}
+        {done ? 'Blast Complete' : 'Blast Deals'}
       </Btn>
 
       {done && (
         <Panel className="text-center py-6">
-          <p className="text-[#10B981] font-semibold">Listings syndicated to {selectedPlatforms.length} platforms</p>
+          <p className="text-[#10B981] font-semibold">Deals syndicated to {selectedPlatforms.length} platforms</p>
         </Panel>
       )}
     </div>

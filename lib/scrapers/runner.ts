@@ -27,7 +27,7 @@ export interface RunScraperOptions {
   dryRun?: boolean
   redisUrl?: string
   onProgress?: (progress: { total: number; completed: number; failed: number; percentage: number; currentSource?: string }) => void
-  onSourceComplete?: (result: { source: string; success: boolean; listingsFound: number; duration: number; error?: string }) => void
+  onSourceComplete?: (result: { source: string; success: boolean; dealsFound: number; duration: number; error?: string }) => void
 }
 
 // Create and configure the central scraper registry
@@ -44,7 +44,7 @@ export function createScraperRegistry(stateManager?: import('./tools/state').Scr
     stealthRequired: true,
     fn: () => scrapeCopart(),
     enabled: true,
-    estimatedListingsPerRun: 250,
+    estimatedDealsPerRun: 250,
   })
 
   registry.register({
@@ -57,7 +57,7 @@ export function createScraperRegistry(stateManager?: import('./tools/state').Scr
     stealthRequired: false,
     fn: () => scrapeCraigslist(),
     enabled: true,
-    estimatedListingsPerRun: 500,
+    estimatedDealsPerRun: 500,
   })
 
   registry.register({
@@ -70,7 +70,7 @@ export function createScraperRegistry(stateManager?: import('./tools/state').Scr
     stealthRequired: true,
     fn: () => scrapeIaa(),
     enabled: false,
-    estimatedListingsPerRun: 150,
+    estimatedDealsPerRun: 150,
   })
 
   registry.register({
@@ -83,7 +83,7 @@ export function createScraperRegistry(stateManager?: import('./tools/state').Scr
     stealthRequired: true,
     fn: () => scrapeAcv(),
     enabled: false,
-    estimatedListingsPerRun: 100,
+    estimatedDealsPerRun: 100,
   })
 
   registry.register({
@@ -96,7 +96,7 @@ export function createScraperRegistry(stateManager?: import('./tools/state').Scr
     stealthRequired: true,
     fn: () => scrapeAdesa(),
     enabled: false,
-    estimatedListingsPerRun: 100,
+    estimatedDealsPerRun: 100,
   })
 
   registry.register({
@@ -109,7 +109,7 @@ export function createScraperRegistry(stateManager?: import('./tools/state').Scr
     stealthRequired: true,
     fn: () => scrapeManheim(),
     enabled: false,
-    estimatedListingsPerRun: 100,
+    estimatedDealsPerRun: 100,
   })
 
   registry.register({
@@ -122,7 +122,7 @@ export function createScraperRegistry(stateManager?: import('./tools/state').Scr
     stealthRequired: true,
     fn: () => scrapeFacebookMarketplace(),
     enabled: false,
-    estimatedListingsPerRun: 200,
+    estimatedDealsPerRun: 200,
   })
 
   registry.register({
@@ -135,7 +135,7 @@ export function createScraperRegistry(stateManager?: import('./tools/state').Scr
     stealthRequired: false,
     fn: () => scrapeEbayMotors(),
     enabled: true,
-    estimatedListingsPerRun: 300,
+    estimatedDealsPerRun: 300,
   })
 
   registry.register({
@@ -148,7 +148,7 @@ export function createScraperRegistry(stateManager?: import('./tools/state').Scr
     stealthRequired: false,
     fn: () => scrapeCarPartsCom(),
     enabled: false,
-    estimatedListingsPerRun: 300,
+    estimatedDealsPerRun: 300,
   })
 
   registry.register({
@@ -169,7 +169,7 @@ export function createScraperRegistry(stateManager?: import('./tools/state').Scr
       return total
     },
     enabled: true,
-    estimatedListingsPerRun: 100,
+    estimatedDealsPerRun: 100,
   })
 
   registry.register({
@@ -187,7 +187,7 @@ export function createScraperRegistry(stateManager?: import('./tools/state').Scr
       return autoDiscoverAndCrawl(url)
     },
     enabled: false,
-    estimatedListingsPerRun: 20,
+    estimatedDealsPerRun: 20,
   })
 
   return registry
@@ -213,7 +213,7 @@ function buildOrchestratorOptions(options: RunScraperOptions): OrchestratorOptio
       options.onSourceComplete?.({
         source: result.source,
         success: result.success,
-        listingsFound: result.listingsFound,
+        dealsFound: result.dealsFound,
         duration: result.duration,
         error: result.error,
       })
@@ -280,7 +280,7 @@ export class DailyRefreshManager {
     }
   }
 
-  async runDailyRefresh(source?: string): Promise<{ source: string; success: boolean; listingsFound: number; error?: string }[]> {
+  async runDailyRefresh(source?: string): Promise<{ source: string; success: boolean; dealsFound: number; error?: string }[]> {
     const orchestrator = new ConcurrentOrchestrator(this.registry, {
       ...this.options,
       concurrency: 2,
@@ -290,7 +290,7 @@ export class DailyRefreshManager {
     return results.map(r => ({
       source: r.source,
       success: r.success,
-      listingsFound: r.listingsFound,
+      dealsFound: r.dealsFound,
       error: r.error,
     }))
   }

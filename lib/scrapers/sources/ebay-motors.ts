@@ -1,14 +1,14 @@
 // lib/scrapers/sources/ebay-motors.ts
 // ─── eBay Motors scraper using the shared paginate engine ─────────────────────
 
-import type { Listing } from '@/types'
+import type { Deal } from '@/types'
 import * as cheerio from 'cheerio'
 import {
   paginate,
   extractPrice, extractMileage, extractYear, normalizeUrl,
   type ScraperConfig
 } from '../engine'
-import { upsertListings } from '../pipeline'
+import { upsertDeals } from '../pipeline'
 
 export const EBAY_MOTORS_CONFIG: ScraperConfig = {
   name: 'eBay Motors',
@@ -38,11 +38,11 @@ const SEARCHES = [
 
 export async function scrapeEbayMotors(maxPagesPerSearch = EBAY_MOTORS_CONFIG.maxPages) {
   console.log('[eBay Motors] Starting scrape...')
-  const allListings: Partial<Listing>[] = []
+  const allDeals: Partial<Deal>[] = []
 
   for (const query of SEARCHES) {
     const config = { ...EBAY_MOTORS_CONFIG, maxPages: maxPagesPerSearch }
-    const gen = paginate<Partial<Listing>>(
+    const gen = paginate<Partial<Deal>>(
       config,
       (page) =>
         `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(query)}` +
@@ -50,7 +50,7 @@ export async function scrapeEbayMotors(maxPagesPerSearch = EBAY_MOTORS_CONFIG.ma
       async (input) => {
         const cheerio = await import('cheerio')
         const $ = typeof input === 'string' ? cheerio.load(input) : input
-        const items: Partial<Listing>[] = []
+        const items: Partial<Deal>[] = []
 
         $('.s-item').each((_: number, el: any) => {
           const row = $(el)
@@ -78,7 +78,7 @@ export async function scrapeEbayMotors(maxPagesPerSearch = EBAY_MOTORS_CONFIG.ma
 
           items.push({
             source: 'ebay_motors',
-            source_listing_id: itemId,
+            source_deal_id: itemId,
             source_url: link ? normalizeUrl(link, EBAY_MOTORS_CONFIG.baseUrl) : '',
             title,
             year,
@@ -103,13 +103,13 @@ export async function scrapeEbayMotors(maxPagesPerSearch = EBAY_MOTORS_CONFIG.ma
     )
 
     for await (const batch of gen) {
-      allListings.push(...batch)
+      allDeals.push(...batch)
     }
   }
 
-  console.log(`[eBay Motors] Found ${allListings.length} listings`)
-  await upsertListings(allListings)
-  return allListings.length
+  console.log(`[eBay Motors] Found ${allDeals.length} deals`)
+  await upsertDeals(allDeals)
+  return allDeals.length
 }
 
 function bidsOnly(text: string): string {

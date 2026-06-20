@@ -17,7 +17,7 @@ export interface Dealer {
     website?: string
   }
   inventory: {
-    totalListings: number
+    totalDeals: number
     avgPrice: number
     priceRange: { min: number; max: number }
     popularMakes: string[]
@@ -84,7 +84,7 @@ export const DEALER_ARCHETYPES = {
       website: 'https://www.aemiami74auto.com'
     },
     inventory: {
-      totalListings: 74,
+      totalDeals: 74,
       avgPrice: 18500,
       priceRange: { min: 4200, max: 48000 },
       popularMakes: ['Toyota', 'Honda', 'Nissan', 'Ford', 'BMW'],
@@ -127,7 +127,7 @@ export const DEALER_ARCHETYPES = {
       website: 'https://www.111autoresale.com'
     },
     inventory: {
-      totalListings: 111,
+      totalDeals: 111,
       avgPrice: 14200,
       priceRange: { min: 3500, max: 35000 },
       popularMakes: ['Ford', 'Chevrolet', 'Dodge', 'Toyota', 'Honda'],
@@ -170,7 +170,7 @@ export const DEALER_ARCHETYPES = {
       website: 'https://www.stlauctionpipeline.com'
     },
     inventory: {
-      totalListings: 89,
+      totalDeals: 89,
       avgPrice: 16800,
       priceRange: { min: 5800, max: 42000 },
       popularMakes: ['Ford', 'Chevrolet', 'Toyota', 'Honda', 'Nissan'],
@@ -213,7 +213,7 @@ export const DEALER_ARCHETYPES = {
       website: 'https://www.gatewaykcauto.com'
     },
     inventory: {
-      totalListings: 45,
+      totalDeals: 45,
       avgPrice: 15600,
       priceRange: { min: 6200, max: 38000 },
       popularMakes: ['Ford', 'Chevrolet', 'Toyota', 'Honda', 'Dodge'],
@@ -256,7 +256,7 @@ export const DEALER_ARCHETYPES = {
       website: 'https://www.dallasautosource.com'
     },
     inventory: {
-      totalListings: 156,
+      totalDeals: 156,
       avgPrice: 13500,
       priceRange: { min: 4800, max: 32000 },
       popularMakes: ['Ford', 'Chevrolet', 'Dodge', 'Toyota', 'Honda'],
@@ -299,7 +299,7 @@ export const DEALER_ARCHETYPES = {
       website: 'https://www.houstoncopartflippers.com'
     },
     inventory: {
-      totalListings: 78,
+      totalDeals: 78,
       avgPrice: 8900,
       priceRange: { min: 1200, max: 18000 },
       popularMakes: ['Ford', 'Chevrolet', 'Dodge', 'Toyota', 'Honda'],
@@ -342,7 +342,7 @@ export const DEALER_ARCHETYPES = {
       website: 'https://www.laauctionresale.com'
     },
     inventory: {
-      totalListings: 62,
+      totalDeals: 62,
       avgPrice: 19500,
       priceRange: { min: 7200, max: 55000 },
       popularMakes: ['Toyota', 'Honda', 'BMW', 'Mercedes', 'Tesla'],
@@ -385,7 +385,7 @@ export const DEALER_ARCHETYPES = {
       website: 'https://www.bayareasalvage.com'
     },
     inventory: {
-      totalListings: 95,
+      totalDeals: 95,
       avgPrice: 6500,
       priceRange: { min: 800, max: 15000 },
       popularMakes: ['Toyota', 'Honda', 'Ford', 'Chevrolet', 'BMW'],
@@ -539,7 +539,7 @@ export class DealerDiscoveryEngine {
     // Filter by inventory availability
     if (criteria.hasInventory !== undefined) {
       dealers = dealers.filter(dealer => 
-        criteria.hasInventory ? dealer.inventory.totalListings > 0 : dealer.inventory.totalListings === 0
+        criteria.hasInventory ? dealer.inventory.totalDeals > 0 : dealer.inventory.totalDeals === 0
       )
     }
     
@@ -580,9 +580,9 @@ export class DealerDiscoveryEngine {
     let dealScore = 50 // Base score
     
     // Inventory volume score
-    if (archetype.inventory.totalListings > 100) dealScore += 15
-    else if (archetype.inventory.totalListings > 50) dealScore += 10
-    else if (archetype.inventory.totalListings > 20) dealScore += 5
+    if (archetype.inventory.totalDeals > 100) dealScore += 15
+    else if (archetype.inventory.totalDeals > 50) dealScore += 10
+    else if (archetype.inventory.totalDeals > 20) dealScore += 5
     
     // Rating score
     dealScore += (archetype.reputation.rating - 3) * 10
@@ -600,7 +600,7 @@ export class DealerDiscoveryEngine {
     const dealScoreFinal = Math.min(100, Math.max(0, dealScore))
     
     // Calculate profit potential based on price and volume
-    const profitPotential = (archetype.inventory.avgPrice * archetype.inventory.totalListings) / 1000
+    const profitPotential = (archetype.inventory.avgPrice * archetype.inventory.totalDeals) / 1000
     
     // Reliability score based on rating and experience
     const reliabilityScore = (archetype.reputation.rating * 20) + 

@@ -16,7 +16,7 @@ describe('ScraperRegistry', () => {
       stealthRequired: false,
       fn: async () => 10,
       enabled: true,
-      estimatedListingsPerRun: 10,
+      estimatedDealsPerRun: 10,
     })
   })
 
@@ -33,7 +33,7 @@ describe('ScraperRegistry', () => {
     expect(scraper.successRate).toBe(1)
     expect(scraper.consecutiveFailures).toBe(0)
     expect(scraper.averageDurationMs).toBe(1000)
-    expect(scraper.estimatedListingsPerRun).toBe(25)
+    expect(scraper.estimatedDealsPerRun).toBe(25)
   })
 
   it('tracks failures and auto-disables after threshold', async () => {
@@ -81,7 +81,7 @@ describe('ScraperRegistry', () => {
       stealthRequired: true,
       fn: async () => 50,
       enabled: true,
-      estimatedListingsPerRun: 100,
+      estimatedDealsPerRun: 100,
     })
 
     const sorted = registry.sortByPriority(registry.getAll())
