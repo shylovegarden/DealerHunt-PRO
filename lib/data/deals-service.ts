@@ -13,6 +13,7 @@ export type Deal = {
   condition: string
   askPrice: number
   buyNowPrice?: number
+  buy_now_price?: number
   mmrValue?: number
   profitEstimate: number
   profitScore?: number
@@ -26,6 +27,17 @@ export type Deal = {
   sourceUrl: string
   auctionEndAt?: Date
   damageType?: string
+  seller?: string
+  sellerType?: 'dealer' | 'auction' | 'private'
+  repair_estimate?: number
+  transport_cost?: number
+  is_arbitrage_opportunity?: boolean
+  estimated_transport_cost?: number
+  estimated_repair_cost?: number
+  true_net_profit?: number
+  ai_wholesale_estimate?: number
+  ai_retail_estimate?: number
+  ai_rationale?: string
 }
 
 export type DealFilters = {
@@ -71,6 +83,17 @@ export class DealsService {
       sourceUrl: row.source_url,
       auctionEndAt: row.auction_end_at ? new Date(row.auction_end_at) : undefined,
       damageType: row.damage_type,
+      seller: row.seller,
+      sellerType: row.seller_type,
+      repair_estimate: row.repair_estimate ? Number(row.repair_estimate) : undefined,
+      transport_cost: row.transport_cost ? Number(row.transport_cost) : undefined,
+      is_arbitrage_opportunity: row.is_arbitrage_opportunity,
+      estimated_transport_cost: row.estimated_transport_cost ? Number(row.estimated_transport_cost) : undefined,
+      estimated_repair_cost: row.estimated_repair_cost ? Number(row.estimated_repair_cost) : undefined,
+      true_net_profit: row.true_net_profit ? Number(row.true_net_profit) : undefined,
+      ai_wholesale_estimate: row.ai_wholesale_estimate ? Number(row.ai_wholesale_estimate) : undefined,
+      ai_retail_estimate: row.ai_retail_estimate ? Number(row.ai_retail_estimate) : undefined,
+      ai_rationale: row.ai_rationale,
     }
   }
 

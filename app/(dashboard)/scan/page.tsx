@@ -3,34 +3,72 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Panel } from '@/components/shared/Panel'
 import { Btn } from '@/components/shared/Btn'
-import { Field, SelectField } from '@/components/shared/Field'
 import { Tag } from '@/components/shared/Tag'
 import { Mono } from '@/components/shared/Mono'
 import { Ico } from '@/components/shared/Ico'
-import { ALL_VEHICLE_SOURCES, PARTS_SOURCES, Source } from '@/lib/utils/sources'
+import { ALL_VEHICLE_SOURCES, PARTS_SOURCES } from '@/lib/utils/sources'
 import { cn } from '@/lib/utils'
 import { Deal } from '@/lib/data/deals-service'
 import { US_STATES } from '@/lib/utils/titleRules'
 
-// Simulated scan log lines
-const MOCK_LOGS = [
-  '[SYS] Initializing Scan Engine...',
-  '[SYS] Connecting to 64 active sources...',
-  '[OK] Copart: Connected (125,402 lots active)',
-  '[OK] IAA: Connected (84,102 lots active)',
-  '[OK] Craigslist: 50 city nodes active',
-  '[OK] Facebook: 50 city nodes active',
-  '[WARN] Manheim: Rate limited, switching proxy...',
-  '[OK] Manheim: Connected',
+const INITIAL_LOGS = [
+  '[SYS] DealerHunt Scan Engine online',
+  '[SYS] Real-time deal pipeline active',
+  '[OK] Supabase connected',
+  '[OK] Query filters loaded',
   '[SYS] Ready for query.',
 ]
+
+interface ScanResult {
+  id: string
+  source: string
+  type: string
+  score: number
+  year: number
+  make: string
+  model: string
+  dealer: string
+  city?: string
+  state?: string
+  miles: number
+  ask: number
+  mmr: number
+  profit: number
+  repair: number
+  title: string
+  ends: string
+}
+
+function mapDealToResult(deal: Deal): ScanResult {
+  return {
+    id: deal.id,
+    source: deal.source,
+    type: (deal.condition || 'deal').toUpperCase(),
+    score: deal.profitScore ?? 50,
+    year: deal.year ?? 0,
+    make: deal.make || '',
+    model: deal.model || '',
+    dealer: deal.seller || deal.source,
+    city: deal.locationCity,
+    state: deal.locationState,
+    miles: deal.mileage ?? 0,
+    ask: deal.askPrice ?? 0,
+    mmr: deal.mmrValue ?? 0,
+    profit: deal.profitEstimate ?? 0,
+    repair: deal.repair_estimate ?? 0,
+    title: deal.damageType ? `${deal.damageType} / ${deal.condition || ''}` : (deal.condition || 'Unknown'),
+    ends: deal.auctionEndAt ? new Date(deal.auctionEndAt).toLocaleDateString() : 'Active',
+  }
+}
 
 export default function ScanPage() {
   const [search, setSearch] = useState('')
   const [activeTab, setActiveTab] = useState<'vehicles' | 'parts'>('vehicles')
   const [scanning, setScanning] = useState(false)
-  const [logs, setLogs] = useState<string[]>(MOCK_LOGS)
-  const [results, setResults] = useState<any[]>([])
+  const [logs, setLogs] = useState<string[]>(INITIAL_LOGS)
+  const [results, setResults] = useState<ScanResult[]>([])
+  const [total, setTotal] = useState(0)
+  const [error, setError] = useState<string | null>(null)
   const terminalRef = useRef<HTMLDivElement>(null)
 
   // Filters
@@ -43,6 +81,28 @@ export default function ScanPage() {
 
   const sources = activeTab === 'vehicles' ? ALL_VEHICLE_SOURCES : PARTS_SOURCES
 
+  const fetchResults = async () => {
+    const params = new URLSearchParams({
+      state,
+      sort,
+      minProfit: minProfit.replace('k', '000'),
+      ...(search ? { q: search } : {}),
+      ...(sourceFilter !== 'all' ? { source: sourceFilter } : {}),
+      ...(titleType !== 'all' ? { titleType } : {}),
+    })
+
+    const res = await fetch(`/api/scan?${params.toString()}`)
+    const data = await res.json()
+
+    if (!res.ok) {
+      throw new Error(data.error || 'Failed to fetch scan results')
+    }
+
+    const mapped = (data.vehicles || []).map(mapDealToResult)
+    setResults(mapped)
+    setTotal(data.total || 0)
+  }
+
   // Auto-scroll terminal
   useEffect(() => {
     if (terminalRef.current) {
@@ -50,68 +110,40 @@ export default function ScanPage() {
     }
   }, [logs])
 
-  const runScan = () => {
+  // Initial load
+  useEffect(() => {
+    fetchResults().catch((e) => setError(e.message))
+  }, [])
+
+  const runScan = async () => {
     if (!search) return
     setScanning(true)
+    setError(null)
     setResults([])
-    setLogs((prev) => [...prev, `[QUERY] Starting global scan for: "${search}" near ${state}`])
+    setLogs((prev) => [...prev, `[QUERY] Scanning for "${search}" near ${state}`])
 
-    let step = 0
-    const interval = setInterval(() => {
-      step++
-      if (step === 1) setLogs((prev) => [...prev, `[SCAN] Querying Salvage Auctions...`])
-      if (step === 3) setLogs((prev) => [...prev, `[MATCH] Found 2019 Ford F-150 at Copart TX (+ $4.2k est)`])
-      if (step === 5) setLogs((prev) => [...prev, `[SCAN] Querying Private Deals (CL/FB)...`])
-      if (step === 7) setLogs((prev) => [...prev, `[MATCH] Found 2018 F-150 Lariat on FB Marketplace TX (+ $3.1k est)`])
-      if (step === 9) setLogs((prev) => [...prev, `[SCAN] Querying Wholesale (Manheim/ADESA)...`])
-      if (step === 11) {
-        setLogs((prev) => [...prev, `[DONE] Scan complete. 42 results found. Filtering...`])
-        clearInterval(interval)
-        setScanning(false)
-        
-        // Mock results based on the exact spec card
-        setResults([
-          {
-            id: 'mock1',
-            source: 'Copart',
-            type: 'SALVAGE',
-            score: 87,
-            year: 2019,
-            make: 'Ford',
-            model: 'F-150 XLT 4WD',
-            dealer: 'Copart Dallas',
-            city: 'Dallas',
-            state: 'TX',
-            miles: 78000,
-            ask: 13200,
-            mmr: 19400,
-            profit: 6200,
-            repair: 0,
-            title: 'Clean Title',
-            ends: '2h 14m'
-          },
-          {
-            id: 'mock2',
-            source: 'Facebook',
-            type: 'PRIVATE',
-            score: 74,
-            year: 2018,
-            make: 'Ford',
-            model: 'F-150 Lariat',
-            dealer: 'Private Seller',
-            city: 'Houston',
-            state: 'TX',
-            miles: 102000,
-            ask: 18500,
-            mmr: 23000,
-            profit: 3100,
-            repair: 900,
-            title: 'Clean Title',
-            ends: 'Listed 2d ago'
-          }
-        ])
-      }
-    }, 600)
+    try {
+      const res = await fetch('/api/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ searchTerm: search, sources: ['iaa', 'craigslist', 'ebay'], dealerId: '' }),
+      })
+      const data = await res.json()
+      setLogs((prev) => [...prev, `[SYS] ${data.message || 'Scan queued'}`])
+    } catch (e) {
+      setLogs((prev) => [...prev, `[WARN] Could not queue scan: ${e instanceof Error ? e.message : 'unknown'}`])
+    }
+
+    // Fetch existing deals immediately while the queue warms up
+    try {
+      await fetchResults()
+      setLogs((prev) => [...prev, `[DONE] Loaded ${total} real deals from database`])
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Scan failed')
+      setLogs((prev) => [...prev, `[WARN] ${e instanceof Error ? e.message : 'Scan failed'}`])
+    } finally {
+      setScanning(false)
+    }
   }
 
   return (

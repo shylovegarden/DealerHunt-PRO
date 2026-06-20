@@ -20,7 +20,7 @@ import {
 import { startScraperWorker } from '../worker'
 import { ScraperScheduler } from '../scheduler'
 import { scrapeEbayMotors } from '../sources/ebay-motors'
-import { scrapeIaa } from '../sources/iaa'
+import { scrapeIAA } from '../sources/iaa'
 import { scrapeAcv } from '../sources/acv'
 import { scrapeCarPartsCom } from '../sources/carparts-com'
 import { scrapeFacebookMarketplace } from '../sources/facebook-marketplace'
@@ -154,7 +154,7 @@ export async function exampleEbayMotors() {
 }
 
 export async function exampleIaa() {
-  const count = await scrapeIaa(['ford', 'toyota'], 2)
+  const count = await scrapeIAA('ford', 2)
   console.log(`IAA scraped ${count} deals`)
   return count
 }

@@ -3,7 +3,7 @@
 
 import { scrapeCopart, scrapeCraigslist, scrapeIndependentDealer, autoDiscoverAndCrawl } from './sources/index'
 import { scrapeEbayMotors } from './sources/ebay-motors'
-import { scrapeIaa } from './sources/iaa'
+import { scrapeIAA } from './sources/iaa'
 import { scrapeAcv } from './sources/acv'
 import { scrapeCarPartsCom } from './sources/carparts-com'
 import { scrapeFacebookMarketplace } from './sources/facebook-marketplace'
@@ -68,7 +68,7 @@ export function createScraperRegistry(stateManager?: import('./tools/state').Scr
     frequencyMinutes: 60,
     requiresAuth: true,
     stealthRequired: true,
-    fn: () => scrapeIaa(),
+    fn: () => scrapeIAA(),
     enabled: false,
     estimatedDealsPerRun: 150,
   })

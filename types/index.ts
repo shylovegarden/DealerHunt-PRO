@@ -13,6 +13,7 @@ export interface Deal {
   trim?: string
   vin?: string
   ask_price: number
+  buy_now_price?: number
   mileage?: number
   condition?: string
   damage_type?: string
@@ -27,6 +28,10 @@ export interface Deal {
   bid_count?: number
   transport_cost?: number
   repair_estimate?: number
+  estimated_transport_cost?: number
+  estimated_repair_cost?: number
+  true_net_profit?: number
+  mmr_value?: number
   profit_estimate?: number
   profit_score?: number
   ai_wholesale_estimate?: number
