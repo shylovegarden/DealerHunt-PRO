@@ -22,6 +22,9 @@ export function TopBar() {
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-[rgba(255,255,255,.06)] bg-[#07070A]/80 backdrop-blur-md px-4 md:px-6">
       <div className="flex items-center gap-3">
+        <div className="md:hidden w-6 h-6 rounded bg-[#F59E0B] flex items-center justify-center">
+          <span className="text-[#07070A] font-extrabold text-xs leading-none">D</span>
+        </div>
         <span className="text-base font-semibold text-[#FAFAFA]">{title}</span>
       </div>
       <div className="flex items-center gap-3">

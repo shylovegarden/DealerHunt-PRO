@@ -1,9 +1,13 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
-// All clients are created lazily (on first call, not at module import time).
-// This prevents Next.js build-time crashes when env vars are absent.
+function assertEnv() {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('YOUR_PROJECT_ID')) {
+    throw new Error('NEXT_PUBLIC_SUPABASE_URL is not configured. Set it in .env.local')
+  }
+}
 
 export function getSupabaseClient(): SupabaseClient {
+  assertEnv()
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -15,6 +19,7 @@ export function createClientComponentClient(): SupabaseClient {
 }
 
 export function createServerComponentClient(): SupabaseClient {
+  assertEnv()
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -31,4 +36,9 @@ export function createServerComponentClient(): SupabaseClient {
 // Use createClientComponentClient() or createServerComponentClient() where possible.
 export function getSupabase(): SupabaseClient {
   return getSupabaseClient()
+}
+
+export function isSupabaseConfigured(): boolean {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  return Boolean(url && !url.includes('YOUR_PROJECT_ID'))
 }

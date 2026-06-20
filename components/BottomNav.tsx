@@ -15,10 +15,11 @@ export function BottomNav() {
     { name: 'Move', href: '/move', icon: Truck },
     { name: 'List', href: '/list', icon: Megaphone },
     { name: 'Fleet', href: '/fleet', icon: Clock },
+    { name: 'Finance', href: '/finance', icon: Wallet },
     { name: 'Parts', href: '/parts', icon: Wrench },
   ];
 
-  const visibleItems = navItems.slice(0, 5);
+  const visibleItems = navItems;
 
   return (
     <div className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-[#0C0C0F]/95 backdrop-blur-md border-t border-[rgba(255,255,255,.06)] z-50 flex justify-around items-center px-2 pb-safe">

@@ -3,8 +3,8 @@ import { createServerComponentClient } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET(_request: NextRequest, { params }: { params: { dealerId: string } }) {
-  const { dealerId } = params
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ dealerId: string }> }) {
+  const { dealerId } = await params
   const supabase = createServerComponentClient()
 
   try {

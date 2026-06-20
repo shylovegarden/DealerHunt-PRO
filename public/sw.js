@@ -4,7 +4,7 @@ const DYNAMIC_CACHE = 'dealerhunt-dynamic-v1'
 
 const STATIC_ASSETS = [
   '/',
-  '/responsive-page',
+  '/find',
   '/manifest.json',
   '/_next/static/css/app/layout.css',
   '/_next/static/css/app/globals.css',
@@ -88,13 +88,13 @@ self.addEventListener('fetch', (event) => {
           })
           .catch(() => {
             // Handle offline fallback for specific routes
-            if (request.url.includes('/responsive-page')) {
+            if (request.url.includes('/find')) {
               return caches.match('/')
             }
-            
+
             // Return offline page for navigation requests
             if (request.mode === 'navigate') {
-              return caches.match('/offline.html') || 
+              return caches.match('/offline.html') ||
                 new Response('Offline - Please check your connection', {
                   status: 503,
                   statusText: 'Service Unavailable'
@@ -148,7 +148,7 @@ self.addEventListener('notificationclick', (event) => {
   
   if (event.action === 'explore') {
     event.waitUntil(
-      clients.openWindow('/responsive-page?screen=scanner')
+      clients.openWindow('/find')
     )
   }
 })

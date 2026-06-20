@@ -5,29 +5,49 @@ import { Panel } from '@/components/shared/Panel'
 import { Btn } from '@/components/shared/Btn'
 import { DealCard } from '@/components/shared/DealCard'
 import { Ico } from '@/components/shared/Ico'
-import { MOCK_DEALS } from '@/lib/utils/mockDeals'
+import { Listing } from '@/lib/data/listings-service'
 
 export default function ScanPage() {
   const [scanning, setScanning] = useState(false)
   const [progress, setProgress] = useState(0)
-  const [results, setResults] = useState<typeof MOCK_DEALS>([])
+  const [results, setResults] = useState<Listing[]>([])
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!scanning) return
     setResults([])
     setProgress(0)
+    setError(null)
 
     const interval = setInterval(() => {
       setProgress((p) => {
         if (p >= 100) {
           clearInterval(interval)
-          setScanning(false)
-          setResults(MOCK_DEALS.filter((d) => d.score >= 75))
           return 100
         }
         return p + 10
       })
     }, 300)
+
+    fetch('/api/listings?hot=true&limit=20')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.error) {
+          setError(data.error)
+          setResults([])
+        } else {
+          setResults(data.listings || [])
+        }
+      })
+      .catch((err) => {
+        setError(err.message)
+        setResults([])
+      })
+      .finally(() => {
+        clearInterval(interval)
+        setScanning(false)
+        setProgress(100)
+      })
 
     return () => clearInterval(interval)
   }, [scanning])
@@ -63,6 +83,12 @@ export default function ScanPage() {
         </Panel>
       )}
 
+      {error && !scanning && (
+        <Panel className="text-center py-12 border border-[rgba(239,68,68,.20)] bg-[rgba(239,68,68,.10)]">
+          <p className="text-[#EF4444]">Error: {error}</p>
+        </Panel>
+      )}
+
       {results.length > 0 && (
         <div className="space-y-3">
           <p className="text-sm text-[#9898A8]">Found {results.length} opportunities</p>
@@ -72,7 +98,7 @@ export default function ScanPage() {
         </div>
       )}
 
-      {!scanning && results.length === 0 && (
+      {!scanning && results.length === 0 && !error && (
         <Panel className="text-center py-16">
           <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-[rgba(245,158,11,.10)] border border-[rgba(245,158,11,.22)] text-[#F59E0B] mb-4">
             <Ico name="scan" size={24} />

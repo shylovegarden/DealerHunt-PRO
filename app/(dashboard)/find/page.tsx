@@ -1,33 +1,59 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Panel } from '@/components/shared/Panel'
 import { Field, SelectField } from '@/components/shared/Field'
 import { Btn } from '@/components/shared/Btn'
 import { DealCard } from '@/components/shared/DealCard'
-import { MOCK_DEALS } from '@/lib/utils/mockDeals'
+import { Listing } from '@/lib/data/listings-service'
 
 export default function FindPage() {
   const [query, setQuery] = useState('')
   const [source, setSource] = useState('all')
   const [minScore, setMinScore] = useState('all')
+  const [listings, setListings] = useState<Listing[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const filtered = useMemo(() => {
-    return MOCK_DEALS.filter((deal) => {
-      const matchesQuery = `${deal.year} ${deal.make} ${deal.model} ${deal.trim}`.toLowerCase().includes(query.toLowerCase())
-      const matchesSource = source === 'all' || deal.source === source
-      const matchesScore = minScore === 'all' || deal.score >= parseInt(minScore, 10)
-      return matchesQuery && matchesSource && matchesScore
-    })
+  useEffect(() => {
+    const params = new URLSearchParams()
+    if (source !== 'all') params.set('source', source)
+    if (minScore !== 'all') params.set('minScore', minScore)
+    if (query.trim()) params.set('search', query.trim())
+    params.set('limit', '50')
+
+    setLoading(true)
+    setError(null)
+
+    fetch(`/api/listings?${params.toString()}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.error) {
+          setError(data.error)
+          setListings([])
+        } else {
+          setListings(data.listings || [])
+        }
+      })
+      .catch((err) => {
+        setError(err.message)
+        setListings([])
+      })
+      .finally(() => setLoading(false))
   }, [query, source, minScore])
 
-  const sources = ['all', ...Array.from(new Set(MOCK_DEALS.map((d) => d.source)))]
+  const sources = useMemo(() => {
+    const all = new Set<string>()
+    listings.forEach((l) => all.add(l.source))
+    return ['all', ...Array.from(all).sort()]
+  }, [listings])
+
   const stats = useMemo(() => {
-    const total = filtered.length
-    const avgProfit = total ? Math.round(filtered.reduce((acc, d) => acc + d.profit, 0) / total) : 0
-    const hot = filtered.filter((d) => d.hot).length
+    const total = listings.length
+    const avgProfit = total ? Math.round(listings.reduce((acc, d) => acc + d.profitEstimate, 0) / total) : 0
+    const hot = listings.filter((d) => (d.profitScore ?? 0) >= 80).length
     return { total, avgProfit, hot }
-  }, [filtered])
+  }, [listings])
 
   return (
     <div className="space-y-4">
@@ -87,15 +113,29 @@ export default function FindPage() {
         </div>
       </Panel>
 
-      <div className="space-y-3">
-        {filtered.length === 0 ? (
-          <Panel className="text-center py-12">
-            <p className="text-[#9898A8]">No deals match your filters.</p>
-          </Panel>
-        ) : (
-          filtered.map((deal) => <DealCard key={deal.id} deal={deal} />)
-        )}
-      </div>
+      {loading && (
+        <Panel className="text-center py-12">
+          <p className="text-[#9898A8]">Loading deals...</p>
+        </Panel>
+      )}
+
+      {error && !loading && (
+        <Panel className="text-center py-12 border border-[rgba(239,68,68,.20)] bg-[rgba(239,68,68,.10)]">
+          <p className="text-[#EF4444]">Error: {error}</p>
+        </Panel>
+      )}
+
+      {!loading && !error && (
+        <div className="space-y-3">
+          {listings.length === 0 ? (
+            <Panel className="text-center py-12">
+              <p className="text-[#9898A8]">No deals found. Start a scan or ingest listings.</p>
+            </Panel>
+          ) : (
+            listings.map((deal) => <DealCard key={deal.id} deal={deal} />)
+          )}
+        </div>
+      )}
     </div>
   )
 }

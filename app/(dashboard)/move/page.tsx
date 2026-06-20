@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import { Panel } from '@/components/shared/Panel'
 import { Field, SelectField } from '@/components/shared/Field'
 import { Btn } from '@/components/shared/Btn'
@@ -12,13 +12,29 @@ export default function MovePage() {
   const [trailer, setTrailer] = useState<'open' | 'enclosed'>('open')
   const [fromState, setFromState] = useState('TX')
   const [toState, setToState] = useState('CA')
+  const [quote, setQuote] = useState<number | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const quote = useMemo(() => {
-    const rates = { open: 0.78, enclosed: 1.28 }
-    const minimums = { open: 350, enclosed: 600 }
-    const base = Math.round(miles * rates[trailer])
-    return Math.max(minimums[trailer], base)
-  }, [miles, trailer])
+  const getQuote = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/transport/quote?miles=${miles}&trailer=${trailer}`)
+      const data = await res.json()
+      if (data.error) {
+        setError(data.error)
+        setQuote(null)
+      } else {
+        setQuote(data.quote)
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error')
+      setQuote(null)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
     <div className="space-y-4 max-w-3xl">
@@ -57,19 +73,27 @@ export default function MovePage() {
             onChange={(e) => setTrailer(e.target.value as 'open' | 'enclosed')}
           />
         </div>
-        <Btn className="w-full">Get Quote</Btn>
+        <Btn loading={loading} onClick={getQuote} className="w-full">Get Quote</Btn>
       </Panel>
 
-      <Panel className="flex items-center justify-between">
-        <div>
-          <p className="text-xs text-[#62627A] uppercase tracking-wider">Estimated Transport</p>
-          <Mono className="text-3xl font-bold text-[#F59E0B]">${quote.toLocaleString()}</Mono>
-        </div>
-        <div className="text-right text-sm text-[#9898A8]">
-          <p>{miles.toLocaleString()} miles</p>
-          <p className="capitalize">{trailer} trailer</p>
-        </div>
-      </Panel>
+      {error && (
+        <Panel className="text-center py-6 border border-[rgba(239,68,68,.20)] bg-[rgba(239,68,68,.10)]">
+          <p className="text-[#EF4444]">Error: {error}</p>
+        </Panel>
+      )}
+
+      {quote !== null && !error && (
+        <Panel className="flex items-center justify-between">
+          <div>
+            <p className="text-xs text-[#62627A] uppercase tracking-wider">Estimated Transport</p>
+            <Mono className="text-3xl font-bold text-[#F59E0B]">${quote.toLocaleString()}</Mono>
+          </div>
+          <div className="text-right text-sm text-[#9898A8]">
+            <p>{miles.toLocaleString()} miles</p>
+            <p className="capitalize">{trailer} trailer</p>
+          </div>
+        </Panel>
+      )}
     </div>
   )
 }

@@ -3,8 +3,8 @@ import { decodeVIN } from '@/lib/vin-decoder'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET(_request: NextRequest, { params }: { params: { vin: string } }) {
-  const { vin } = params
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ vin: string }> }) {
+  const { vin } = await params
   const cleaned = vin?.toUpperCase().trim()
 
   if (!cleaned || cleaned.length !== 17) {

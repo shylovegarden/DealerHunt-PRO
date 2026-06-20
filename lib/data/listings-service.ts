@@ -1,116 +1,131 @@
-// Real listings service with database integration
-import { createClient } from '@supabase/supabase-js'
+import { createServerComponentClient } from '@/lib/supabase'
 
-export interface Listing {
+export type Listing = {
   id: string
   source: string
-  sourceType: 'auction' | 'marketplace' | 'dealer' | 'parts'
   title: string
-  price: number
-  currency: string
-  year?: number
-  make?: string
-  model?: string
+  year: number
+  make: string
+  model: string
+  trim?: string
   vin?: string
   mileage?: number
-  location?: string
-  description?: string
-  images: string[]
-  auctionEnd?: Date
-  bidCount?: number
-  seller?: string
-  sellerType?: 'dealer' | 'auction' | 'private'
-  condition?: 'clean' | 'salvage' | 'rebuilt' | 'parts'
-  transportCost?: number
-  repairEstimate?: number
+  condition: string
+  askPrice: number
+  buyNowPrice?: number
+  mmrValue?: number
+  profitEstimate: number
   profitScore?: number
-  scrapedAt: Date
-  url?: string
-  metadata: Record<string, any>
+  images: string[]
+  locationCity?: string
+  locationState?: string
+  locationZip?: string
+  active: boolean
+  firstSeenAt: Date
+  lastSeenAt: Date
+  sourceUrl: string
+  auctionEndAt?: Date
+  damageType?: string
 }
 
-export interface ListingFilters {
+export type ListingFilters = {
   source?: string[]
-  sourceType?: string[]
   make?: string[]
-  model?: string[]
-  yearRange?: { min: number; max: number }
-  priceRange?: { min: number; max: number }
-  mileageRange?: { min: number; max: number }
   condition?: string[]
   location?: string
-  sortBy?: 'price' | 'year' | 'mileage' | 'profitScore' | 'scrapedAt'
+  minProfit?: number
+  minScore?: number
+  sortBy?: 'profitEstimate' | 'profitScore' | 'askPrice' | 'year' | 'mileage' | 'lastSeenAt'
   sortOrder?: 'asc' | 'desc'
   limit?: number
   offset?: number
 }
 
 export class ListingsService {
-  private supabase: any
+  private supabase = createServerComponentClient()
 
-  constructor() {
-    this.supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-    )
+  private mapDbToListing(row: any): Listing {
+    return {
+      id: row.id,
+      source: row.source,
+      title: row.title,
+      year: row.year,
+      make: row.make,
+      model: row.model,
+      trim: row.trim,
+      vin: row.vin,
+      mileage: row.mileage,
+      condition: row.condition,
+      askPrice: Number(row.ask_price || 0),
+      buyNowPrice: row.buy_now_price ? Number(row.buy_now_price) : undefined,
+      mmrValue: row.mmr_value ? Number(row.mmr_value) : undefined,
+      profitEstimate: Number(row.profit_estimate || 0),
+      profitScore: row.profit_score ? Number(row.profit_score) : undefined,
+      images: row.images || [],
+      locationCity: row.location_city,
+      locationState: row.location_state,
+      locationZip: row.location_zip,
+      active: row.active ?? true,
+      firstSeenAt: new Date(row.first_seen_at),
+      lastSeenAt: new Date(row.last_seen_at),
+      sourceUrl: row.source_url,
+      auctionEndAt: row.auction_end_at ? new Date(row.auction_end_at) : undefined,
+      damageType: row.damage_type,
+    }
   }
 
-  // Get listings with filters
+  private buildQuery(filters: ListingFilters = {}) {
+    let query = this.supabase
+      .from('listings')
+      .select('*', { count: 'exact' })
+      .eq('active', true)
+
+    if (filters.source?.length) {
+      query = query.in('source', filters.source)
+    }
+
+    if (filters.make?.length) {
+      query = query.in('make', filters.make)
+    }
+
+    if (filters.condition?.length) {
+      query = query.in('condition', filters.condition)
+    }
+
+    if (filters.location) {
+      query = query.or(`location_city.ilike.%${filters.location}%,location_state.ilike.%${filters.location}%`)
+    }
+
+    if (filters.minProfit) {
+      query = query.gte('profit_estimate', filters.minProfit)
+    }
+
+    if (filters.minScore) {
+      query = query.gte('profit_score', filters.minScore)
+    }
+
+    const sortBy = filters.sortBy || 'profitScore'
+    const sortOrder = filters.sortOrder || 'desc'
+    const sortColumnMap: Record<string, string> = {
+      profitEstimate: 'profit_estimate',
+      profitScore: 'profit_score',
+      askPrice: 'ask_price',
+      year: 'year',
+      mileage: 'mileage',
+      lastSeenAt: 'last_seen_at',
+    }
+    query = query.order(sortColumnMap[sortBy], { ascending: sortOrder === 'asc' })
+
+    return query
+  }
+
   async getListings(filters: ListingFilters = {}): Promise<{
     listings: Listing[]
     total: number
     hasMore: boolean
   }> {
-    let query = this.supabase
-      .from('listings')
-      .select('*', { count: 'exact' })
+    let query = this.buildQuery(filters)
 
-    // Apply filters
-    if (filters.source && filters.source.length > 0) {
-      query = query.in('source', filters.source)
-    }
-
-    if (filters.sourceType && filters.sourceType.length > 0) {
-      query = query.in('source_type', filters.sourceType)
-    }
-
-    if (filters.make && filters.make.length > 0) {
-      query = query.in('make', filters.make)
-    }
-
-    if (filters.model && filters.model.length > 0) {
-      query = query.in('model', filters.model)
-    }
-
-    if (filters.yearRange) {
-      query = query.gte('year', filters.yearRange.min).lte('year', filters.yearRange.max)
-    }
-
-    if (filters.priceRange) {
-      query = query.gte('price', filters.priceRange.min).lte('price', filters.priceRange.max)
-    }
-
-    if (filters.mileageRange) {
-      query = query.gte('mileage', filters.mileageRange.min).lte('mileage', filters.mileageRange.max)
-    }
-
-    if (filters.condition && filters.condition.length > 0) {
-      query = query.in('condition', filters.condition)
-    }
-
-    if (filters.location) {
-      query = query.ilike('location', `%${filters.location}%`)
-    }
-
-    // Apply sorting
-    if (filters.sortBy) {
-      const order = filters.sortOrder || 'desc'
-      query = query.order(filters.sortBy, { ascending: order === 'asc' })
-    } else {
-      query = query.order('scraped_at', { ascending: false })
-    }
-
-    // Apply pagination
     if (filters.limit) {
       query = query.limit(filters.limit)
     }
@@ -134,25 +149,6 @@ export class ListingsService {
     return { listings, total, hasMore }
   }
 
-  // Get listing by ID
-  async getListingById(id: string): Promise<Listing | null> {
-    const { data, error } = await this.supabase
-      .from('listings')
-      .select('*')
-      .eq('id', id)
-      .single()
-
-    if (error) {
-      if (error.code === 'PGRST116') {
-        return null // Not found
-      }
-      throw new Error(`Failed to fetch listing: ${error.message}`)
-    }
-
-    return this.mapDbToListing(data)
-  }
-
-  // Search listings by text
   async searchListings(searchTerm: string, filters: ListingFilters = {}): Promise<{
     listings: Listing[]
     total: number
@@ -161,24 +157,18 @@ export class ListingsService {
     let query = this.supabase
       .from('listings')
       .select('*', { count: 'exact' })
-      .or(`title.ilike.%${searchTerm}%,make.ilike.%${searchTerm}%,model.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`)
+      .eq('active', true)
+      .or(`title.ilike.%${searchTerm}%,make.ilike.%${searchTerm}%,model.ilike.%${searchTerm}%,vin.ilike.%${searchTerm}%`)
 
-    // Apply additional filters
-    if (filters.source && filters.source.length > 0) {
-      query = query.in('source', filters.source)
+    if (filters.minProfit) {
+      query = query.gte('profit_estimate', filters.minProfit)
     }
 
-    if (filters.priceRange) {
-      query = query.gte('price', filters.priceRange.min).lte('price', filters.priceRange.max)
+    if (filters.minScore) {
+      query = query.gte('profit_score', filters.minScore)
     }
 
-    // Apply sorting and pagination
-    if (filters.sortBy) {
-      const order = filters.sortOrder || 'desc'
-      query = query.order(filters.sortBy, { ascending: order === 'asc' })
-    } else {
-      query = query.order('scraped_at', { ascending: false })
-    }
+    query = query.order('profit_score', { ascending: false, nullsFirst: false })
 
     if (filters.limit) {
       query = query.limit(filters.limit)
@@ -192,17 +182,16 @@ export class ListingsService {
 
     const listings = (data || []).map(this.mapDbToListing)
     const total = count || 0
-    const limit = filters.limit || 20
     const hasMore = listings.length < total
 
     return { listings, total, hasMore }
   }
 
-  // Get hot deals (high profit score)
-  async getHotDeals(limit: number = 10): Promise<Listing[]> {
+  async getHotDeals(limit = 10): Promise<Listing[]> {
     const { data, error } = await this.supabase
       .from('listings')
       .select('*')
+      .eq('active', true)
       .gte('profit_score', 70)
       .order('profit_score', { ascending: false })
       .limit(limit)
@@ -214,223 +203,54 @@ export class ListingsService {
     return (data || []).map(this.mapDbToListing)
   }
 
-  // Get listings by source
-  async getListingsBySource(source: string, limit: number = 20): Promise<Listing[]> {
+  async getListingById(id: string): Promise<Listing | null> {
     const { data, error } = await this.supabase
       .from('listings')
       .select('*')
-      .eq('source', source)
-      .order('scraped_at', { ascending: false })
-      .limit(limit)
+      .eq('id', id)
+      .single()
 
     if (error) {
-      throw new Error(`Failed to fetch listings by source: ${error.message}`)
+      if (error.code === 'PGRST116') return null
+      throw new Error(`Failed to fetch listing: ${error.message}`)
     }
 
-    return (data || []).map(this.mapDbToListing)
+    return this.mapDbToListing(data)
   }
 
-  // Add listing to watchlist
-  async addToWatchlist(userId: string, listingId: string, alertThreshold?: number, notes?: string): Promise<void> {
-    const { error } = await this.supabase
-      .from('watchlist')
-      .upsert({
-        user_id: userId,
-        listing_id: listingId,
-        alert_threshold: alertThreshold,
-        notes
-      }, {
-        onConflict: 'user_id,listing_id'
-      })
-
-    if (error) {
-      throw new Error(`Failed to add to watchlist: ${error.message}`)
-    }
-  }
-
-  // Remove from watchlist
-  async removeFromWatchlist(userId: string, listingId: string): Promise<void> {
-    const { error } = await this.supabase
-      .from('watchlist')
-      .delete()
-      .eq('user_id', userId)
-      .eq('listing_id', listingId)
-
-    if (error) {
-      throw new Error(`Failed to remove from watchlist: ${error.message}`)
-    }
-  }
-
-  // Get user's watchlist
-  async getWatchlist(userId: string, limit: number = 50): Promise<Listing[]> {
-    const { data, error } = await this.supabase
-      .from('watchlist')
-      .select(`
-        listing_id,
-        listings (
-          *
-        )
-      `)
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(limit)
-
-    if (error) {
-      throw new Error(`Failed to fetch watchlist: ${error.message}`)
-    }
-
-    return (data || []).map((item: any) => this.mapDbToListing(item.listings))
-  }
-
-  // Get price history for a listing
-  async getPriceHistory(listingId: string): Promise<Array<{
-    date: string
-    price: number
-    source: string
-  }>> {
-    const { data, error } = await this.supabase
-      .from('price_history')
-      .select('*')
-      .eq('listing_id', listingId)
-      .order('date', { ascending: true })
-
-    if (error) {
-      throw new Error(`Failed to fetch price history: ${error.message}`)
-    }
-
-    return (data || []).map((item: any) => ({
-      date: item.date,
-      price: parseFloat(item.price),
-      source: item.source
-    }))
-  }
-
-  // Get available sources
   async getAvailableSources(): Promise<string[]> {
     const { data, error } = await this.supabase
       .from('listings')
       .select('source')
+      .eq('active', true)
       .not('source', 'is', null)
 
     if (error) {
       throw new Error(`Failed to fetch sources: ${error.message}`)
     }
 
-    const sources: string[] = []
+    const sources = new Set<string>()
     for (const item of data || []) {
-      const s = String(item.source)
-      if (!sources.includes(s)) sources.push(s)
+      if (item.source) sources.add(item.source)
     }
-    return sources.sort()
+    return Array.from(sources).sort()
   }
 
-  // Get available makes
   async getAvailableMakes(): Promise<string[]> {
     const { data, error } = await this.supabase
       .from('listings')
       .select('make')
+      .eq('active', true)
       .not('make', 'is', null)
 
     if (error) {
       throw new Error(`Failed to fetch makes: ${error.message}`)
     }
 
-    const makes: string[] = []
+    const makes = new Set<string>()
     for (const item of data || []) {
-      const m = String(item.make)
-      if (!makes.includes(m)) makes.push(m)
+      if (item.make) makes.add(item.make)
     }
-    return makes.sort()
-  }
-
-  // Get statistics
-  async getStatistics(): Promise<{
-    totalListings: number
-    avgPrice: number
-    topSources: Array<{ source: string; count: number }>
-    topMakes: Array<{ make: string; count: number }>
-    recentCount: number
-  }> {
-    // Get total listings and average price
-    const { data: statsData, error: statsError } = await this.supabase
-      .from('listings')
-      .select('price, source, make, scraped_at')
-
-    if (statsError) {
-      throw new Error(`Failed to fetch statistics: ${statsError.message}`)
-    }
-
-    const listings = statsData || []
-    const totalListings = listings.length
-    const avgPrice = listings.length > 0 
-      ? listings.reduce((sum: number, item: any) => sum + parseFloat(item.price), 0) / listings.length
-      : 0
-
-    // Get top sources
-    const sourceCounts: Record<string, number> = {}
-    listings.forEach((item: any) => {
-      sourceCounts[item.source] = (sourceCounts[item.source] || 0) + 1
-    })
-    const topSources = Object.entries(sourceCounts)
-      .sort(([,a], [,b]) => b - a)
-      .slice(0, 10)
-      .map(([source, count]) => ({ source, count }))
-
-    // Get top makes
-    const makeCounts: Record<string, number> = {}
-    listings.forEach((item: any) => {
-      if (item.make) {
-        makeCounts[item.make] = (makeCounts[item.make] || 0) + 1
-      }
-    })
-    const topMakes = Object.entries(makeCounts)
-      .sort(([,a], [,b]) => b - a)
-      .slice(0, 10)
-      .map(([make, count]) => ({ make, count }))
-
-    // Get recent listings (last 24 hours)
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
-    const recentCount = listings.filter((item: any) => 
-      new Date(item.scraped_at) > oneDayAgo
-    ).length
-
-    return {
-      totalListings,
-      avgPrice: Math.round(avgPrice),
-      topSources,
-      topMakes,
-      recentCount
-    }
-  }
-
-  // Map database record to Listing interface
-  private mapDbToListing(dbRecord: any): Listing {
-    return {
-      id: dbRecord.id,
-      source: dbRecord.source,
-      sourceType: dbRecord.source_type,
-      title: dbRecord.title,
-      price: parseFloat(dbRecord.price),
-      currency: dbRecord.currency,
-      year: dbRecord.year,
-      make: dbRecord.make,
-      model: dbRecord.model,
-      vin: dbRecord.vin,
-      mileage: dbRecord.mileage,
-      location: dbRecord.location,
-      description: dbRecord.description,
-      images: dbRecord.images || [],
-      auctionEnd: dbRecord.auction_end ? new Date(dbRecord.auction_end) : undefined,
-      bidCount: dbRecord.bid_count,
-      seller: dbRecord.seller,
-      sellerType: dbRecord.seller_type,
-      condition: dbRecord.condition,
-      transportCost: dbRecord.transport_cost ? parseFloat(dbRecord.transport_cost) : undefined,
-      repairEstimate: dbRecord.repair_estimate ? parseFloat(dbRecord.repair_estimate) : undefined,
-      profitScore: dbRecord.profit_score ? parseFloat(dbRecord.profit_score) : undefined,
-      scrapedAt: new Date(dbRecord.scraped_at),
-      url: dbRecord.url,
-      metadata: dbRecord.metadata || {}
-    }
+    return Array.from(makes).sort()
   }
 }

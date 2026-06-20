@@ -1,109 +1,51 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-import { ListingsService } from '@/lib/data/listings-service'
+import { ListingsService, ListingFilters } from '@/lib/data/listings-service'
+import { isSupabaseConfigured } from '@/lib/supabase'
 
-
-export async function GET(request: NextRequest) {
-  try {
-    const listingsService = new ListingsService()
-    const { searchParams } = new URL(request.url)
-    
-    // Parse query parameters
-    const filters: any = {}
-    
-    if (searchParams.get('source')) {
-      filters.source = searchParams.get('source')!.split(',')
-    }
-    
-    if (searchParams.get('sourceType')) {
-      filters.sourceType = searchParams.get('sourceType')!.split(',')
-    }
-    
-    if (searchParams.get('make')) {
-      filters.make = searchParams.get('make')!.split(',')
-    }
-    
-    if (searchParams.get('model')) {
-      filters.model = searchParams.get('model')!.split(',')
-    }
-    
-    if (searchParams.get('condition')) {
-      filters.condition = searchParams.get('condition')!.split(',')
-    }
-    
-    if (searchParams.get('location')) {
-      filters.location = searchParams.get('location')
-    }
-    
-    if (searchParams.get('sortBy')) {
-      filters.sortBy = searchParams.get('sortBy') as any
-    }
-    
-    if (searchParams.get('sortOrder')) {
-      filters.sortOrder = searchParams.get('sortOrder') as any
-    }
-    
-    if (searchParams.get('limit')) {
-      filters.limit = parseInt(searchParams.get('limit')!)
-    }
-    
-    if (searchParams.get('offset')) {
-      filters.offset = parseInt(searchParams.get('offset')!)
-    }
-    
-    // Handle search term
-    const searchTerm = searchParams.get('search')
-    if (searchTerm) {
-      const result = await listingsService.searchListings(searchTerm, filters)
-      return NextResponse.json(result)
-    }
-    
-    // Handle hot deals
-    const hot = searchParams.get('hot')
-    if (hot === 'true') {
-      const listings = await listingsService.getHotDeals(filters.limit || 10)
-      return NextResponse.json({ listings, total: listings.length, hasMore: false })
-    }
-    
-    // Get regular listings
-    const result = await listingsService.getListings(filters)
-    return NextResponse.json(result)
-
-  } catch (error) {
-    console.error('Error in listings API:', error)
-    return NextResponse.json({ 
-      error: 'Failed to fetch listings' 
-    }, { status: 500 })
+function parseFilters(searchParams: URLSearchParams): ListingFilters {
+  return {
+    source: searchParams.get('source')?.split(',').filter(Boolean),
+    make: searchParams.get('make')?.split(',').filter(Boolean),
+    condition: searchParams.get('condition')?.split(',').filter(Boolean),
+    location: searchParams.get('location') || undefined,
+    minProfit: searchParams.get('minProfit') ? parseInt(searchParams.get('minProfit')!, 10) : undefined,
+    minScore: searchParams.get('minScore') ? parseInt(searchParams.get('minScore')!, 10) : undefined,
+    sortBy: (searchParams.get('sortBy') as ListingFilters['sortBy']) || undefined,
+    sortOrder: (searchParams.get('sortOrder') as ListingFilters['sortOrder']) || undefined,
+    limit: searchParams.get('limit') ? parseInt(searchParams.get('limit')!, 10) : undefined,
+    offset: searchParams.get('offset') ? parseInt(searchParams.get('offset')!, 10) : undefined,
   }
 }
 
-export async function POST(request: NextRequest) {
+export async function GET(request: NextRequest) {
+  if (!isSupabaseConfigured()) {
+    return NextResponse.json({ error: 'Supabase is not configured. Add NEXT_PUBLIC_SUPABASE_URL to .env.local' }, { status: 503 })
+  }
+
   try {
     const listingsService = new ListingsService()
-    const body = await request.json()
-    const { action, listingId, alertThreshold, notes } = body
+    const { searchParams } = new URL(request.url)
 
-    // Get user from session (you'll need to implement session management)
-    const userId = body.userId // This should come from auth session
-
-    switch (action) {
-      case 'addToWatchlist':
-        await listingsService.addToWatchlist(userId, listingId, alertThreshold, notes)
-        return NextResponse.json({ message: 'Added to watchlist' })
-        
-      case 'removeFromWatchlist':
-        await listingsService.removeFromWatchlist(userId, listingId)
-        return NextResponse.json({ message: 'Removed from watchlist' })
-        
-      default:
-        return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
+    const searchTerm = searchParams.get('search')
+    if (searchTerm) {
+      const result = await listingsService.searchListings(searchTerm, parseFilters(searchParams))
+      return NextResponse.json(result)
     }
 
+    const hot = searchParams.get('hot')
+    if (hot === 'true') {
+      const listings = await listingsService.getHotDeals(parseInt(searchParams.get('limit') || '10', 10))
+      return NextResponse.json({ listings, total: listings.length, hasMore: false })
+    }
+
+    const result = await listingsService.getListings(parseFilters(searchParams))
+    return NextResponse.json(result)
   } catch (error) {
-    console.error('Error in listings POST API:', error)
-    return NextResponse.json({ 
-      error: 'Failed to process request' 
+    console.error('Error in listings API:', error)
+    return NextResponse.json({
+      error: 'Failed to fetch listings',
     }, { status: 500 })
   }
 }

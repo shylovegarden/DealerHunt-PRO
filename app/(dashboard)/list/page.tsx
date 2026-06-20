@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Panel } from '@/components/shared/Panel'
 import { Btn } from '@/components/shared/Btn'
 import { Tag } from '@/components/shared/Tag'
 import { Ico } from '@/components/shared/Ico'
+import { InventoryItem } from '@/lib/data/inventory-service'
 
 const PLATFORMS = [
   { id: 'fb', name: 'Facebook Marketplace', connected: true },
@@ -14,17 +15,35 @@ const PLATFORMS = [
   { id: 'cl', name: 'Craigslist', connected: true },
 ]
 
-const INVENTORY = [
-  { id: '1', year: 2021, make: 'Ford', model: 'F-150', price: 42500, selected: true },
-  { id: '2', year: 2022, make: 'Tesla', model: 'Model 3', price: 34900, selected: false },
-  { id: '3', year: 2019, make: 'Toyota', model: 'Tacoma', price: 31500, selected: true },
-]
-
 export default function ListPage() {
+  const [inventory, setInventory] = useState<InventoryItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['fb', 'at', 'cl'])
-  const [selectedVehicles, setSelectedVehicles] = useState<string[]>(['1', '3'])
+  const [selectedVehicles, setSelectedVehicles] = useState<string[]>([])
   const [blasting, setBlasting] = useState(false)
   const [done, setDone] = useState(false)
+
+  const dealerId = 'demo-dealer'
+
+  useEffect(() => {
+    setLoading(true)
+    fetch(`/api/inventory?dealerId=${dealerId}&stage=listed&limit=100`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.error) {
+          setError(data.error)
+          setInventory([])
+        } else {
+          setInventory(data.items || [])
+        }
+      })
+      .catch((err) => {
+        setError(err.message)
+        setInventory([])
+      })
+      .finally(() => setLoading(false))
+  }, [])
 
   const togglePlatform = (id: string) => {
     setSelectedPlatforms((prev) => (prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]))
@@ -52,27 +71,45 @@ export default function ListPage() {
         <p className="text-sm text-[#9898A8] mt-1">Syndicate inventory to marketplaces in one blast.</p>
       </Panel>
 
-      <Panel>
-        <h2 className="text-sm font-semibold text-[#D1D1DC] uppercase tracking-wider mb-3">1. Select Vehicles</h2>
-        <div className="space-y-2">
-          {INVENTORY.map((vehicle) => (
-            <button
-              key={vehicle.id}
-              onClick={() => toggleVehicle(vehicle.id)}
-              className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all text-left ${
-                selectedVehicles.includes(vehicle.id)
-                  ? 'border-[rgba(245,158,11,.22)] bg-[rgba(245,158,11,.10)]'
-                  : 'border-[rgba(255,255,255,.06)] hover:border-[rgba(255,255,255,.10)]'
-              }`}
-            >
-              <span className="text-sm text-[#FAFAFA]">
-                {vehicle.year} {vehicle.make} {vehicle.model}
-              </span>
-              <span className="text-sm font-mono text-[#9898A8]">${vehicle.price.toLocaleString()}</span>
-            </button>
-          ))}
-        </div>
-      </Panel>
+      {loading && (
+        <Panel className="text-center py-12">
+          <p className="text-[#9898A8]">Loading inventory...</p>
+        </Panel>
+      )}
+
+      {error && !loading && (
+        <Panel className="text-center py-12 border border-[rgba(239,68,68,.20)] bg-[rgba(239,68,68,.10)]">
+          <p className="text-[#EF4444]">Error: {error}</p>
+        </Panel>
+      )}
+
+      {!loading && !error && (
+        <Panel>
+          <h2 className="text-sm font-semibold text-[#D1D1DC] uppercase tracking-wider mb-3">1. Select Vehicles</h2>
+          {inventory.length === 0 ? (
+            <p className="text-sm text-[#9898A8]">No listed vehicles available. Add inventory in Fleet first.</p>
+          ) : (
+            <div className="space-y-2">
+              {inventory.map((vehicle) => (
+                <button
+                  key={vehicle.id}
+                  onClick={() => toggleVehicle(vehicle.id)}
+                  className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all text-left ${
+                    selectedVehicles.includes(vehicle.id)
+                      ? 'border-[rgba(245,158,11,.22)] bg-[rgba(245,158,11,.10)]'
+                      : 'border-[rgba(255,255,255,.06)] hover:border-[rgba(255,255,255,.10)]'
+                  }`}
+                >
+                  <span className="text-sm text-[#FAFAFA]">
+                    {vehicle.year} {vehicle.make} {vehicle.model}
+                  </span>
+                  <span className="text-sm font-mono text-[#9898A8]">${(vehicle.listPrice || vehicle.totalCost).toLocaleString()}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </Panel>
+      )}
 
       <Panel>
         <h2 className="text-sm font-semibold text-[#D1D1DC] uppercase tracking-wider mb-3">2. Select Platforms</h2>
