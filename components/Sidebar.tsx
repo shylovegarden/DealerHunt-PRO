@@ -58,14 +58,14 @@ export function Sidebar() {
           </li>
           <li className="mt-auto">
             <div className="border-t border-[rgba(255,255,255,.06)] pt-4 -mx-2 space-y-1">
-              <a href="#" className="group flex gap-x-3 rounded-xl p-3 text-sm leading-6 font-medium text-[#9898A8] hover:text-[#FAFAFA] hover:bg-[rgba(255,255,255,.05)] transition-all">
+              <Link href="/settings" className="group flex gap-x-3 rounded-xl p-3 text-sm leading-6 font-medium text-[#9898A8] hover:text-[#FAFAFA] hover:bg-[rgba(255,255,255,.05)] transition-all">
                 <Settings className="h-5 w-5 shrink-0 text-[#62627A] group-hover:text-[#D1D1DC]" aria-hidden="true" />
                 Settings
-              </a>
-              <a href="#" className="group flex gap-x-3 rounded-xl p-3 text-sm leading-6 font-medium text-[#9898A8] hover:text-[#FAFAFA] hover:bg-[rgba(255,255,255,.05)] transition-all">
+              </Link>
+              <button className="group flex w-full gap-x-3 rounded-xl p-3 text-sm leading-6 font-medium text-[#9898A8] hover:text-[#FAFAFA] hover:bg-[rgba(255,255,255,.05)] transition-all text-left">
                 <LogOut className="h-5 w-5 shrink-0 text-[#62627A] group-hover:text-[#D1D1DC]" aria-hidden="true" />
                 Logout
-              </a>
+              </button>
             </div>
           </li>
         </ul>
