@@ -9,7 +9,7 @@ CREATE INDEX IF NOT EXISTS listings_duplicate_idx ON public.listings(duplicate_o
 
 -- Alert log for price drops and other events
 CREATE TABLE IF NOT EXISTS public.alert_log (
-    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id uuid REFERENCES auth.users(id) on delete cascade,
     listing_id uuid REFERENCES public.listings(id) on delete cascade,
     alert_type TEXT NOT NULL DEFAULT 'price_drop',

@@ -18,7 +18,7 @@ export default function FinancePage() {
   const [error, setError] = useState<string | null>(null)
   const [days, setDays] = useState(30)
 
-  const dealerId = 'demo-dealer'
+  const dealerId = process.env.NEXT_PUBLIC_DEMO_DEALER_ID || 'demo-dealer'
 
   useEffect(() => {
     setLoading(true)

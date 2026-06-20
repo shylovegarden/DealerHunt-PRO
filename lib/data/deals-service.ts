@@ -1,0 +1,256 @@
+import { createServerComponentClient } from '@/lib/supabase'
+
+export type Deal = {
+  id: string
+  source: string
+  title: string
+  year: number
+  make: string
+  model: string
+  trim?: string
+  vin?: string
+  mileage?: number
+  condition: string
+  askPrice: number
+  buyNowPrice?: number
+  mmrValue?: number
+  profitEstimate: number
+  profitScore?: number
+  images: string[]
+  locationCity?: string
+  locationState?: string
+  locationZip?: string
+  active: boolean
+  firstSeenAt: Date
+  lastSeenAt: Date
+  sourceUrl: string
+  auctionEndAt?: Date
+  damageType?: string
+}
+
+export type DealFilters = {
+  source?: string[]
+  make?: string[]
+  condition?: string[]
+  location?: string
+  minProfit?: number
+  minScore?: number
+  sortBy?: 'profitEstimate' | 'profitScore' | 'askPrice' | 'year' | 'mileage' | 'lastSeenAt'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  offset?: number
+}
+
+export class DealsService {
+  private supabase = createServerComponentClient()
+
+  private mapDbToDeal(row: any): Deal {
+    return {
+      id: row.id,
+      source: row.source,
+      title: row.title,
+      year: row.year,
+      make: row.make,
+      model: row.model,
+      trim: row.trim,
+      vin: row.vin,
+      mileage: row.mileage,
+      condition: row.condition,
+      askPrice: Number(row.ask_price || 0),
+      buyNowPrice: row.buy_now_price ? Number(row.buy_now_price) : undefined,
+      mmrValue: row.mmr_value ? Number(row.mmr_value) : undefined,
+      profitEstimate: Number(row.profit_estimate || 0),
+      profitScore: row.profit_score ? Number(row.profit_score) : undefined,
+      images: row.images || [],
+      locationCity: row.location_city,
+      locationState: row.location_state,
+      locationZip: row.location_zip,
+      active: row.active ?? true,
+      firstSeenAt: new Date(row.first_seen_at),
+      lastSeenAt: new Date(row.last_seen_at),
+      sourceUrl: row.source_url,
+      auctionEndAt: row.auction_end_at ? new Date(row.auction_end_at) : undefined,
+      damageType: row.damage_type,
+    }
+  }
+
+  private buildQuery(filters: DealFilters = {}) {
+    let query = this.supabase
+      .from('listings')
+      .select('*', { count: 'exact' })
+      .eq('active', true)
+
+    if (filters.source?.length) {
+      query = query.in('source', filters.source)
+    }
+
+    if (filters.make?.length) {
+      query = query.in('make', filters.make)
+    }
+
+    if (filters.condition?.length) {
+      query = query.in('condition', filters.condition)
+    }
+
+    if (filters.location) {
+      query = query.or(`location_city.ilike.%${filters.location}%,location_state.ilike.%${filters.location}%`)
+    }
+
+    if (filters.minProfit) {
+      query = query.gte('profit_estimate', filters.minProfit)
+    }
+
+    if (filters.minScore) {
+      query = query.gte('profit_score', filters.minScore)
+    }
+
+    const sortBy = filters.sortBy || 'profitScore'
+    const sortOrder = filters.sortOrder || 'desc'
+    const sortColumnMap: Record<string, string> = {
+      profitEstimate: 'profit_estimate',
+      profitScore: 'profit_score',
+      askPrice: 'ask_price',
+      year: 'year',
+      mileage: 'mileage',
+      lastSeenAt: 'last_seen_at',
+    }
+    query = query.order(sortColumnMap[sortBy], { ascending: sortOrder === 'asc' })
+
+    return query
+  }
+
+  async getDeals(filters: DealFilters = {}): Promise<{
+    deals: Deal[]
+    total: number
+    hasMore: boolean
+  }> {
+    let query = this.buildQuery(filters)
+
+    if (filters.limit) {
+      query = query.limit(filters.limit)
+    }
+
+    if (filters.offset) {
+      query = query.range(filters.offset, filters.offset + (filters.limit || 20) - 1)
+    }
+
+    const { data, error, count } = await query
+
+    if (error) {
+      throw new Error(`Failed to fetch deals: ${error.message}`)
+    }
+
+    const deals = (data || []).map(this.mapDbToDeal)
+    const total = count || 0
+    const limit = filters.limit || 20
+    const offset = filters.offset || 0
+    const hasMore = offset + deals.length < total
+
+    return { deals, total, hasMore }
+  }
+
+  async searchDeals(searchTerm: string, filters: DealFilters = {}): Promise<{
+    deals: Deal[]
+    total: number
+    hasMore: boolean
+  }> {
+    let query = this.supabase
+      .from('listings')
+      .select('*', { count: 'exact' })
+      .eq('active', true)
+      .or(`title.ilike.%${searchTerm}%,make.ilike.%${searchTerm}%,model.ilike.%${searchTerm}%,vin.ilike.%${searchTerm}%`)
+
+    if (filters.minProfit) {
+      query = query.gte('profit_estimate', filters.minProfit)
+    }
+
+    if (filters.minScore) {
+      query = query.gte('profit_score', filters.minScore)
+    }
+
+    query = query.order('profit_score', { ascending: false, nullsFirst: false })
+
+    if (filters.limit) {
+      query = query.limit(filters.limit)
+    }
+
+    const { data, error, count } = await query
+
+    if (error) {
+      throw new Error(`Failed to search deals: ${error.message}`)
+    }
+
+    const deals = (data || []).map(this.mapDbToDeal)
+    const total = count || 0
+    const hasMore = deals.length < total
+
+    return { deals, total, hasMore }
+  }
+
+  async getHotDeals(limit = 10): Promise<Deal[]> {
+    const { data, error } = await this.supabase
+      .from('listings')
+      .select('*')
+      .eq('active', true)
+      .gte('profit_score', 70)
+      .order('profit_score', { ascending: false })
+      .limit(limit)
+
+    if (error) {
+      throw new Error(`Failed to fetch hot deals: ${error.message}`)
+    }
+
+    return (data || []).map(this.mapDbToDeal)
+  }
+
+  async getDealById(id: string): Promise<Deal | null> {
+    const { data, error } = await this.supabase
+      .from('listings')
+      .select('*')
+      .eq('id', id)
+      .single()
+
+    if (error) {
+      if (error.code === 'PGRST116') return null
+      throw new Error(`Failed to fetch listing: ${error.message}`)
+    }
+
+    return this.mapDbToDeal(data)
+  }
+
+  async getAvailableSources(): Promise<string[]> {
+    const { data, error } = await this.supabase
+      .from('listings')
+      .select('source')
+      .eq('active', true)
+      .not('source', 'is', null)
+
+    if (error) {
+      throw new Error(`Failed to fetch sources: ${error.message}`)
+    }
+
+    const sources = new Set<string>()
+    for (const item of data || []) {
+      if (item.source) sources.add(item.source)
+    }
+    return Array.from(sources).sort()
+  }
+
+  async getAvailableMakes(): Promise<string[]> {
+    const { data, error } = await this.supabase
+      .from('listings')
+      .select('make')
+      .eq('active', true)
+      .not('make', 'is', null)
+
+    if (error) {
+      throw new Error(`Failed to fetch makes: ${error.message}`)
+    }
+
+    const makes = new Set<string>()
+    for (const item of data || []) {
+      if (item.make) makes.add(item.make)
+    }
+    return Array.from(makes).sort()
+  }
+}

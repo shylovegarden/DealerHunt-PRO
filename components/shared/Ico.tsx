@@ -2,7 +2,7 @@
 
 import React from 'react'
 
-type IconName = 'search' | 'scan' | 'deal' | 'move' | 'list' | 'fleet' | 'finance' | 'parts' | 'close' | 'arrow' | 'check'
+type IconName = 'search' | 'scan' | 'deal' | 'move' | 'list' | 'fleet' | 'finance' | 'parts' | 'close' | 'arrow' | 'check' | 'car' | 'filter' | 'refresh' | 'truck' | 'camera' | 'map'
 
 interface IcoProps {
   name: IconName
@@ -96,6 +96,52 @@ export function Ico({ name, className = '', size = 20 }: IcoProps) {
       return (
         <svg {...shared} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M20 6 9 17l-5-5" />
+        </svg>
+      )
+    case 'car':
+      return (
+        <svg {...shared} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2" />
+          <circle cx="7" cy="17" r="2" />
+          <circle cx="17" cy="17" r="2" />
+        </svg>
+      )
+    case 'filter':
+      return (
+        <svg {...shared} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+        </svg>
+      )
+    case 'refresh':
+      return (
+        <svg {...shared} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+          <path d="M21 3v5h-5" />
+          <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+          <path d="M8 16H3v5" />
+        </svg>
+      )
+    case 'truck':
+      return (
+        <svg {...shared} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M10 17h6V7H6v6" />
+          <path d="M13 10 7 4" />
+          <path d="m13 10-6 6" />
+        </svg>
+      )
+    case 'camera':
+      return (
+        <svg {...shared} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
+          <circle cx="12" cy="13" r="3" />
+        </svg>
+      )
+    case 'map':
+      return (
+        <svg {...shared} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" />
+          <line x1="8" y1="2" x2="8" y2="18" />
+          <line x1="16" y1="6" x2="16" y2="22" />
         </svg>
       )
     default:

@@ -1,15 +1,16 @@
 'use client'
 
 import React from 'react'
+import Link from 'next/link'
 import { Panel } from './Panel'
 import { Tag } from './Tag'
 import { Mono } from './Mono'
 import { Ico } from './Ico'
-import { Listing } from '@/lib/data/listings-service'
+import { Deal } from '@/lib/data/deals-service'
 
 interface DealCardProps {
-  deal: Listing
-  onSelect?: (deal: Listing) => void
+  deal: Deal
+  onSelect?: (deal: Deal) => void
 }
 
 export function DealCard({ deal, onSelect }: DealCardProps) {
@@ -95,13 +96,13 @@ export function DealCard({ deal, onSelect }: DealCardProps) {
             </Tag>
           </div>
           
-          <button
-            onClick={() => onSelect?.(deal)}
+          <Link
+            href={`/deal/${deal.id}`}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[#F59E0B] hover:text-[#FAFAFA] bg-[rgba(245,158,11,.08)] hover:bg-[#F59E0B] border border-[rgba(245,158,11,.16)] hover:border-transparent rounded-lg transition-all"
           >
             <span>Analyze</span>
             <Ico name="arrow" size={12} className="rotate-45" />
-          </button>
+          </Link>
         </div>
       </div>
     </Panel>

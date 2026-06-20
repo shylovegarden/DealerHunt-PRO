@@ -24,7 +24,7 @@ export default function ListPage() {
   const [blasting, setBlasting] = useState(false)
   const [done, setDone] = useState(false)
 
-  const dealerId = 'demo-dealer'
+  const dealerId = process.env.NEXT_PUBLIC_DEMO_DEALER_ID || 'demo-dealer'
 
   useEffect(() => {
     setLoading(true)

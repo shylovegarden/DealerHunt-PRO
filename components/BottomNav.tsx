@@ -11,9 +11,7 @@ export function BottomNav() {
   const navItems = [
     { name: 'Find', href: '/find', icon: Map },
     { name: 'Scan', href: '/scan', icon: Search },
-    { name: 'Deal', href: '/deal', icon: Calculator },
     { name: 'Move', href: '/move', icon: Truck },
-    { name: 'List', href: '/list', icon: Megaphone },
     { name: 'Fleet', href: '/fleet', icon: Clock },
     { name: 'Finance', href: '/finance', icon: Wallet },
     { name: 'Parts', href: '/parts', icon: Wrench },

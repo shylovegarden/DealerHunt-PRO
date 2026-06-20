@@ -25,7 +25,7 @@ export default function PartsPage() {
   const [selectedVehicle, setSelectedVehicle] = useState<string | null>(null)
   const [selectedParts, setSelectedParts] = useState<string[]>(['Engine', 'Transmission', 'Wheels/Tires', 'Cat/Exhaust'])
 
-  const dealerId = 'demo-dealer'
+  const dealerId = process.env.NEXT_PUBLIC_DEMO_DEALER_ID || 'demo-dealer'
 
   useEffect(() => {
     setLoading(true)

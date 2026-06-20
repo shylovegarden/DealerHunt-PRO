@@ -7,9 +7,7 @@ import { usePathname } from 'next/navigation'
 const routeTitles: Record<string, string> = {
   '/find': 'Find',
   '/scan': 'Scan',
-  '/deal': 'Deal',
   '/move': 'Move',
-  '/list': 'List',
   '/fleet': 'Fleet',
   '/finance': 'Finance',
   '/parts': 'Parts',

@@ -65,7 +65,7 @@ CREATE INDEX IF NOT EXISTS inventory_dealer_stage_idx ON public.inventory(dealer
 CREATE INDEX IF NOT EXISTS inventory_dealer_floor_date_idx ON public.inventory(dealer_id, floor_date);
 
 ALTER TABLE public.inventory ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "own_inventory" ON public.inventory
+CREATE POLICY "own_inventory" ON public.inventory
   FOR ALL USING (dealer_id = auth.uid());
 
 -- TRANSPORTS: vehicle bookings
@@ -95,7 +95,7 @@ CREATE TABLE IF NOT EXISTS public.transports (
 );
 
 ALTER TABLE public.transports ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "own_transports" ON public.transports
+CREATE POLICY "own_transports" ON public.transports
   FOR ALL USING (dealer_id = auth.uid());
 
 -- RECON STAGES
@@ -114,7 +114,7 @@ CREATE TABLE IF NOT EXISTS public.recon_stages (
 );
 
 ALTER TABLE public.recon_stages ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "own_recon" ON public.recon_stages
+CREATE POLICY "own_recon" ON public.recon_stages
   FOR ALL USING (dealer_id = auth.uid());
 
 -- LEADS: private seller outreach
@@ -142,7 +142,7 @@ CREATE TABLE IF NOT EXISTS public.leads (
 CREATE INDEX IF NOT EXISTS leads_dealer_status_idx ON public.leads(dealer_id, outreach_status);
 
 ALTER TABLE public.leads ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "own_leads" ON public.leads
+CREATE POLICY "own_leads" ON public.leads
   FOR ALL USING (dealer_id = auth.uid());
 
 -- Alert matches: bridge between alerts and listings
@@ -160,7 +160,7 @@ CREATE TABLE IF NOT EXISTS public.alert_matches (
 CREATE INDEX IF NOT EXISTS alert_matches_dealer_notified_idx ON public.alert_matches(dealer_id, notified);
 
 ALTER TABLE public.alert_matches ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "own_matches" ON public.alert_matches
+CREATE POLICY "own_matches" ON public.alert_matches
   FOR ALL USING (dealer_id = auth.uid());
 
 -- Trigger function for updated_at

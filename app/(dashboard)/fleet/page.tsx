@@ -20,7 +20,7 @@ export default function FleetPage() {
   const [error, setError] = useState<string | null>(null)
 
   // TODO: replace with real authenticated dealerId once auth is wired
-  const dealerId = 'demo-dealer'
+  const dealerId = process.env.NEXT_PUBLIC_DEMO_DEALER_ID || 'demo-dealer'
 
   useEffect(() => {
     setLoading(true)

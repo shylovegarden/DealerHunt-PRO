@@ -1,141 +1,167 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { Panel } from '@/components/shared/Panel'
-import { Field, SelectField } from '@/components/shared/Field'
-import { Btn } from '@/components/shared/Btn'
+import { SelectField } from '@/components/shared/Field'
 import { DealCard } from '@/components/shared/DealCard'
-import { Listing } from '@/lib/data/listings-service'
+import { Ico } from '@/components/shared/Ico'
+import { Mono } from '@/components/shared/Mono'
+import { Deal } from '@/lib/data/deals-service'
+import { US_STATES } from '@/lib/utils/titleRules'
+import { Btn } from '@/components/shared/Btn'
 
-export default function FindPage() {
-  const [query, setQuery] = useState('')
-  const [source, setSource] = useState('all')
-  const [minScore, setMinScore] = useState('all')
-  const [listings, setListings] = useState<Listing[]>([])
+interface ArbitrageDashboard {
+  homeState: string
+  topRoutes: Array<{
+    targetState: string
+    route: string[]
+    distance: number
+    estimatedCost: number
+    estimatedTime: number
+  }>
+  localDeals: Deal[]
+  nationalArbitrage: Array<{
+    deal: Deal
+    arbitrage: any
+  }>
+}
+
+export default function ArbitrageDashboardPage() {
+  const [homeState, setHomeState] = useState('CA')
+  const [data, setData] = useState<ArbitrageDashboard | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<'national' | 'local'>('national')
 
   useEffect(() => {
-    const params = new URLSearchParams()
-    if (source !== 'all') params.set('source', source)
-    if (minScore !== 'all') params.set('minScore', minScore)
-    if (query.trim()) params.set('search', query.trim())
-    params.set('limit', '50')
-
     setLoading(true)
-    setError(null)
-
-    fetch(`/api/listings?${params.toString()}`)
+    fetch(`/api/arbitrage?homeState=${homeState}`)
       .then((res) => res.json())
-      .then((data) => {
-        if (data.error) {
-          setError(data.error)
-          setListings([])
-        } else {
-          setListings(data.listings || [])
-        }
+      .then((resData) => {
+        if (resData.error) throw new Error(resData.error)
+        setData(resData)
       })
-      .catch((err) => {
-        setError(err.message)
-        setListings([])
-      })
+      .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
-  }, [query, source, minScore])
-
-  const sources = useMemo(() => {
-    const all = new Set<string>()
-    listings.forEach((l) => all.add(l.source))
-    return ['all', ...Array.from(all).sort()]
-  }, [listings])
-
-  const stats = useMemo(() => {
-    const total = listings.length
-    const avgProfit = total ? Math.round(listings.reduce((acc, d) => acc + d.profitEstimate, 0) / total) : 0
-    const hot = listings.filter((d) => (d.profitScore ?? 0) >= 80).length
-    return { total, avgProfit, hot }
-  }, [listings])
+  }, [homeState])
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <Panel className="flex items-center justify-between">
-          <div>
-            <p className="text-xs text-[#62627A] uppercase tracking-wider">Deals</p>
-            <p className="text-2xl font-bold text-[#FAFAFA]">{stats.total}</p>
-          </div>
-          <div className="h-10 w-10 rounded-xl bg-[rgba(245,158,11,.10)] border border-[rgba(245,158,11,.22)] flex items-center justify-center text-[#F59E0B]">✦</div>
-        </Panel>
-        <Panel className="flex items-center justify-between">
-          <div>
-            <p className="text-xs text-[#62627A] uppercase tracking-wider">Avg Profit</p>
-            <p className="text-2xl font-bold text-[#10B981]">+${stats.avgProfit.toLocaleString()}</p>
-          </div>
-          <div className="h-10 w-10 rounded-xl bg-[rgba(16,185,129,.10)] border border-[rgba(16,185,129,.20)] flex items-center justify-center text-[#10B981]">↗</div>
-        </Panel>
-        <Panel className="flex items-center justify-between">
-          <div>
-            <p className="text-xs text-[#62627A] uppercase tracking-wider">Hot</p>
-            <p className="text-2xl font-bold text-[#EF4444]">{stats.hot}</p>
-          </div>
-          <div className="h-10 w-10 rounded-xl bg-[rgba(239,68,68,.10)] border border-[rgba(239,68,68,.20)] flex items-center justify-center text-[#EF4444]">●</div>
-        </Panel>
-      </div>
-
-      <Panel>
-        <div className="flex flex-col sm:flex-row gap-3 items-end">
-          <div className="flex-1 w-full">
-            <Field
-              placeholder="Search make, model, VIN..."
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-          </div>
+      {/* TOOL DOCK & COMMAND CENTER */}
+      <Panel className="flex flex-col md:flex-row items-center justify-between gap-4 bg-[rgba(16,185,129,.05)] border-[rgba(16,185,129,.15)]">
+        <div>
+          <h1 className="text-xl font-bold text-[#FAFAFA] flex items-center gap-2">
+            <Ico name="map" className="text-[#10B981]" /> National Arbitrage Hub
+          </h1>
+          <p className="text-sm text-[#9898A8] mt-1">Discover high-ROI transport routes and local deals instantly.</p>
+        </div>
+        <div className="flex items-center gap-3 w-full md:w-auto">
           <SelectField
-            options={sources.map((s) => ({ value: s, label: s === 'all' ? 'All Sources' : s }))}
-            value={source}
-            onChange={(e) => setSource(e.target.value)}
-            className="w-full sm:w-40"
+            options={US_STATES.map((s: string) => ({ value: s, label: s }))}
+            value={homeState}
+            onChange={(e) => setHomeState(e.target.value)}
+            className="w-32"
           />
-          <SelectField
-            options={[
-              { value: 'all', label: 'Any Score' },
-              { value: '80', label: '80+' },
-              { value: '70', label: '70+' },
-              { value: '60', label: '60+' },
-            ]}
-            value={minScore}
-            onChange={(e) => setMinScore(e.target.value)}
-            className="w-full sm:w-40"
-          />
-          <Btn variant="ghost" className="w-full sm:w-auto" onClick={() => { setQuery(''); setSource('all'); setMinScore('all') }}>
-            Reset
-          </Btn>
+          <Link href="/scan" className="flex-1 md:flex-none">
+            <Btn variant="primary" className="w-full">
+              <Ico name="scan" size={16} /> Live Scanner
+            </Btn>
+          </Link>
         </div>
       </Panel>
 
-      {loading && (
-        <Panel className="text-center py-12">
-          <p className="text-[#9898A8]">Loading deals...</p>
+      {loading ? (
+        <Panel className="text-center py-20">
+          <div className="animate-pulse flex flex-col items-center">
+            <Ico name="refresh" className="text-[#10B981] animate-spin mb-4" size={32} />
+            <p className="text-[#9898A8]">Calculating national transport routes & market demand...</p>
+          </div>
         </Panel>
-      )}
-
-      {error && !loading && (
+      ) : error ? (
         <Panel className="text-center py-12 border border-[rgba(239,68,68,.20)] bg-[rgba(239,68,68,.10)]">
           <p className="text-[#EF4444]">Error: {error}</p>
         </Panel>
-      )}
+      ) : data ? (
+        <>
+          {/* TOP ARBITRAGE ROUTES WIDGET */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            {data.topRoutes.slice(0, 4).map((route, i) => (
+              <Panel key={i} className="flex flex-col justify-between">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-[#9898A8] uppercase tracking-wider">Top Route</span>
+                  <div className="h-6 w-6 rounded bg-[rgba(16,185,129,.10)] text-[#10B981] flex items-center justify-center">
+                    <Ico name="truck" size={12} />
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 text-lg font-black text-[#FAFAFA] mb-1">
+                  {route.route[0]} <Ico name="arrow" size={14} className="rotate-90 text-[#62627A]" /> {route.route[1]}
+                </div>
+                <div className="text-xs text-[#9898A8] flex justify-between">
+                  <span>{route.distance} mi</span>
+                  <span className="text-[#F59E0B] font-mono">${route.estimatedCost} est</span>
+                </div>
+              </Panel>
+            ))}
+          </div>
 
-      {!loading && !error && (
-        <div className="space-y-3">
-          {listings.length === 0 ? (
-            <Panel className="text-center py-12">
-              <p className="text-[#9898A8]">No deals found. Start a scan or ingest listings.</p>
-            </Panel>
-          ) : (
-            listings.map((deal) => <DealCard key={deal.id} deal={deal} />)
+          {/* SMART DEAL GROUPS */}
+          <div className="flex items-center gap-2 mb-2">
+            <button
+              onClick={() => setActiveTab('national')}
+              className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+                activeTab === 'national' ? 'bg-[rgba(16,185,129,.15)] text-[#10B981] border border-[rgba(16,185,129,.30)]' : 'text-[#9898A8] hover:bg-[#18181D]'
+              }`}
+            >
+              National Arbitrage ({data.nationalArbitrage.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('local')}
+              className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+                activeTab === 'local' ? 'bg-[rgba(16,185,129,.15)] text-[#10B981] border border-[rgba(16,185,129,.30)]' : 'text-[#9898A8] hover:bg-[#18181D]'
+              }`}
+            >
+              Local in {homeState} ({data.localDeals.length})
+            </button>
+          </div>
+
+          {activeTab === 'national' && (
+            <div className="space-y-4">
+              {data.nationalArbitrage.length === 0 ? (
+                <Panel className="text-center py-12">
+                  <p className="text-[#9898A8]">No highly profitable out-of-state deals found to transport to {homeState}. Try another state or run the scanner.</p>
+                </Panel>
+              ) : (
+                data.nationalArbitrage.map((item) => (
+                  <div key={item.deal.id} className="relative">
+                    <div className="absolute -left-2 top-4 w-1 h-12 bg-[#10B981] rounded-r-full z-10" />
+                    <div className="mb-1 ml-2 text-xs font-bold text-[#10B981] flex items-center gap-2">
+                      <span>Import from {item.deal.locationState}</span>
+                      <span>•</span>
+                      <span>Est. Net Profit: <Mono>${item.arbitrage.arbitrage.potentialProfit.toLocaleString()}</Mono></span>
+                      <span>•</span>
+                      <span className="text-[#F59E0B]">Transport: ${item.arbitrage.arbitrage.transportCost.toLocaleString()}</span>
+                    </div>
+                    <DealCard deal={item.deal} />
+                  </div>
+                ))
+              )}
+            </div>
           )}
-        </div>
-      )}
+
+          {activeTab === 'local' && (
+            <div className="space-y-3">
+              {data.localDeals.length === 0 ? (
+                <Panel className="text-center py-12">
+                  <p className="text-[#9898A8]">No deals found currently located in {homeState}.</p>
+                </Panel>
+              ) : (
+                data.localDeals.map((deal) => <DealCard key={deal.id} deal={deal} />)
+              )}
+            </div>
+          )}
+        </>
+      ) : null}
     </div>
   )
 }
