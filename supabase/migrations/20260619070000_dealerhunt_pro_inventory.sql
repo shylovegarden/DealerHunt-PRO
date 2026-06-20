@@ -169,9 +169,11 @@ RETURNS TRIGGER AS $$
 BEGIN NEW.updated_at = NOW(); RETURN NEW; END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER IF NOT EXISTS inventory_updated_at BEFORE UPDATE ON public.inventory
+DROP TRIGGER IF EXISTS inventory_updated_at ON public.inventory;
+CREATE TRIGGER inventory_updated_at BEFORE UPDATE ON public.inventory
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
-CREATE TRIGGER IF NOT EXISTS leads_updated_at BEFORE UPDATE ON public.leads
+DROP TRIGGER IF EXISTS leads_updated_at ON public.leads;
+CREATE TRIGGER leads_updated_at BEFORE UPDATE ON public.leads
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 -- Realtime
