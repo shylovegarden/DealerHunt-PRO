@@ -196,30 +196,31 @@ export async function GET(request: NextRequest) {
         data: { user },
       } = await getServerUser();
       if (user?.id) {
+        // Read the SAME table the app writes prefs to (user_profiles, via /api/profile + onboarding).
         const { data: profile } = await supabase
-          .from("profiles")
-          .select(
-            "home_state, preferred_states, preferred_types, price_range_max, min_profit_target",
-          )
+          .from("user_profiles")
+          .select("home_state, preferred_makes, budget_max, target_profit")
           .eq("id", user.id)
           .maybeSingle();
         if (profile) {
-          const states = new Set<string>(
-            [...(profile.preferred_states || []), profile.home_state]
-              .filter(Boolean)
-              .map((s: string) => s.toUpperCase()),
+          const homeState = (profile.home_state || "").toUpperCase();
+          const makes = new Set<string>(
+            (profile.preferred_makes || []).map((m: string) => m.toLowerCase()),
           );
-          const maxPrice = Number(profile.price_range_max) || 0;
-          const minProfit = Number(profile.min_profit_target) || 0;
-          const hasPrefs = states.size > 0 || maxPrice > 0 || minProfit > 0;
+          const maxPrice = Number(profile.budget_max) || 0;
+          const minProfit = Number(profile.target_profit) || 0;
+          const hasPrefs =
+            !!homeState || makes.size > 0 || maxPrice > 0 || minProfit > 0;
           if (hasPrefs) {
             personalized = true;
             forYou = merged
               .filter((d) => {
                 if (
-                  states.size > 0 &&
-                  !states.has((d.locationState || "").toUpperCase())
+                  homeState &&
+                  (d.locationState || "").toUpperCase() !== homeState
                 )
+                  return false;
+                if (makes.size > 0 && !makes.has((d.make || "").toLowerCase()))
                   return false;
                 if (maxPrice > 0 && d.askPrice > maxPrice) return false;
                 if (minProfit > 0 && (d.trueNetProfit || 0) < minProfit)

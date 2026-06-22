@@ -73,6 +73,13 @@ export async function POST(req: NextRequest) {
     ...(body.notify_price_drops !== undefined && {
       notify_price_drops: body.notify_price_drops,
     }),
+    // Personalization inputs (drive the "For You" discover rail).
+    ...(body.preferred_makes !== undefined && {
+      preferred_makes: body.preferred_makes,
+    }),
+    ...(body.budget_max !== undefined && { budget_max: body.budget_max }),
+    ...(body.budget_min !== undefined && { budget_min: body.budget_min }),
+    ...(body.home_zip !== undefined && { home_zip: body.home_zip }),
     updated_at: new Date().toISOString(),
   };
 

@@ -69,7 +69,8 @@ export default function RegisterPage() {
       return;
     }
 
-    router.push("/find");
+    // New dealers go through the quick setup wizard first (sets state/profit/makes).
+    router.push("/onboarding");
     router.refresh();
   };
 

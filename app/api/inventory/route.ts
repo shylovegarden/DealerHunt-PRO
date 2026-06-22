@@ -105,6 +105,12 @@ export async function POST(request: NextRequest) {
       notes,
       photos = [],
       listedPlatforms = [],
+      // Loop-closing inputs: the source deal + the engine's prediction at purchase time.
+      dealId,
+      predictedProfit,
+      predictedSell,
+      predictedTransport,
+      predictedRecon,
     } = body || {};
 
     const payload = {
@@ -148,6 +154,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    // Close-the-loop, step 1: snapshot the engine's prediction into deal_outcomes (open/purchased
+    // state). When this vehicle is later marked sold, we complete the row with actuals — and the
+    // calibration engine learns from the prediction-vs-reality gap. Best-effort; never blocks the
+    // acquisition.
+    try {
+      await supabase.from("deal_outcomes").insert({
+        user_id: dealerId,
+        deal_id: dealId ?? null,
+        inventory_id: data.id,
+        vin: vin || null,
+        year: year || null,
+        make: make || null,
+        model: model || null,
+        location_state: purchasedState || null,
+        predicted_profit: predictedProfit ?? null,
+        predicted_sell: predictedSell ?? marketValue ?? null,
+        predicted_transport: predictedTransport ?? transportCost ?? null,
+        predicted_recon: predictedRecon ?? reconCost ?? null,
+        purchase_price: purchasePrice,
+      });
+    } catch (e) {
+      console.warn("[inventory] outcome seed failed (non-fatal):", e);
+    }
+
     return NextResponse.json({ item: data });
   } catch (error) {
     console.error("Error creating inventory:", error);
@@ -181,7 +211,7 @@ export async function PATCH(request: NextRequest) {
     const dealerId = user.id;
 
     const body = await request.json();
-    const { id, stage, listed_platforms } = body;
+    const { id, stage, listed_platforms, soldPrice, soldWhere } = body;
 
     if (!id) {
       return NextResponse.json({ error: "id required" }, { status: 400 });
@@ -196,7 +226,7 @@ export async function PATCH(request: NextRequest) {
     // Verify ownership before updating (ensure this inventory row belongs to the authenticated dealer)
     const { data: row, error: fetchErr } = await supabase
       .from("inventory")
-      .select("id, dealer_id")
+      .select("*")
       .eq("id", id)
       .single();
 
@@ -213,6 +243,13 @@ export async function PATCH(request: NextRequest) {
     if (Array.isArray(listed_platforms))
       update.listed_platforms = listed_platforms;
 
+    // Close-the-loop, step 2: a sale records the sold price + date, which completes the outcome.
+    const isSale = stage === "sold";
+    if (isSale && soldPrice != null) {
+      update.sold_price = Number(soldPrice);
+      update.sold_date = new Date().toISOString();
+    }
+
     const { data, error: updErr } = await supabase
       .from("inventory")
       .update(update)
@@ -222,6 +259,75 @@ export async function PATCH(request: NextRequest) {
 
     if (updErr) {
       return NextResponse.json({ error: updErr.message }, { status: 500 });
+    }
+
+    // On sale, complete (or create) the deal_outcomes row with the REAL costs the inventory tracked,
+    // so calibration learns from prediction-vs-actual. Best-effort; never blocks the stage change.
+    if (isSale && soldPrice != null) {
+      try {
+        const sell = Number(soldPrice);
+        const actualTransport = Number(row.transport_cost) || 0;
+        const actualRecon =
+          (Number(row.recon_cost) || 0) + (Number(row.repair_cost) || 0);
+        const actualFees =
+          (Number(row.auction_fee) || 0) +
+          (Number(row.title_fee) || 0) +
+          (Number(row.holding_cost) || 0) +
+          (Number(row.other_costs) || 0);
+        const purchase = Number(row.purchase_price) || 0;
+        const actualProfit = Math.round(
+          sell - purchase - actualTransport - actualRecon - actualFees,
+        );
+        const daysToSell = row.floor_date
+          ? Math.max(
+              0,
+              Math.round(
+                (Date.now() - new Date(row.floor_date).getTime()) / 86400000,
+              ),
+            )
+          : null;
+
+        const completion = {
+          sell_price: sell,
+          actual_transport: actualTransport,
+          actual_recon: actualRecon,
+          actual_fees: actualFees,
+          actual_profit: actualProfit,
+          days_to_sell: daysToSell,
+          sold_where: soldWhere ?? null,
+          sold_at: new Date().toISOString(),
+        };
+
+        // Complete the seeded outcome if it exists; otherwise create one (older inventory).
+        const { data: existing } = await supabase
+          .from("deal_outcomes")
+          .select("id")
+          .eq("inventory_id", id)
+          .eq("user_id", dealerId)
+          .maybeSingle();
+
+        if (existing) {
+          await supabase
+            .from("deal_outcomes")
+            .update(completion)
+            .eq("id", existing.id);
+        } else {
+          await supabase.from("deal_outcomes").insert({
+            user_id: dealerId,
+            inventory_id: id,
+            vin: row.vin || null,
+            year: row.year || null,
+            make: row.make || null,
+            model: row.model || null,
+            location_state: row.purchased_state || null,
+            predicted_sell: row.market_value ?? null,
+            purchase_price: purchase,
+            ...completion,
+          });
+        }
+      } catch (e) {
+        console.warn("[inventory] outcome completion failed (non-fatal):", e);
+      }
     }
 
     const inventoryService = new InventoryService();

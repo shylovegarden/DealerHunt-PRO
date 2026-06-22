@@ -16,6 +16,8 @@ import { useDealerId } from "@/hooks/useDealerId";
 import { Skeleton } from "@/components/shared/Skeleton";
 import { MaxBidWidget } from "@/components/deal/MaxBidWidget";
 import { PriceSparkline } from "@/components/deal/PriceSparkline";
+import { SimilarDeals } from "@/components/deal/SimilarDeals";
+import { MarketTiming } from "@/components/deal/MarketTiming";
 import useDealerDefaults from "@/hooks/useDealerDefaults";
 
 // Fetcher function for SWR
@@ -84,6 +86,15 @@ export default function DealPage({
           titleFee: store.titleFee,
           marketValue: store.marketValue,
           stage: "acquired",
+          // Close-the-loop: snapshot the source deal + the engine's prediction at purchase time.
+          dealId: id,
+          predictedProfit: dealData?.deal?.trueNetProfit ?? store.netProfit,
+          predictedSell: dealData?.deal?.sellEstimate ?? store.marketValue,
+          predictedTransport:
+            dealData?.deal?.dealAnalysis?.costs?.transport ??
+            store.transportCost,
+          predictedRecon:
+            dealData?.deal?.dealAnalysis?.costs?.repair ?? store.reconCost,
         }),
       });
       const data = await res.json();
@@ -354,6 +365,12 @@ export default function DealPage({
         </div>
         <PriceSparkline dealId={id} />
       </div>
+
+      {/* MARKET TIMING — buy-now/wait + real days-to-sell */}
+      <MarketTiming
+        make={dealData?.deal?.make ?? store.make}
+        model={dealData?.deal?.model ?? store.model}
+      />
 
       {/* TOP READOUT (The 60-Second Decision) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -635,6 +652,9 @@ export default function DealPage({
           </CardContent>
         </Card>
       </div>
+
+      {/* SIMILAR DEALS — semantic (pgvector) with attribute fallback */}
+      <SimilarDeals dealId={id} />
 
       {/* FIXED BOTTOM ACTION BAR — sits ABOVE the mobile BottomNav (which is itself bottom-0), so
           the two fixed bars don't overlap on phones; flush to the bottom on desktop (no BottomNav). */}

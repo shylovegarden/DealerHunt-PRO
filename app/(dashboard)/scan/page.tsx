@@ -605,6 +605,43 @@ export default function ScanPage() {
           );
         },
       )
+      // Re-score / price-drop updates: merge the changed fields into the row already on screen,
+      // so a verdict flip or a price drop shows without a refetch.
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "deals" },
+        (payload) => {
+          const d = payload.new;
+          mutate((current: any) => {
+            const vehicles = current?.vehicles || [];
+            const idx = vehicles.findIndex((x: any) => x.id === d.id);
+            if (idx === -1) return current;
+            const updated = [...vehicles];
+            updated[idx] = {
+              ...updated[idx],
+              askPrice: Number(d.ask_price ?? updated[idx].askPrice),
+              profitScore:
+                d.profit_score != null
+                  ? Number(d.profit_score)
+                  : updated[idx].profitScore,
+              dealVerdict: d.deal_verdict ?? updated[idx].dealVerdict,
+              recommendedMaxBid:
+                d.recommended_max_bid != null
+                  ? Number(d.recommended_max_bid)
+                  : updated[idx].recommendedMaxBid,
+              sellEstimate:
+                d.sell_estimate != null
+                  ? Number(d.sell_estimate)
+                  : updated[idx].sellEstimate,
+              true_net_profit:
+                d.true_net_profit != null
+                  ? Number(d.true_net_profit)
+                  : updated[idx].true_net_profit,
+            };
+            return { ...current, vehicles: updated };
+          }, false);
+        },
+      )
       .subscribe();
 
     return () => {
