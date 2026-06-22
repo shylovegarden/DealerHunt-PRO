@@ -1,95 +1,125 @@
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic";
 
-import { NextResponse } from 'next/server';
-import { createServerComponentClient } from '@/lib/supabase';
-import { DealScoringService } from '@/lib/scrapers/tools/deal-scoring';
-import { extractYear, extractMake, extractModel } from '@/lib/scrapers/tools/deal-normalizer';
+import { NextResponse } from "next/server";
+import { upsertDeals } from "@/lib/scrapers/pipeline";
+
+// Valid deal_source enum values (DB). Anything else is coerced to a safe default.
+const VALID_SOURCES = new Set([
+  "copart",
+  "iaa",
+  "adesa",
+  "manheim",
+  "facebook_marketplace",
+  "craigslist",
+  "ebay_motors",
+  "autotrader",
+  "cars_com",
+  "gov_auction",
+  "repo_network",
+  "independent_dealer",
+  "cargurus",
+  "craigslist_dealer",
+  "carvana",
+  "truecar",
+  "vroom",
+  "offerup",
+  "acv",
+]);
+
+// Map free-text title/condition to the listing_condition enum.
+function coerceCondition(input?: string): string {
+  const c = (input || "").toLowerCase();
+  if (c.includes("salvage")) return "salvage_title";
+  if (c.includes("rebuilt")) return "rebuilt_title";
+  if (c.includes("parts")) return "parts_only";
+  if (c.includes("clean")) return "clean_title";
+  if (c.includes("flood") || c.includes("water")) return "flood";
+  if (c.includes("fire") || c.includes("burn")) return "fire";
+  if (c.includes("hail")) return "hail";
+  if (c.includes("repairable") || c.includes("damage")) return "repairable";
+  return "run_drive";
+}
+
+const CORS = { "Access-Control-Allow-Origin": "*" };
 
 export async function POST(req: Request) {
   try {
+    // Shared-secret gate. The browser extension sends `Authorization: Bearer <INGEST_SECRET>`.
+    // Secure-by-default in production: if INGEST_SECRET is not configured, the endpoint is CLOSED
+    // (a public write path into the deals table is unacceptable in prod). In dev it stays open.
+    const secret = process.env.INGEST_SECRET;
+    if (!secret) {
+      if (process.env.NODE_ENV === "production") {
+        return NextResponse.json(
+          {
+            error:
+              "Ingest disabled: set INGEST_SECRET to enable this endpoint.",
+          },
+          { status: 503, headers: CORS },
+        );
+      }
+    } else if (req.headers.get("authorization") !== `Bearer ${secret}`) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401, headers: CORS },
+      );
+    }
+
     const data = await req.json();
-
-    // Quick validation
     if (!data.url || !data.price || !data.title) {
-      return NextResponse.json({ error: 'Missing required fields (url, price, title)' }, { status: 400 });
+      return NextResponse.json(
+        { error: "Missing required fields (url, price, title)" },
+        { status: 400, headers: CORS },
+      );
     }
 
-    const supabase = createServerComponentClient();
-    const rawPrice = parseFloat(data.price.replace(/[^0-9.]/g, '')) || 0;
+    const rawPrice =
+      parseFloat(String(data.price).replace(/[^0-9.]/g, "")) || 0;
+    const source = VALID_SOURCES.has((data.source || "").toLowerCase())
+      ? data.source.toLowerCase()
+      : "independent_dealer";
 
-    // Parse basic fields from title
-    const year = extractYear(data.title) || data.year;
-    const make = extractMake(data.title) || data.make;
-    const model = extractModel(data.title, make) || data.model;
-
-    // Try to fetch market value if VIN is provided
-    let mmrValue: number | null = null;
-    if (data.vin && data.vin.length === 17) {
-      try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/value/${data.vin}`);
-        if (res.ok) {
-          const valueData = await res.json();
-          mmrValue = valueData.marketValue || null;
-        }
-      } catch {}
-    }
-
-    // Build a partial deal and score it
-    const deal: any = {
-      source: data.source || 'extension',
+    // Build a clean Partial<Deal> and run it through the real pipeline (normalize → analyze →
+    // valid-column upsert + dedupe + saved-search match). No invalid columns/enums.
+    const deal = {
+      source,
       source_deal_id: data.external_id || data.url,
       source_url: data.url,
       title: data.title,
-      year,
-      make,
-      model,
-      vin: data.vin,
+      year: data.year,
+      make: data.make,
+      model: data.model,
+      vin: data.vin && String(data.vin).length === 17 ? data.vin : undefined,
       ask_price: rawPrice,
-      condition: data.title_type || data.condition || 'unknown',
+      condition: coerceCondition(data.title_type || data.condition),
       damage_type: data.damage_type,
-      images: data.image_url ? [data.image_url] : [],
-      description: data.description,
-      location: data.location,
-      seller_type: 'private',
-      mmr_value: mmrValue,
-      scraped_at: new Date().toISOString(),
-    };
+      location_city: data.location_city,
+      location_state: data.location_state,
+      images: data.image_url ? [data.image_url] : data.images || [],
+    } as any;
 
-    const scorer = new DealScoringService();
-    const scored = scorer.scoreDeal(deal);
-    const insert = { ...deal, ...scored };
-
-    const { data: saved, error } = await supabase
-      .from('deals')
-      .insert([insert])
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Supabase Error:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ success: true, deal: saved }, {
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-      }
-    });
-
+    const count = await upsertDeals([deal]);
+    return NextResponse.json(
+      { success: true, ingested: count },
+      { headers: CORS },
+    );
   } catch (error: any) {
-    console.error('Ingest Error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("Ingest Error:", error);
+    return NextResponse.json(
+      { error: error.message },
+      { status: 500, headers: CORS },
+    );
   }
 }
 
-// Support preflight CORS for the Chrome Extension
+// Preflight CORS for the browser extension.
 export async function OPTIONS() {
   return new NextResponse(null, {
     status: 204,
     headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
     },
   });
 }

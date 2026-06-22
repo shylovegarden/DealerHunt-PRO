@@ -1,88 +1,252 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://mock.supabase.co',
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'mock-key'
-);
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error(
+    "Supabase env not configured: set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY",
+  );
+}
+const supabase = createClient(supabaseUrl, supabaseKey);
+
+function toNum(v: any): number {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function normalizeRow(r: any, table: "deals" | "vehicles") {
+  // Map both deals and vehicles rows into a Deal-like shape used by scan UI mapper
+  const id = r.id;
+  const source = r.source || "unknown";
+  const year = r.year ?? undefined;
+  const make = r.make || "";
+  const model = r.model || "";
+  const mileage = r.mileage ?? r.miles ?? undefined;
+  const askPrice = toNum(r.ask_price ?? r.askPrice ?? 0);
+  const mmrValue = toNum(r.mmr_value ?? r.mmrValue ?? r.market_value ?? 0);
+  const profitEstimate = toNum(r.profit_estimate ?? r.profitEstimate ?? 0);
+  const profitScore = r.profit_score ?? r.profitScore ?? undefined;
+  const condition = r.condition || "";
+  const damageType = r.damage_type || r.damageType || undefined;
+  const locationCity = r.location_city || r.locationCity || undefined;
+  const locationState = r.location_state || r.locationState || undefined;
+  const seller = r.seller || undefined;
+  const auctionEndAt =
+    r.auction_end || r.auction_end_at || r.auctionEndAt || undefined;
+  const repairEst = toNum(r.repair_estimate ?? r.repairEst ?? 0);
+  const images = Array.isArray(r.images) ? r.images : r.images || [];
+  return {
+    id,
+    source,
+    title: r.title || `${year || ""} ${make} ${model}`.trim(),
+    year,
+    make,
+    model,
+    trim: r.trim,
+    vin: r.vin,
+    mileage,
+    condition,
+    askPrice,
+    buyNowPrice: r.buy_now_price ?? undefined,
+    mmrValue,
+    profitEstimate,
+    profitScore: profitScore != null ? Number(profitScore) : undefined,
+    // Decision-engine fields — must be carried through so verdict pills / max-bid /
+    // resale render on the Scan grid (mapDealToResult reads these camelCase keys).
+    dealVerdict: r.deal_verdict || undefined,
+    recommendedMaxBid:
+      r.recommended_max_bid != null ? Number(r.recommended_max_bid) : undefined,
+    sellEstimate: r.sell_estimate != null ? Number(r.sell_estimate) : undefined,
+    true_net_profit:
+      r.true_net_profit != null ? Number(r.true_net_profit) : undefined,
+    images,
+    locationCity,
+    locationState,
+    locationZip: r.location_zip || undefined,
+    active: r.active ?? true,
+    firstSeenAt: r.first_seen_at ? new Date(r.first_seen_at) : new Date(),
+    lastSeenAt: r.last_seen_at ? new Date(r.last_seen_at) : new Date(),
+    sourceUrl: r.source_url || r.sourceUrl || "",
+    auctionEndAt: auctionEndAt ? new Date(auctionEndAt) : undefined,
+    damageType,
+    seller,
+    sellerType: r.seller_type || undefined,
+    repair_estimate: repairEst || undefined,
+    transport_cost: r.transport_cost ?? undefined,
+    is_arbitrage_opportunity: r.is_arbitrage_opportunity ?? undefined,
+  };
+}
+
+function dedupeKey(r: any) {
+  return `${(r.source || "unknown").toLowerCase()}::${r.source_deal_id || r.id || r.vin || ""}`;
+}
 
 export async function GET(req: NextRequest) {
+  const rl = rateLimit(req, { key: "scan", limit: 90, windowMs: 60_000 });
+  if (!rl.allowed) return tooManyRequests(rl) as any;
+
   const { searchParams } = new URL(req.url);
-  const q         = searchParams.get('q') || '';
-  const state     = searchParams.get('state') || '';
-  const source    = searchParams.get('source') || '';
-  const titleType = searchParams.get('titleType') || '';
-  const category  = searchParams.get('cat') || '';
-  const minProfit = parseInt(searchParams.get('minProfit') || '0');
-  const page      = parseInt(searchParams.get('page') || '0');
-  const pageSize  = 20;
+  const q = searchParams.get("q") || "";
+  const state = searchParams.get("state") || "";
+  const source = searchParams.get("source") || "";
+  const titleType = searchParams.get("titleType") || "";
+  const category = searchParams.get("cat") || "";
+  const minProfit = parseInt(searchParams.get("minProfit") || "0");
+  // Range filters — remove the "borders" so any buyer can scope by era, budget, and odometer.
+  const minYear = parseInt(searchParams.get("minYear") || "0");
+  const maxYear = parseInt(searchParams.get("maxYear") || "0");
+  const maxPrice = parseInt(searchParams.get("maxPrice") || "0");
+  const minMileage = parseInt(searchParams.get("minMileage") || "0");
+  const maxMileage = parseInt(searchParams.get("maxMileage") || "0");
+  const page = parseInt(searchParams.get("page") || "0");
+  const pageSize = 20;
 
-  let query = supabase
-    .from('deals')
-    .select('*', { count: 'exact' })
-    .eq('active', true)
-    .gt('profit_score', 0)
-    .order('profit_score', { ascending: false })
-    .range(page * pageSize, (page + 1) * pageSize - 1);
-
-  if (state) {
-    // Pull state matches first, then nationwide, in a single request range
-    query = query.or(`location_state.eq.${state},location_state.neq.${state}`);
-  }
+  let query = supabase.from("deals").select("*", { count: "exact" });
 
   if (q) {
-    query = query.or(`make.ilike.%${q}%,model.ilike.%${q}%,title.ilike.%${q}%,vin.ilike.%${q}%`);
+    query = query.or(
+      `title.ilike.%${q}%,make.ilike.%${q}%,model.ilike.%${q}%,vin.ilike.%${q}%`,
+    );
   }
 
-  if (minProfit > 0) {
-    query = query.gte('profit_estimate', minProfit);
-  }
+  if (minYear > 0) query = query.gte("year", minYear);
+  if (maxYear > 0) query = query.lte("year", maxYear);
+  if (maxPrice > 0) query = query.lte("ask_price", maxPrice);
+  // Mileage may be null on some rows; range filters naturally exclude nulls, which is acceptable
+  // for an explicit mileage search.
+  if (minMileage > 0) query = query.gte("mileage", minMileage);
+  if (maxMileage > 0) query = query.lte("mileage", maxMileage);
 
   if (source) {
-    query = query.eq('source', source);
+    query = query.eq("source", source.toLowerCase());
   }
 
-  if (titleType && titleType !== 'all') {
-    query = query.ilike('condition', `%${titleType}%`);
+  if (titleType && titleType !== "all") {
+    const conditionMapping: Record<string, string> = {
+      clean: "clean_title",
+      rebuilt: "rebuilt_title",
+      salvage: "salvage_title",
+      parts: "parts_only",
+    };
+    const mappedCondition = conditionMapping[titleType] || titleType;
+    query = query.eq("condition", mappedCondition);
   }
 
   if (category && !source && !titleType) {
-    // Legacy single filter: source name or condition
-    if (['copart', 'iaa', 'craigslist', 'ebay', 'facebook'].includes(category)) {
-      query = query.eq('source', category);
+    const cleanCat = category.toLowerCase();
+    if (
+      ["copart", "iaa", "craigslist", "ebay", "facebook"].includes(cleanCat)
+    ) {
+      const sourceMapping: Record<string, string> = {
+        facebook: "facebook_marketplace",
+        ebay: "ebay_motors",
+      };
+      query = query.eq("source", sourceMapping[cleanCat] || cleanCat);
     } else {
-      query = query.ilike('condition', `%${category}%`);
+      query = query.eq("condition", cleanCat);
     }
   }
 
+  if (minProfit > 0) {
+    query = query.gte("profit_estimate", minProfit);
+  }
+
+  query = query
+    .order("profit_score", { ascending: false, nullsFirst: false })
+    .range(page * pageSize, (page + 1) * pageSize - 1);
+
   const { data, count, error } = await query;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error("API scan error:", error.message);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  const dRows = (data || []).map((r: any) => normalizeRow(r, "deals"));
 
   // State boost: sort state-match results first
   const sorted = state
     ? [
-        ...(data || []).filter((v: any) => v.location_state === state),
-        ...(data || []).filter((v: any) => v.location_state !== state),
+        ...dRows.filter(
+          (v: any) =>
+            (v.locationState || "").toUpperCase() === state.toUpperCase(),
+        ),
+        ...dRows.filter(
+          (v: any) =>
+            (v.locationState || "").toUpperCase() !== state.toUpperCase(),
+        ),
       ]
-    : data || [];
+    : dRows;
 
   return NextResponse.json({
     vehicles: sorted,
     total: count || 0,
-    state: state || 'nationwide',
-    page, pageSize,
+    state: state || "nationwide",
+    page,
+    pageSize,
     hasMore: (count || 0) > (page + 1) * pageSize,
     isLive: true,
   });
 }
 
+import { Queue } from "bullmq";
+
+// Lazily create the queue at request time only — instantiating at module scope opens a Redis
+// connection during build/prerender (ECONNREFUSED when no Redis is present).
+let scrapeQueue: Queue | null = null;
+function getScrapeQueue(): Queue {
+  if (!scrapeQueue) {
+    const redisUrl =
+      process.env.UPSTASH_REDIS_URL ||
+      process.env.REDIS_URL ||
+      "redis://localhost:6379";
+    scrapeQueue = new Queue("scrape", {
+      connection: {
+        url: redisUrl,
+        maxRetriesPerRequest: null,
+        enableReadyCheck: false,
+      } as any,
+    });
+  }
+  return scrapeQueue;
+}
+
 // POST — trigger a new scan
 export async function POST(req: NextRequest) {
-  const { searchTerm, sources = ['iaa', 'craigslist'], dealerId } = await req.json();
+  try {
+    const {
+      searchTerm,
+      sources = ["iaa", "craigslist", "copart"],
+      dealerId,
+    } = await req.json();
 
-  // Queue wiring lives in workers/index.ts; run `npm run worker` to process live scans.
-  return NextResponse.json({
-    queued: sources,
-    message: `Scanning ${sources.length} sources for "${searchTerm}" (queue must be running)`,
-  });
+    if (!searchTerm) {
+      return NextResponse.json(
+        { error: "searchTerm is required" },
+        { status: 400 },
+      );
+    }
+
+    // Dispatch a job for each source
+    for (const source of sources) {
+      await getScrapeQueue().add(
+        source,
+        { term: searchTerm, dealerId },
+        {
+          attempts: 2,
+          backoff: { type: "exponential", delay: 1000 },
+          removeOnComplete: true,
+        },
+      );
+    }
+
+    return NextResponse.json({
+      queued: sources,
+      message: `Scanning ${sources.length} sources for "${searchTerm}". Results will stream in.`,
+    });
+  } catch (error: any) {
+    console.error("Scan trigger error:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 }

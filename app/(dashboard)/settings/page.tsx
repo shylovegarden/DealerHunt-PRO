@@ -1,143 +1,334 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
-import { Panel } from '@/components/shared/Panel'
-import { Tag } from '@/components/shared/Tag'
-import { Field } from '@/components/shared/Field'
-import { Btn } from '@/components/shared/Btn'
+import { useState, useEffect } from "react";
+import useSWR from "swr";
+import { toast } from "sonner";
+import { Field } from "@/components/shared/Field";
+import { Ico } from "@/components/shared/Ico";
+import { ErrorState } from "@/components/shared/ErrorState";
+import { US_STATES } from "@/lib/utils/titleRules";
+import { useDealerId } from "@/hooks/useDealerId";
+import { Skeleton } from "@/components/shared/Skeleton";
 
-const isConfigured = (envKey?: string) => {
-  if (typeof envKey !== 'string') return false
-  return envKey.length > 0 && !envKey.includes('mock')
-}
+// Fetcher function for SWR
+const fetcher = (url: string) =>
+  fetch(url).then((res) => {
+    if (!res.ok) throw new Error("Failed to fetch");
+    return res.json();
+  });
 
 export default function SettingsPage() {
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const { dealerId, loading: dealerLoading } = useDealerId();
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
   const [profile, setProfile] = useState({
-    name: '',
-    phone: '',
-    city: '',
-    state: '',
-  })
+    name: "",
+    phone: "",
+    city: "",
+    state: "",
+    home_state: "CA",
+    auction_fee_default: 450,
+    recon_cost_default: 500,
+    daily_floor_rate: 35,
+    target_profit: 3500,
+    notify_price_drops: true,
+  });
 
-  const INTEGRATIONS = [
-    { name: 'Copart', status: isConfigured(process.env.NEXT_PUBLIC_COPART_USER) ? 'connected' : 'disconnected' },
-    { name: 'IAAI', status: isConfigured(process.env.NEXT_PUBLIC_IAA_USER) ? 'connected' : 'disconnected' },
-    { name: 'MarketCheck', status: isConfigured(process.env.NEXT_PUBLIC_MARKETCHECK_API_KEY) ? 'connected' : 'disconnected' },
-    { name: 'Stripe Billing', status: isConfigured(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY) ? 'connected' : 'disconnected' },
-  ]
+  // Use SWR for data fetching
+  const {
+    data: profileData,
+    error,
+    isLoading,
+    mutate,
+  } = useSWR(
+    dealerId && !dealerLoading ? `/api/profile?dealerId=${dealerId}` : null,
+    fetcher,
+    {
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+      dedupingInterval: 300000, // 5 minutes (settings don't change often)
+    },
+  );
 
+  const loading = isLoading || dealerLoading;
+  const authError =
+    !dealerLoading && !dealerId
+      ? "Please sign in to view your settings."
+      : null;
+
+  // Update local profile state when data loads
   useEffect(() => {
-    setLoading(true)
-    fetch('/api/profile')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.profile) {
-          setProfile({
-            name: data.profile.full_name || '',
-            phone: data.profile.phone || '',
-            city: data.profile.city || '',
-            state: data.profile.state || '',
-          })
-        } else if (data.error) {
-          setError(data.error)
-        }
-      })
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false))
-  }, [])
+    if (profileData?.profile) {
+      setProfile((p) => ({
+        ...p,
+        name: profileData.profile.name || profileData.profile.full_name || "",
+        phone: profileData.profile.phone || "",
+        city: profileData.profile.city || "",
+        state: profileData.profile.state || "",
+        home_state: profileData.profile.home_state || "CA",
+        auction_fee_default: profileData.profile.auction_fee_default ?? 450,
+        recon_cost_default: profileData.profile.recon_cost_default ?? 500,
+        daily_floor_rate: profileData.profile.daily_floor_rate ?? 35,
+        target_profit: profileData.profile.target_profit ?? 3500,
+        notify_price_drops: profileData.profile.notify_price_drops ?? true,
+      }));
+    }
+  }, [profileData]);
 
   const handleSave = async () => {
-    setSaving(true)
-    setSaved(false)
-    setError(null)
+    setSaving(true);
+    setSaved(false);
     try {
-      const res = await fetch('/api/profile', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          full_name: profile.name,
-          phone: profile.phone,
-          city: profile.city,
-          state: profile.state,
+      // Optimistic update
+      mutate({ profile }, false);
+
+      const res = await fetch("/api/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(profile),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        mutate(); // Revert on error
+        throw new Error(data.error || "Save failed");
+      }
+      setSaved(true);
+      toast.success("Settings saved");
+
+      // Update local storage cache for the hook
+      localStorage.setItem(
+        "dh_dealer_defaults",
+        JSON.stringify({
+          auctionFee: profile.auction_fee_default,
+          reconCost: profile.recon_cost_default,
+          dailyFloorRate: profile.daily_floor_rate,
+          targetProfit: profile.target_profit,
+          homeState: profile.home_state,
         }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Save failed')
-      setSaved(true)
+      );
+
+      // Revalidate from server
+      mutate();
     } catch (err: any) {
-      setError(err.message)
+      toast.error("Failed to save settings");
+      mutate(); // Revert on error
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   return (
-    <div className="space-y-4 max-w-3xl">
-      <Panel>
-        <h1 className="text-lg font-semibold text-[#FAFAFA]">Settings</h1>
-        <p className="text-sm text-[#9898A8] mt-1">Dealer profile, billing, and integrations.</p>
-      </Panel>
+    <div className="space-y-6 max-w-3xl mx-auto animate-fadeUp pb-24">
+      {/* Header */}
+      <div className="glass-panel p-6 flex items-center gap-4">
+        <div
+          className="w-12 h-12 rounded-xl flex items-center justify-center text-white"
+          style={{ background: "var(--grad)" }}
+        >
+          <Ico name="settings" size={24} />
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold text-[var(--t1)]">Settings</h1>
+          <p className="text-sm text-[var(--t4)] mt-1">
+            Dealer profile and scraping engine preferences.
+          </p>
+        </div>
+      </div>
 
-      <Panel>
-        <h2 className="text-sm font-semibold text-[#D1D1DC] uppercase tracking-wider mb-3">Dealer Profile</h2>
-        {loading && <p className="text-sm text-[#9898A8]">Loading profile...</p>}
-        {error && <p className="text-sm text-[#EF4444] mb-3">{error}</p>}
-        {!loading && (
+      {loading && (
+        <div className="text-center py-10">
+          <Ico
+            name="refresh"
+            className="animate-spin text-[var(--t4)] mx-auto"
+          />
+        </div>
+      )}
+      {(authError || error) && !loading && (
+        <ErrorState
+          title="Couldn't load settings"
+          message={authError || error?.message || "An error occurred"}
+          onRetry={() => mutate()}
+          compact
+        />
+      )}
+
+      {!loading && !authError && !error && (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Field
-            label="Dealership Name"
-            value={profile.name}
-            onChange={(e) => setProfile((p) => ({ ...p, name: e.target.value }))}
-            placeholder="Your dealership name"
-          />
-          <Field
-            label="Phone"
-            value={profile.phone}
-            onChange={(e) => setProfile((p) => ({ ...p, phone: e.target.value }))}
-            placeholder="(555) 123-4567"
-          />
-          <Field
-            label="City"
-            value={profile.city}
-            onChange={(e) => setProfile((p) => ({ ...p, city: e.target.value }))}
-            placeholder="Austin"
-          />
-          <Field
-            label="State"
-            value={profile.state}
-            onChange={(e) => setProfile((p) => ({ ...p, state: e.target.value }))}
-            placeholder="TX"
-          />
-        </div>
-        <div className="mt-4 flex items-center gap-3">
-          <Btn loading={saving} onClick={handleSave} className="w-full sm:w-auto">Save Profile</Btn>
-          {saved && <span className="text-sm text-[#10B981]">Saved</span>}
-        </div>
-        </>
-        )}
-      </Panel>
-
-      <Panel>
-        <h2 className="text-sm font-semibold text-[#D1D1DC] uppercase tracking-wider mb-3">Integrations</h2>
-        <div className="space-y-2">
-          {INTEGRATIONS.map((integration) => (
-            <div
-              key={integration.name}
-              className="flex items-center justify-between p-3 rounded-xl border border-[rgba(255,255,255,.06)]"
-            >
-              <span className="text-sm text-[#FAFAFA]">{integration.name}</span>
-              <Tag color={integration.status === 'connected' ? 'green' : 'red'}>
-                {integration.status === 'connected' ? 'Connected' : 'Disconnected'}
-              </Tag>
+          {/* Profile Section */}
+          <div className="glass-panel p-6 animate-popIn">
+            <h2 className="text-sm font-black text-[var(--t4)] uppercase tracking-widest mb-6">
+              Dealer Profile
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field
+                label="Dealership Name"
+                value={profile.name}
+                onChange={(e) =>
+                  setProfile((p) => ({ ...p, name: e.target.value }))
+                }
+                placeholder="Your dealership name"
+              />
+              <Field
+                label="Phone"
+                value={profile.phone}
+                onChange={(e) =>
+                  setProfile((p) => ({ ...p, phone: e.target.value }))
+                }
+                placeholder="(555) 123-4567"
+              />
+              <Field
+                label="City"
+                value={profile.city}
+                onChange={(e) =>
+                  setProfile((p) => ({ ...p, city: e.target.value }))
+                }
+                placeholder="Austin"
+              />
+              <Field
+                label="State"
+                value={profile.state}
+                onChange={(e) =>
+                  setProfile((p) => ({ ...p, state: e.target.value }))
+                }
+                placeholder="TX"
+              />
             </div>
-          ))}
-        </div>
-      </Panel>
+          </div>
+
+          {/* Dealer Defaults Section */}
+          <div
+            className="glass-panel p-6 animate-popIn"
+            style={{ animationDelay: "100ms" }}
+          >
+            <h2 className="text-sm font-black text-[var(--t4)] uppercase tracking-widest mb-6">
+              Dealer Defaults
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-medium text-[var(--t2)]">
+                  Home State (for transport calculation)
+                </label>
+                <select
+                  value={profile.home_state}
+                  onChange={(e) =>
+                    setProfile((p) => ({ ...p, home_state: e.target.value }))
+                  }
+                  className="w-full text-sm text-[var(--t1)] rounded-lg px-3 py-2.5 outline-none transition-all border-none"
+                  style={{ background: "var(--s2)" }}
+                >
+                  {US_STATES.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <Field
+                label="Default Auction Fee ($)"
+                type="number"
+                inputMode="numeric"
+                value={profile.auction_fee_default}
+                onChange={(e) =>
+                  setProfile((p) => ({
+                    ...p,
+                    auction_fee_default: Number(e.target.value),
+                  }))
+                }
+              />
+
+              <Field
+                label="Default Recon Cost ($)"
+                type="number"
+                inputMode="numeric"
+                value={profile.recon_cost_default}
+                onChange={(e) =>
+                  setProfile((p) => ({
+                    ...p,
+                    recon_cost_default: Number(e.target.value),
+                  }))
+                }
+              />
+
+              <Field
+                label="Daily Floor Rate ($/day)"
+                type="number"
+                inputMode="numeric"
+                value={profile.daily_floor_rate}
+                onChange={(e) =>
+                  setProfile((p) => ({
+                    ...p,
+                    daily_floor_rate: Number(e.target.value),
+                  }))
+                }
+              />
+
+              <Field
+                label="Target Profit Threshold ($)"
+                type="number"
+                inputMode="numeric"
+                value={profile.target_profit}
+                onChange={(e) =>
+                  setProfile((p) => ({
+                    ...p,
+                    target_profit: Number(e.target.value),
+                  }))
+                }
+              />
+            </div>
+          </div>
+
+          {/* Preferences Section */}
+          <div
+            className="glass-panel p-6 animate-popIn"
+            style={{ animationDelay: "200ms" }}
+          >
+            <h2 className="text-sm font-black text-[var(--t4)] uppercase tracking-widest mb-6">
+              Notifications
+            </h2>
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={profile.notify_price_drops}
+                onChange={(e) =>
+                  setProfile((p) => ({
+                    ...p,
+                    notify_price_drops: e.target.checked,
+                  }))
+                }
+                className="w-5 h-5 accent-[var(--green)]"
+              />
+              <span className="text-sm font-semibold text-[var(--t1)]">
+                Email me when a saved car drops in price
+              </span>
+            </label>
+          </div>
+
+          {/* Save Button */}
+          <div className="sticky bottom-20 sm:bottom-6 flex items-center justify-between glass-panel p-4">
+            <span className="text-sm text-[var(--t4)] font-medium hidden sm:inline">
+              Changes apply immediately.
+            </span>
+            <div className="flex items-center gap-4 w-full sm:w-auto">
+              {saved && (
+                <span className="text-sm font-bold text-[var(--green)] flex items-center gap-1 animate-popIn">
+                  <Ico name="check" size={16} /> Saved!
+                </span>
+              )}
+              <button
+                disabled={saving}
+                onClick={handleSave}
+                className="w-full sm:w-auto px-8 py-3 text-sm font-bold text-white rounded-xl transition-all border-none flex justify-center items-center gap-2 disabled:opacity-50"
+                style={{ background: "var(--grad)" }}
+              >
+                {saving && <Ico name="refresh" className="animate-spin" />}
+                Save Settings
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
-  )
+  );
 }

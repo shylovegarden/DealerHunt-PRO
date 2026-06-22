@@ -1,432 +1,744 @@
-'use client'
+"use client";
 
-import React, { useEffect, useMemo, useState, use } from 'react'
-import { Panel } from '@/components/shared/Panel'
-import { Field, SelectField } from '@/components/shared/Field'
-import { Btn } from '@/components/shared/Btn'
-import { Tag } from '@/components/shared/Tag'
-import { Mono } from '@/components/shared/Mono'
-import { DAMAGE_TYPES } from '@/lib/utils/repairCosts'
-import { getTitleRules, US_STATES } from '@/lib/utils/titleRules'
-import { cn } from '@/lib/utils'
-import { Deal } from '@/lib/data/deals-service'
-import { Ico } from '@/components/shared/Ico'
+import React, { useEffect } from "react";
+import useSWR from "swr";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { useDealStore } from "@/lib/store/dealStore";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { ErrorState } from "@/components/shared/ErrorState";
+import { Button } from "@/components/ui/button";
+import { Ico } from "@/components/shared/Ico";
+import { Mono } from "@/components/shared/Mono";
+import { useDealerId } from "@/hooks/useDealerId";
+import { Skeleton } from "@/components/shared/Skeleton";
+import { MaxBidWidget } from "@/components/deal/MaxBidWidget";
+import { PriceSparkline } from "@/components/deal/PriceSparkline";
+import { SimilarDeals } from "@/components/deal/SimilarDeals";
+import { MarketTiming } from "@/components/deal/MarketTiming";
+import { AIBrief } from "@/components/deal/AIBrief";
+import useDealerDefaults from "@/hooks/useDealerDefaults";
 
-type Verdict = 'go' | 'hold' | 'pass'
+// Fetcher function for SWR
+const fetcher = (url: string) =>
+  fetch(url).then((res) => {
+    if (!res.ok) throw new Error("Failed to fetch");
+    return res.json();
+  });
 
-interface DealInputs {
-  askPrice: number
-  auctionFee: number
-  titleFee: number
-  holdingDays: number
-  dailyFloorRate: number
-  damageType: string
-  repairCost: number
-  reconCost: number
-  fromState: string
-  toState: string
-  miles: number
-  trailerType: 'open' | 'enclosed'
-  transportCost: number
-  salePrice: number
-  sellingFee: number
-}
+export default function DealPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const store = useDealStore();
+  const { dealerId, loading: dealerLoading } = useDealerId();
+  const { targetProfit: savedTargetProfit } = useDealerDefaults();
+  // The dealer's learned calibration (null until they've logged enough outcomes).
+  const { data: calData } = useSWR("/api/calibration", fetcher, {
+    revalidateOnFocus: false,
+  });
+  const calibration = calData?.calibration ?? null;
+  const { id } = React.use(params);
+  const router = useRouter();
+  const [saving, setSaving] = React.useState(false);
+  const [watching, setWatching] = React.useState(false);
+  const loadedDealIdRef = React.useRef<string | null>(null);
 
-const DEFAULT_INPUTS: DealInputs = {
-  askPrice: 0,
-  auctionFee: 450,
-  titleFee: 120,
-  holdingDays: 0,
-  dailyFloorRate: 35,
-  damageType: 'clean',
-  repairCost: 0,
-  reconCost: 500,
-  fromState: 'TX',
-  toState: 'CA',
-  miles: 1400,
-  trailerType: 'open',
-  transportCost: 0,
-  salePrice: 0,
-  sellingFee: 299,
-}
+  // Use SWR for data fetching
+  const {
+    data: dealData,
+    error,
+    isLoading,
+  } = useSWR(
+    dealerId && !dealerLoading && id
+      ? `/api/deals/${id}?dealerId=${dealerId}`
+      : null,
+    fetcher,
+    {
+      revalidateOnFocus: false,
+      dedupingInterval: 60000, // 1 minute
+    },
+  );
 
-// Live transport ranges simulation
-function getTransportEstimates(miles: number, trailerType: 'open' | 'enclosed') {
-  const base = trailerType === 'open' ? 0.65 : 0.95
-  const cost = Math.max(miles * base, trailerType === 'open' ? 350 : 600)
-  return {
-    budget: Math.round(cost * 0.9),
-    standard: Math.round(cost),
-    express: Math.round(cost * 1.2),
-  }
-}
+  const loading = isLoading || dealerLoading;
+  const authError =
+    !dealerLoading && !dealerId ? "Please sign in to view deal details." : null;
 
-function computeDeal(inputs: DealInputs) {
-  const damage = DAMAGE_TYPES.find((d) => d.value === inputs.damageType) || DAMAGE_TYPES[0]
-  const holdingCost = inputs.holdingDays * inputs.dailyFloorRate
-  const totalCost = inputs.askPrice + inputs.auctionFee + inputs.titleFee + holdingCost + inputs.repairCost + inputs.reconCost + inputs.transportCost
-  const net = inputs.salePrice - inputs.sellingFee
-  const profit = net - totalCost
-  const roi = totalCost > 0 ? (profit / totalCost) * 100 : 0
-  const breakEvenDay = inputs.dailyFloorRate > 0 ? Math.round(totalCost / inputs.dailyFloorRate) : 0
-
-  let score = 0
-  // Margin points
-  if (profit > 6000) score += 35
-  else if (profit > 4500) score += 28
-  else if (profit > 3000) score += 20
-  else if (profit > 1500) score += 12
-  else score += 5
-
-  // ROI points
-  if (roi > 45) score += 25
-  else if (roi > 30) score += 20
-  else if (roi > 20) score += 15
-  else if (roi > 12) score += 8
-  else score += 3
-
-  // Title points
-  const titlePoints = 20 // Clean title assumed for now
-  score += titlePoints
-
-  // Damage points
-  if (inputs.damageType === 'clean') score += 15
-  else if (inputs.damageType === 'minor') score += 12
-  else if (inputs.damageType === 'hail_mod' || inputs.damageType === 'rear') score += 10
-  else if (inputs.damageType === 'front' || inputs.damageType === 'engine') score += 7
-  else if (inputs.damageType === 'side' || inputs.damageType === 'flood_mild') score += 4
-  else if (inputs.damageType === 'fire' || inputs.damageType === 'frame' || inputs.damageType === 'flood_sev') score += 0
-  else score += 5
-
-  // Mileage points
-  if (inputs.miles < 50000) score += 5
-  else if (inputs.miles > 150000) score -= 5
-
-  score = Math.max(0, Math.min(100, Math.round(score)))
-
-  let verdict: Verdict = 'pass'
-  if (profit > 3500 && roi > 20) verdict = 'go'
-  else if (profit >= 1500 || roi >= 10) verdict = 'hold'
-
-  return { holdingCost, totalCost, net, profit, roi, breakEvenDay, score, verdict, damageLabel: damage.label }
-}
-
-export default function DealPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params)
-  const [deal, setDeal] = useState<Deal | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  
-  const [inputs, setInputs] = useState<DealInputs>(DEFAULT_INPUTS)
-
-  useEffect(() => {
-    fetch(`/api/deals/${id}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.error) {
-          setError(data.error)
-        } else if (data.deal) {
-          setDeal(data.deal)
-          const d = data.deal as Deal
-
-          setInputs((prev) => ({
-            ...prev,
-            askPrice: d.askPrice || 0,
-            salePrice: d.mmrValue || (d.askPrice * 1.2),
-            damageType: d.damageType || 'clean',
-            repairCost: DAMAGE_TYPES.find(dt => dt.value === (d.damageType || 'clean'))?.repair || 0,
-            fromState: d.locationState || 'TX',
-            miles: d.locationState ? 800 : prev.miles,
-          }))
-        }
-      })
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false))
-  }, [id])
-
-  const result = useMemo(() => computeDeal(inputs), [inputs])
-  const transportEst = useMemo(() => getTransportEstimates(inputs.miles, inputs.trailerType), [inputs.miles, inputs.trailerType])
-
-  const update = (patch: Partial<DealInputs>) => {
-    setInputs((prev) => {
-      const next = { ...prev, ...patch }
-      // Auto-fill repair cost if damage type changed
-      if (patch.damageType) {
-        const dmg = DAMAGE_TYPES.find((d) => d.value === patch.damageType)
-        if (dmg) next.repairCost = dmg.repair
+  const handleSaveToFleet = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/inventory", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          vin: store.vin || "", // VIN often isn't in the listing — can be filled in later
+          year: store.year,
+          make: store.make,
+          model: store.model,
+          condition: store.titleType || "clean",
+          purchasePrice: store.askPrice,
+          auctionFee: store.auctionFee,
+          transportCost: store.transportCost,
+          repairCost: store.repairCost,
+          reconCost: store.reconCost,
+          titleFee: store.titleFee,
+          marketValue: store.marketValue,
+          stage: "acquired",
+          // Close-the-loop: snapshot the source deal + the engine's prediction at purchase time.
+          dealId: id,
+          predictedProfit: dealData?.deal?.trueNetProfit ?? store.netProfit,
+          predictedSell: dealData?.deal?.sellEstimate ?? store.marketValue,
+          predictedTransport:
+            dealData?.deal?.dealAnalysis?.costs?.transport ??
+            store.transportCost,
+          predictedRecon:
+            dealData?.deal?.dealAnalysis?.costs?.repair ?? store.reconCost,
+        }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        toast.error("Failed to save to fleet");
+      } else {
+        toast.success("Added to fleet", {
+          description: `${[store.year, store.make, store.model].filter(Boolean).join(" ")} is now in your pipeline.`,
+          action: { label: "View Fleet", onClick: () => router.push("/fleet") },
+        });
       }
-      return next
-    })
-  }
+    } catch (e: any) {
+      toast.error("Failed to save");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleWatchPrice = async () => {
+    setWatching(true);
+    try {
+      const res = await fetch("/api/watchlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deal_id: id }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to add to watchlist");
+      }
+      toast.success("Watching this deal for price changes");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to watch deal");
+    } finally {
+      setWatching(false);
+    }
+  };
+
+  // Update store when data loads — guard with ref to prevent infinite loop
+  useEffect(() => {
+    if (dealData?.deal && loadedDealIdRef.current !== id) {
+      loadedDealIdRef.current = id;
+      store.addDealToCache(id, dealData.deal);
+      store.loadDeal(dealData.deal);
+    } else if (error && loadedDealIdRef.current !== id) {
+      loadedDealIdRef.current = id;
+      // Try to load from cache on error
+      const cached = store.cachedDeals?.[id];
+      if (cached) {
+        store.loadDeal(cached);
+      }
+    }
+  }, [dealData, error, id]);
+
+  const formatMoney = (val: number) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      maximumFractionDigits: 0,
+    }).format(val);
+
+  // Authoritative numbers come from the SERVER decision engine (comps + full cost model).
+  // Fall back to the client store only when the engine hasn't produced a verdict.
+  const serverDeal = dealData?.deal;
+  const hasEngine = !!serverDeal?.dealVerdict;
+  const engineVerdict = (
+    hasEngine ? String(serverDeal.dealVerdict).toUpperCase() : store.verdict
+  ) as "GO" | "HOLD" | "PASS";
+  const engineNetProfit =
+    hasEngine && serverDeal.true_net_profit != null
+      ? Number(serverDeal.true_net_profit)
+      : store.netProfit;
+  const engineScore =
+    hasEngine && serverDeal.profitScore != null
+      ? Number(serverDeal.profitScore)
+      : store.profitScore;
+  const engineRoi =
+    hasEngine && serverDeal?.dealAnalysis?.roi != null
+      ? Number(serverDeal.dealAnalysis.roi)
+      : store.roi;
+  // The client store recompute is reframed as a "what-if" adjusted estimate (see ledger).
 
   if (loading) {
     return (
-      <Panel className="flex items-center justify-center py-20 animate-pulse">
-        <p className="text-[#9898A8]">Loading deal analysis...</p>
-      </Panel>
-    )
+      <div className="space-y-6 max-w-5xl mx-auto mt-4">
+        <Skeleton className="h-7 w-64" />
+        <Skeleton className="h-28 w-full" />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <Skeleton className="h-44 lg:col-span-2" />
+          <Skeleton className="h-44" />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Skeleton className="h-56" />
+          <Skeleton className="h-56" />
+        </div>
+      </div>
+    );
   }
 
-  if (error || !deal) {
+  if (authError || error) {
     return (
-      <Panel className="text-center py-12 border-[rgba(239,68,68,.20)] bg-[rgba(239,68,68,.10)]">
-        <p className="text-[#EF4444]">Error: {error || 'Deal not found'}</p>
-      </Panel>
-    )
+      <div className="max-w-5xl mx-auto mt-12">
+        <ErrorState
+          title="Couldn't load deal"
+          message={
+            authError ||
+            `Error loading deal: ${error?.message || "Unknown error"}`
+          }
+          onRetry={() => window.location.reload()}
+        />
+      </div>
+    );
   }
-
-  const titleRules = getTitleRules(inputs.fromState, inputs.toState)
-
-  const verdictConfig = {
-    go: { label: 'GO', color: 'text-[#10B981]', bg: 'bg-[rgba(16,185,129,.10)]', border: 'border-[rgba(16,185,129,.20)]', msg: 'Execute Now' },
-    hold: { label: 'HOLD', color: 'text-[#F59E0B]', bg: 'bg-[rgba(245,158,11,.10)]', border: 'border-[rgba(245,158,11,.22)]', msg: 'Monitor Value' },
-    pass: { label: 'PASS', color: 'text-[#EF4444]', bg: 'bg-[rgba(239,68,68,.10)]', border: 'border-[rgba(239,68,68,.20)]', msg: 'Too Risky' },
-  }
-
-  const costRows = [
-    { label: 'Purchase', value: inputs.askPrice },
-    { label: 'Auction Fee', value: inputs.auctionFee },
-    { label: 'Transport', value: inputs.transportCost },
-    { label: 'Repair', value: inputs.repairCost },
-    { label: 'Recon', value: inputs.reconCost },
-    { label: 'Title', value: inputs.titleFee },
-    { label: 'Floor', value: result.holdingCost },
-  ]
-  const maxCost = Math.max(...costRows.map((r) => r.value), 1)
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 animate-fadeUp">
-      {/* LEFT COLUMN — Inputs */}
-      <div className="space-y-4">
-        {/* Deal Header */}
-        <Panel className="flex items-center gap-4 bg-[var(--amber-lo)] border-[var(--amber-bd)]">
-          <div className="w-16 h-16 rounded-[var(--r3)] bg-[var(--s3)] overflow-hidden shrink-0">
-            {deal.images && deal.images.length > 0 ? (
-              <img src={deal.images[0]} alt={deal.title} className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-[var(--t5)]">
-                <Ico name="car" size={24} />
-              </div>
-            )}
+    <div className="space-y-6 max-w-5xl mx-auto animate-fadeUp pb-24">
+      {/* HEADER & USER TYPE */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <div className="flex items-center gap-3 mb-2">
+            <Badge
+              variant="outline"
+              className="text-[var(--t1)] bg-white border-[var(--b1)]"
+            >
+              {store.year} {store.make} {store.model}
+            </Badge>
+            <Badge
+              className="text-white uppercase tracking-wider text-[10px] border-none"
+              style={{ background: "var(--grad)" }}
+            >
+              {store.titleType} Title
+            </Badge>
           </div>
-          <div>
-            <h1 className="text-xl font-bold text-[var(--t1)]">{deal.year} {deal.make} {deal.model}</h1>
-            <p className="text-sm text-[var(--t3)] mt-1 flex gap-2 items-center">
-              <span className="px-2 py-0.5 rounded-[var(--r1)] bg-[var(--b1)] text-xs text-[var(--t2)] uppercase font-bold">{deal.source}</span>
-              <span>•</span>
-              <span>{deal.vin || 'NO VIN'}</span>
-              <span>•</span>
-              <span>{deal.locationCity}, {deal.locationState}</span>
-            </p>
-          </div>
-        </Panel>
+          <p className="text-[var(--t4)] text-sm">
+            {[
+              dealData?.deal?.source,
+              [dealData?.deal?.locationCity, dealData?.deal?.locationState]
+                .filter(Boolean)
+                .join(", "),
+              store.miles ? `${store.miles.toLocaleString()} mi` : null,
+            ]
+              .filter(Boolean)
+              .join(" • ") || "Deal details"}
+          </p>
+        </div>
 
-        {/* ACQUISITION */}
-        <Panel>
-          <h2 className="text-sm font-semibold text-[var(--t2)] uppercase tracking-wider mb-4">Acquisition</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Field label="Ask / Bid ($)" type="number" value={inputs.askPrice} onChange={(e) => update({ askPrice: Number(e.target.value) })} />
-            <Field label="Auction Fee ($)" type="number" value={inputs.auctionFee} onChange={(e) => update({ auctionFee: Number(e.target.value) })} />
-            <Field label="Title / Paperwork ($)" type="number" value={inputs.titleFee} onChange={(e) => update({ titleFee: Number(e.target.value) })} />
-            <Field label="Holding / Floorplan ($)" type="number" value={inputs.dailyFloorRate} onChange={(e) => update({ dailyFloorRate: Number(e.target.value) })} />
-          </div>
-        </Panel>
-
-        {/* REPAIR */}
-        <Panel>
-          <h2 className="text-sm font-semibold text-[var(--t2)] uppercase tracking-wider mb-4">Repair Estimate</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <SelectField
-              label="Damage Type"
-              options={DAMAGE_TYPES.map((d) => ({ value: d.value, label: d.label }))}
-              value={inputs.damageType}
-              onChange={(e) => update({ damageType: e.target.value })}
-            />
-            <Field label="Repair Cost ($)" type="number" value={inputs.repairCost} onChange={(e) => update({ repairCost: Number(e.target.value) })} />
-            <Field label="Recon / Detail ($)" type="number" value={inputs.reconCost} onChange={(e) => update({ reconCost: Number(e.target.value) })} />
-          </div>
-        </Panel>
-
-        {/* TRANSPORT */}
-        <Panel>
-          <h2 className="text-sm font-semibold text-[var(--t2)] uppercase tracking-wider mb-4">Transport</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-            <SelectField label="From State" options={US_STATES.map((s: string) => ({ value: s, label: s }))} value={inputs.fromState} onChange={(e) => update({ fromState: e.target.value })} />
-            <SelectField label="To State" options={US_STATES.map((s: string) => ({ value: s, label: s }))} value={inputs.toState} onChange={(e) => update({ toState: e.target.value })} />
-            <Field label="Distance (Miles)" type="number" value={inputs.miles} onChange={(e) => update({ miles: Number(e.target.value) })} />
-            <SelectField
-              label="Carrier Type"
-              options={[
-                { value: 'open', label: 'Open' },
-                { value: 'enclosed', label: 'Enclosed' },
-              ]}
-              value={inputs.trailerType}
-              onChange={(e) => update({ trailerType: e.target.value as 'open' | 'enclosed' })}
-            />
-          </div>
-          
-          <div className="bg-[var(--s3)] border border-[var(--b1)] rounded-[var(--r3)] p-3">
-            <p className="text-xs text-[var(--t3)] mb-2 uppercase tracking-wider">Live Estimate</p>
-            <div className="flex flex-col sm:flex-row justify-between text-sm gap-2">
-              <div className="flex justify-between sm:flex-col gap-1">
-                <span className="text-[var(--t2)]">Budget</span>
-                <Mono className="text-[var(--t1)]">${transportEst.budget}</Mono>
-              </div>
-              <div className="flex justify-between sm:flex-col gap-1">
-                <span className="text-[var(--t2)]">Standard</span>
-                <Mono className="text-[var(--t1)]">${transportEst.standard}</Mono>
-              </div>
-              <div className="flex justify-between sm:flex-col gap-1">
-                <span className="text-[var(--t2)]">Express</span>
-                <Mono className="text-[var(--t1)]">${transportEst.express}</Mono>
-              </div>
-              <button 
-                onClick={() => update({ transportCost: transportEst.standard })}
-                className="mt-2 sm:mt-0 text-xs font-bold text-[var(--amber)] bg-[var(--amber-lo)] px-3 py-1.5 rounded-[var(--r2)] hover:bg-[var(--amber)] hover:text-[var(--s0)] transition-colors"
-              >
-                Apply ${transportEst.standard}
-              </button>
-            </div>
-            <div className="mt-3">
-              <Field label="Final Transport Cost ($)" type="number" value={inputs.transportCost} onChange={(e) => update({ transportCost: Number(e.target.value) })} />
-            </div>
-          </div>
-        </Panel>
-
-        {/* SALE */}
-        <Panel>
-          <h2 className="text-sm font-semibold text-[var(--t2)] uppercase tracking-wider mb-4">Sale</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Field label="Expected Sale Price ($)" type="number" value={inputs.salePrice} onChange={(e) => update({ salePrice: Number(e.target.value) })} />
-            <Field label="Selling Fee ($)" type="number" value={inputs.sellingFee} onChange={(e) => update({ sellingFee: Number(e.target.value) })} />
-          </div>
-        </Panel>
+        {/* The 3-User Toggle */}
+        <div
+          className="flex p-1 rounded-xl"
+          style={{ background: "var(--s0)", boxShadow: "var(--shadow2)" }}
+        >
+          {(["dealer", "private", "parts"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => store.setUserType(t)}
+              className={`px-4 py-2 rounded-lg text-xs font-bold uppercase transition-all border-none ${store.userType === t ? "text-white" : "text-[var(--t4)] hover:text-[var(--t1)]"}`}
+              style={store.userType === t ? { background: "var(--grad)" } : {}}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* RIGHT COLUMN — Results */}
-      <div className="space-y-4">
-        
-        {/* HERO RESULTS */}
-        <Panel className="relative overflow-hidden flex flex-col items-center justify-center py-8">
-          <div className="relative flex items-center justify-center w-32 h-32 mb-6">
-            <svg className="absolute w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-              <circle cx="50" cy="50" r="45" fill="none" stroke="var(--b1)" strokeWidth="8" />
-              <circle cx="50" cy="50" r="45" fill="none" stroke="var(--amber)" strokeWidth="8" strokeDasharray={`${result.score * 2.82} 282`} className="transition-all duration-500 ease-out" />
-            </svg>
-            <div className="flex flex-col items-center">
-              <span className="text-4xl font-black text-[var(--t1)]">{result.score}</span>
-              <span className="text-[0.6rem] text-[var(--t3)] uppercase tracking-widest font-bold">Score</span>
-            </div>
-          </div>
-
-          <p className="text-xs text-[var(--t3)] uppercase tracking-wider mb-1">Net Profit</p>
-          <Mono className={cn('text-5xl font-black mb-6', result.profit > 0 ? 'text-[var(--green)]' : 'text-[var(--red)]')}>
-            {result.profit > 0 ? '+' : '-'}${Math.abs(result.profit).toLocaleString()}
-          </Mono>
-
-          <div className="w-full px-6 grid grid-cols-4 gap-2 text-center mb-6">
-            <div>
-              <p className="text-[0.65rem] text-[var(--t3)] uppercase tracking-wider mb-1">Total Cost</p>
-              <Mono className="text-sm font-bold text-[var(--amber)]">${result.totalCost.toLocaleString()}</Mono>
-            </div>
-            <div>
-              <p className="text-[0.65rem] text-[var(--t3)] uppercase tracking-wider mb-1">ROI</p>
-              <Mono className="text-sm font-bold text-[var(--t1)]">{result.roi.toFixed(1)}%</Mono>
-            </div>
-            <div>
-              <p className="text-[0.65rem] text-[var(--t3)] uppercase tracking-wider mb-1">$/Lot Day</p>
-              <Mono className="text-sm font-bold text-[var(--t1)]">${inputs.dailyFloorRate}/day</Mono>
-            </div>
-            <div>
-              <p className="text-[0.65rem] text-[var(--t3)] uppercase tracking-wider mb-1">Break-Even</p>
-              <Mono className="text-sm font-bold text-[var(--t1)]">Day {result.breakEvenDay}</Mono>
-            </div>
-          </div>
-
-          <div className="w-full px-6 mb-6">
-            <div className="h-2 w-full rounded-full bg-[var(--s3)] overflow-hidden">
-              <div 
-                className={cn('h-full transition-all duration-500', result.roi > 20 ? 'bg-[var(--green)]' : result.roi > 0 ? 'bg-[var(--amber)]' : 'bg-[var(--red)]')} 
-                style={{ width: `${Math.min(100, Math.max(0, result.roi))}%` }} 
-              />
-            </div>
-          </div>
-
-          {/* VERDICT BADGE */}
-          <div className={cn('w-full px-6 py-4 rounded-[var(--r3)] border text-center', verdictConfig[result.verdict].bg, verdictConfig[result.verdict].border)}>
-            <div className="flex items-center justify-center gap-3 mb-2">
-              <p className={cn('text-3xl font-black', verdictConfig[result.verdict].color)}>{verdictConfig[result.verdict].label}</p>
-              <p className={cn('text-sm font-bold uppercase tracking-wide', verdictConfig[result.verdict].color)}>— {verdictConfig[result.verdict].msg}</p>
-            </div>
-            <p className="text-sm text-[var(--t2)] leading-relaxed">
-              <Mono className="font-bold">${Math.abs(result.profit).toLocaleString()}</Mono> net after all costs including <Mono>${inputs.transportCost.toLocaleString()}</Mono> transport. <Mono>{result.roi.toFixed(1)}%</Mono> ROI. Break-even by day {result.breakEvenDay} at <Mono>${inputs.dailyFloorRate}</Mono>/day floor.
-            </p>
-          </div>
-        </Panel>
-
-        {/* ASCII COST BREAKDOWN */}
-        <Panel>
-          <h3 className="text-sm font-semibold text-[var(--t2)] uppercase tracking-wider mb-4">Cost Breakdown</h3>
-          <div className="font-[var(--fm)] text-xs space-y-2">
-            {costRows.map((row) => {
-              const percentage = result.totalCost > 0 ? (row.value / result.totalCost) * 100 : 0
-              const blocks = Math.max(1, Math.round(percentage / 3))
-              const bar = '█'.repeat(blocks)
-              return (
-                <div key={row.label} className="flex items-center">
-                  <span className="w-20 text-[var(--t3)]">{row.label.padEnd(10, ' ')}</span>
-                  <span className="w-16 text-right text-[var(--t2)]">${row.value.toLocaleString()}</span>
-                  <span className="ml-3 text-[var(--amber)]">{bar}</span>
-                  <span className="ml-2 text-[var(--t4)]">{percentage.toFixed(0)}%</span>
+      {/* ENGINE DECISION (authoritative, server-computed from comps + full cost model) */}
+      {dealData?.deal?.dealVerdict &&
+        (() => {
+          const d = dealData.deal;
+          const a = d.dealAnalysis || {};
+          const verdict = String(d.dealVerdict).toUpperCase();
+          const vColor =
+            verdict === "GO"
+              ? "var(--green)"
+              : verdict === "HOLD"
+                ? "var(--amber)"
+                : "var(--red)";
+          const basisLabel =
+            a.sellBasis === "comps"
+              ? "real retail comps"
+              : a.sellBasis === "market"
+                ? "market value"
+                : "estimated markup";
+          return (
+            <Card
+              className="border-none overflow-hidden"
+              style={{ background: "var(--s0)", boxShadow: "var(--shadow)" }}
+            >
+              <div className="h-1 w-full" style={{ background: vColor }} />
+              <CardContent className="p-6 md:p-7">
+                <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--t4)] font-bold mb-4">
+                  The Decision
+                </p>
+                <div className="flex flex-wrap items-center justify-between gap-5">
+                  <div className="flex items-center gap-4 md:gap-5">
+                    <div
+                      className="px-5 py-3 rounded-[var(--r3)] text-white font-black text-2xl tracking-wide leading-none"
+                      style={{ background: vColor }}
+                    >
+                      {verdict}
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-widest text-[var(--t4)] font-bold mb-1">
+                        Recommended max bid
+                      </p>
+                      <Mono className="text-3xl md:text-4xl font-black text-[var(--t1)] leading-none">
+                        {d.recommendedMaxBid != null
+                          ? formatMoney(d.recommendedMaxBid)
+                          : "—"}
+                      </Mono>
+                      <p className="text-xs text-[var(--t3)] font-semibold mt-1.5">
+                        Net profit {formatMoney(d.true_net_profit ?? 0)}
+                        {a.roi != null ? ` · ${a.roi}% ROI` : ""} · score{" "}
+                        {d.profitScore ?? "—"}/130
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] uppercase tracking-widest text-[var(--t4)] font-bold">
+                      Est. resale
+                    </p>
+                    <Mono className="text-xl font-black text-[var(--t1)]">
+                      {d.sellEstimate != null
+                        ? formatMoney(d.sellEstimate)
+                        : "—"}
+                    </Mono>
+                    <p className="text-[10px] text-[var(--t4)]">
+                      via {basisLabel}
+                    </p>
+                  </div>
                 </div>
-              )
-            })}
-            <div className="border-t border-[var(--b1)] mt-2 pt-2 flex items-center text-[var(--t1)] font-bold">
-              <span className="w-20">Total</span>
-              <span className="w-16 text-right">${result.totalCost.toLocaleString()}</span>
+                {(a.warnings?.length > 0 || a.recommendations?.length > 0) && (
+                  <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-[var(--b1)]">
+                    {(a.warnings || []).map((w: string, i: number) => (
+                      <span
+                        key={`w${i}`}
+                        className="text-xs font-semibold text-white px-2.5 py-1 rounded-md"
+                        style={{ background: "var(--red)" }}
+                      >
+                        ⚠ {w}
+                      </span>
+                    ))}
+                    {(a.recommendations || []).map((r: string, i: number) => (
+                      <span
+                        key={`r${i}`}
+                        className="text-xs font-semibold text-[var(--t2)] px-2.5 py-1 rounded-md bg-[var(--s1)]"
+                      >
+                        ✓ {r}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })()}
+
+      {/* MAX BID ENGINE + PRICE HISTORY (Name-your-price / price-trend) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2">
+          <MaxBidWidget
+            sellEstimate={dealData?.deal?.sellEstimate}
+            source={dealData?.deal?.source}
+            askPrice={dealData?.deal?.askPrice ?? store.askPrice}
+            costs={dealData?.deal?.dealAnalysis?.costs}
+            defaultTargetProfit={savedTargetProfit}
+            calibration={calibration}
+          />
+        </div>
+        <PriceSparkline dealId={id} />
+      </div>
+
+      {/* MARKET TIMING — buy-now/wait + real days-to-sell */}
+      <MarketTiming
+        make={dealData?.deal?.make ?? store.make}
+        model={dealData?.deal?.model ?? store.model}
+      />
+
+      {/* TOP READOUT (The 60-Second Decision) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <Card
+          className="col-span-1 lg:col-span-2 border-none bg-[var(--s0)]"
+          style={{ boxShadow: "var(--shadow2)" }}
+        >
+          <CardContent className="p-6 flex flex-col justify-center h-full">
+            <div className="flex justify-between items-end">
+              <div>
+                <p className="text-sm font-bold text-[var(--t4)] uppercase tracking-widest mb-1">
+                  {store.userType === "parts"
+                    ? "Part-out ROI"
+                    : store.userType === "private"
+                      ? "Savings vs Market"
+                      : "Net Profit"}
+                </p>
+                <div className="text-5xl font-bold text-[var(--t1)] flex items-center gap-3 serif">
+                  {formatMoney(engineNetProfit)}
+                  <Badge
+                    className="text-white border-none px-2 py-1 text-sm"
+                    style={{ background: "var(--green)" }}
+                  >
+                    {engineRoi}% ROI
+                  </Badge>
+                </div>
+                {/* The interactive ledger below is a what-if sandbox; show its result only as
+                    a secondary "adjusted" figure so it never competes with the engine verdict. */}
+                {store.netProfit !== engineNetProfit && (
+                  <p className="text-[11px] text-[var(--t4)] mt-1.5">
+                    Your adjusted estimate:{" "}
+                    <span className="font-bold text-[var(--t3)]">
+                      {formatMoney(store.netProfit)}
+                    </span>
+                  </p>
+                )}
+              </div>
+              <div className="text-right">
+                <p className="text-sm font-bold text-[var(--t4)] uppercase tracking-widest mb-1">
+                  Verdict
+                </p>
+                <div
+                  className={`text-4xl font-bold ${engineVerdict === "GO" ? "text-[var(--green)]" : engineVerdict === "HOLD" ? "text-[var(--amber)]" : "text-[var(--red)]"}`}
+                >
+                  {engineVerdict}
+                </div>
+              </div>
+            </div>
+
+            {/* The EDGE Features Row */}
+            <div className="flex flex-wrap gap-3 mt-6 pt-6 border-t border-[var(--b1)]">
+              {/* Carrying Cost Clock */}
+              {store.userType === "dealer" && (
+                <div className="flex items-center gap-2 text-xs font-bold text-[var(--t2)] bg-[var(--s1)] px-3 py-1.5 rounded-md">
+                  <Ico name="clock" size={14} className="text-[var(--t4)]" />
+                  Break-even: Day{" "}
+                  {Math.floor(store.netProfit / store.floorRate)} of{" "}
+                  {store.estimatedDaysToSell}-day target
+                </div>
+              )}
+              {/* Geo-Arbitrage */}
+              {store.transportCost < 1000 &&
+                store.netProfit > 2500 &&
+                store.userType === "dealer" && (
+                  <div className="flex items-center gap-2 text-xs font-bold text-white bg-[var(--purple)] px-3 py-1.5 rounded-md shadow-sm">
+                    <Ico name="trending-up" size={14} />
+                    {dealData?.deal?.locationState
+                      ? `Geo-Arbitrage: low transport from ${dealData.deal.locationState}`
+                      : "Geo-Arbitrage: low transport opportunity"}
+                  </div>
+                )}
+              {/* Recalls */}
+              {store.openRecalls > 0 ? (
+                <div className="flex items-center gap-2 text-xs font-bold text-white bg-[var(--red)] px-3 py-1.5 rounded-md shadow-sm">
+                  <Ico name="alert-triangle" size={14} />
+                  {store.openRecalls} Open NHTSA Recalls
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-xs font-bold text-[var(--t2)] bg-[var(--s1)] px-3 py-1.5 rounded-md">
+                  <Ico
+                    name="check-circle"
+                    size={14}
+                    className="text-[var(--green)]"
+                  />
+                  0 Open Recalls
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* The Algorithm Score */}
+        <Card className="col-span-1 border-[var(--b2)] bg-[var(--s0)] shadow-sm flex flex-col justify-center items-center p-6 text-center">
+          <p className="text-sm font-bold text-[var(--t3)] uppercase tracking-widest mb-2">
+            Deal Score
+          </p>
+          <div className="relative inline-flex items-center justify-center w-32 h-32 mb-2">
+            <svg className="w-full h-full transform -rotate-90">
+              <circle
+                cx="64"
+                cy="64"
+                r="56"
+                stroke="var(--s2)"
+                strokeWidth="8"
+                fill="transparent"
+              />
+              <circle
+                cx="64"
+                cy="64"
+                r="56"
+                stroke={
+                  engineScore >= 80
+                    ? "var(--green)"
+                    : engineScore >= 60
+                      ? "var(--amber)"
+                      : "var(--red)"
+                }
+                strokeWidth="8"
+                fill="transparent"
+                strokeDasharray="351.8"
+                strokeDashoffset={
+                  351.8 -
+                  (351.8 * Math.max(0, Math.min(100, engineScore))) / 100
+                }
+                className="transition-all duration-500 ease-out"
+              />
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center text-4xl font-black text-[var(--t1)]">
+              {engineScore}
             </div>
           </div>
-        </Panel>
+          <p className="text-xs text-[var(--t4)] max-w-[200px] leading-tight">
+            Based on ROI, Margin, Demand, Mileage, and Title Risk.
+          </p>
+        </Card>
+      </div>
 
-        {/* FLOORPLAN CLOCK WARNING */}
-        {result.profit > 0 && (
-          <Panel className="bg-[var(--olo)] border border-[rgba(249,115,22,.20)]">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-xl">⏱</span>
-              <h3 className="text-sm font-bold text-[var(--orange)]">Floorplan Clock</h3>
+      {/* MIDDLE SECTION (The Interactive Ledger — secondary) */}
+      <div className="pt-2">
+        <p className="text-[11px] font-bold uppercase tracking-widest text-[var(--t4)] px-1 mb-1">
+          Adjust assumptions
+        </p>
+        <p className="text-xs text-[var(--t4)] px-1 mb-3">
+          Fine-tune costs and market value to see how the numbers move. The
+          decision above uses the engine&apos;s estimates.
+        </p>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Left: Value & Ask */}
+        <Card className="border-[var(--b2)] shadow-sm">
+          <CardHeader className="bg-[var(--s1)] border-b border-[var(--b1)] py-4">
+            <CardTitle className="text-sm font-bold uppercase tracking-widest">
+              Market & Acquisition
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-bold text-[var(--t2)] flex-1">
+                Ask Price
+              </label>
+              <div className="relative w-32">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--t3)] font-bold">
+                  $
+                </span>
+                <Input
+                  type="number"
+                  value={store.askPrice || ""}
+                  onChange={(e) =>
+                    store.updateField("askPrice", Number(e.target.value))
+                  }
+                  className="pl-7 font-[var(--fm)] font-bold bg-white text-right"
+                />
+              </div>
             </div>
-            <p className="text-sm text-[var(--t2)]">
-              At <Mono>${inputs.dailyFloorRate}</Mono>/day carrying cost, this deal needs to close within <Mono>{Math.floor(result.profit / inputs.dailyFloorRate)}</Mono> days to remain profitable. Break-even lot day: <Mono>Day {result.breakEvenDay}</Mono>.
-            </p>
-          </Panel>
-        )}
+            <div className="flex items-center justify-between border-t border-[var(--b1)] pt-4">
+              <div className="flex-1">
+                <label className="text-sm font-bold text-[var(--t2)]">
+                  {store.userType === "parts"
+                    ? "Est. Parts Value"
+                    : "MMR Market Value"}
+                </label>
+                <p className="text-[10px] text-[var(--t4)]">
+                  Editable estimate
+                </p>
+              </div>
+              <div className="relative w-32">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--t3)] font-bold">
+                  $
+                </span>
+                <Input
+                  type="number"
+                  value={store.marketValue || ""}
+                  onChange={(e) =>
+                    store.updateField("marketValue", Number(e.target.value))
+                  }
+                  className="pl-7 font-[var(--fm)] font-bold bg-[var(--s1)] text-right border-dashed"
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-        {/* TITLE REQUIREMENTS */}
-        <Panel>
-          <div className="flex items-center gap-2 mb-3">
-            <h3 className="text-sm font-semibold text-[var(--t2)] uppercase tracking-wider">Title Requirements</h3>
-            <Tag color={titleRules.warning ? 'red' : 'green'}>{inputs.fromState} &rarr; {inputs.toState}</Tag>
-          </div>
-          {titleRules.warning && (
-            <p className="text-sm text-[var(--red)] font-bold mb-2">⚠ Read Before Buying</p>
+        {/* Right: The Costs */}
+        <Card className="border-[var(--b2)] shadow-sm">
+          <CardHeader className="bg-[var(--s1)] border-b border-[var(--b1)] py-4">
+            <CardTitle className="text-sm font-bold uppercase tracking-widest">
+              Cost Breakdown
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y divide-[var(--b1)]">
+              {store.userType !== "private" && (
+                <CostRow
+                  label="Auction Fee"
+                  value={store.auctionFee}
+                  onChange={(val) => store.updateField("auctionFee", val)}
+                />
+              )}
+              <CostRow
+                label="Transport"
+                value={store.transportCost}
+                onChange={(val) => store.updateField("transportCost", val)}
+              />
+              {store.userType !== "parts" && (
+                <CostRow
+                  label="Repair Est"
+                  value={store.repairCost}
+                  onChange={(val) => store.updateField("repairCost", val)}
+                />
+              )}
+              {store.userType === "dealer" && (
+                <CostRow
+                  label="Recon / Detail"
+                  value={store.reconCost}
+                  onChange={(val) => store.updateField("reconCost", val)}
+                />
+              )}
+              {store.userType !== "parts" && (
+                <CostRow
+                  label="Title / Doc"
+                  value={store.titleFee}
+                  onChange={(val) => store.updateField("titleFee", val)}
+                />
+              )}
+              {store.userType === "dealer" && (
+                <CostRow
+                  label={`Holding (${store.estimatedDaysToSell} days @ $${store.floorRate})`}
+                  value={store.floorRate * store.estimatedDaysToSell}
+                  readOnly
+                />
+              )}
+              {store.userType === "private" && (
+                <>
+                  <CostRow
+                    label="Est. Insurance (1 YR)"
+                    value={store.annualInsurance}
+                    onChange={(val) =>
+                      store.updateField("annualInsurance", val)
+                    }
+                  />
+                  <CostRow
+                    label="Est. Maintenance (1 YR)"
+                    value={store.annualMaintenance}
+                    onChange={(val) =>
+                      store.updateField("annualMaintenance", val)
+                    }
+                  />
+                </>
+              )}
+            </div>
+            <div className="p-4 bg-[var(--s1)] border-t border-[var(--b1)] flex justify-between items-center rounded-b-[var(--r2)]">
+              <span className="font-bold text-[var(--t2)] uppercase tracking-wider text-sm">
+                Total Cost Basis
+              </span>
+              <Mono className="text-lg font-black text-[var(--t1)]">
+                {formatMoney(store.totalCost)}
+              </Mono>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* AI BRIEF — on-demand plain-English verdict rationale + risks */}
+      <AIBrief dealId={id} />
+
+      {/* SIMILAR DEALS — semantic (pgvector) with attribute fallback */}
+      <SimilarDeals dealId={id} />
+
+      {/* FIXED BOTTOM ACTION BAR — sits ABOVE the mobile BottomNav (which is itself bottom-0), so
+          the two fixed bars don't overlap on phones; flush to the bottom on desktop (no BottomNav). */}
+      <div
+        className="fixed left-0 right-0 p-3 md:p-4 z-50 bottom-[calc(56px+env(safe-area-inset-bottom))] md:bottom-0"
+        style={{
+          background: "var(--s0)",
+          borderTop: "1px solid var(--b1)",
+          boxShadow: "var(--shadow2)",
+        }}
+      >
+        <div className="max-w-5xl mx-auto flex flex-wrap justify-end gap-2 md:gap-3">
+          <Button
+            variant="outline"
+            onClick={handleWatchPrice}
+            disabled={watching}
+            className="border-[var(--b2)] text-[var(--t3)] font-semibold text-xs md:text-sm h-10 md:h-11 rounded-xl"
+          >
+            {watching ? "Adding…" : "Watch Price"}
+          </Button>
+          <Button
+            onClick={() => {
+              const fromState = dealData?.deal?.locationState;
+              const params = new URLSearchParams({ dealId: id });
+              if (fromState) params.set("from", fromState);
+              router.push(`/move?${params.toString()}`);
+            }}
+            className="text-white font-semibold text-xs md:text-sm h-10 md:h-11 rounded-xl"
+            style={{ background: "var(--t1)" }}
+          >
+            Get Transport
+          </Button>
+          {store.userType === "dealer" && (
+            <Button
+              onClick={handleSaveToFleet}
+              disabled={saving}
+              className="text-white font-bold text-xs md:text-sm h-10 md:h-11 rounded-xl"
+              style={{ background: "var(--grad)" }}
+            >
+              {saving ? "Saving..." : "Add to Fleet"}
+            </Button>
           )}
-          <ul className="space-y-2">
-            {titleRules.requirements.map((req, idx) => (
-              <li key={idx} className="flex items-start gap-2 text-sm text-[var(--t2)]">
-                <span className="text-[var(--t4)]">•</span>
-                {req}
-              </li>
-            ))}
-          </ul>
-        </Panel>
-
-        {/* ACTION BUTTONS */}
-        <div className="grid grid-cols-3 gap-3">
-          <Btn className="bg-[var(--s3)] text-[var(--t2)] hover:bg-[var(--s4)]">Save to Fleet</Btn>
-          <Btn className="bg-[var(--s3)] text-[var(--t2)] hover:bg-[var(--s4)]">Add to Watchlist</Btn>
-          <Btn className="bg-[var(--s3)] text-[var(--t2)] hover:bg-[var(--s4)]">Share Deal</Btn>
         </div>
       </div>
     </div>
-  )
+  );
+}
+
+// Subcomponent for ledger rows
+function CostRow({
+  label,
+  value,
+  onChange,
+  readOnly = false,
+}: {
+  label: string;
+  value: number;
+  onChange?: (val: number) => void;
+  readOnly?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between p-3 px-5 hover:bg-[var(--s1)] transition-colors">
+      <span className="text-sm font-semibold text-[var(--t2)]">{label}</span>
+      <div className="relative w-28">
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--t4)] font-bold text-sm">
+          $
+        </span>
+        {readOnly ? (
+          <div className="pl-7 py-2 pr-3 text-right font-[var(--fm)] font-bold text-[var(--t3)]">
+            {value}
+          </div>
+        ) : (
+          <Input
+            type="number"
+            value={value || ""}
+            onChange={(e) => onChange?.(Number(e.target.value))}
+            className="h-8 pl-7 font-[var(--fm)] font-bold bg-transparent border-transparent hover:border-[var(--b2)] focus:border-[var(--amber)] focus:bg-white text-right text-sm px-2 shadow-none rounded"
+          />
+        )}
+      </div>
+    </div>
+  );
 }

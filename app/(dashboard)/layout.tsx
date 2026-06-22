@@ -1,22 +1,20 @@
-import { TopBar } from '@/components/layout/TopBar'
-import { Sidebar } from '@/components/Sidebar'
-import { BottomNav } from '@/components/BottomNav'
+import { TopNav } from "@/components/layout/TopNav";
+import { BottomNav } from "@/components/BottomNav";
+import { CommandPalette } from "@/components/shared/CommandPalette";
 
 export default function DashboardLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
   return (
-    <div className="flex h-screen bg-[#07070A] text-[#FAFAFA]">
-      <Sidebar />
-      <div className="flex flex-col flex-1 min-w-0 pb-16 md:pb-0">
-        <TopBar />
-        <main className="flex-1 overflow-y-auto p-4 md:p-6">
-          {children}
-        </main>
-      </div>
+    <div className="flex flex-col min-h-screen bg-transparent text-[var(--t1)]">
+      <TopNav />
+      <main className="flex-1 w-full max-w-[1600px] mx-auto p-4 md:p-6 pb-20 md:pb-6">
+        {children}
+      </main>
       <BottomNav />
+      <CommandPalette />
     </div>
-  )
+  );
 }

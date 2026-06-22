@@ -5,21 +5,28 @@
   "regions": ["iad1"],
   "crons": [
     {
-      "path": "/api/orchestrator/run?secret=CRON_SECRET",
-      "schedule": "*/15 * * * *"
+      "path": "/api/alerts/process",
+      "schedule": "*/5 * * * *"
     },
     {
-      "path": "/api/alerts/process?secret=CRON_SECRET",
-      "schedule": "*/5 * * * *"
+      "path": "/api/orchestrator/run",
+      "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/embeddings/backfill",
+      "schedule": "15 */2 * * *"
     }
   ],
   "headers": [
     {
-      "source": "/api/(.*)",
+      "source": "/api/ingest",
       "headers": [
         { "key": "Access-Control-Allow-Origin", "value": "*" },
-        { "key": "Access-Control-Allow-Methods", "value": "GET,POST,PUT,DELETE,OPTIONS" },
-        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization" }
+        { "key": "Access-Control-Allow-Methods", "value": "POST,OPTIONS" },
+        {
+          "key": "Access-Control-Allow-Headers",
+          "value": "Content-Type, Authorization"
+        }
       ]
     }
   ]

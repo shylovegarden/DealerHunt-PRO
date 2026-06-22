@@ -1,17 +1,16 @@
-'use client'
+"use client";
 
-import React from 'react'
+import React from "react";
 
-interface MonoProps {
-  children: React.ReactNode
-  className?: string
-  as?: keyof JSX.IntrinsicElements
+interface MonoProps extends React.ComponentProps<"span"> {
+  children: React.ReactNode;
+  className?: string;
 }
 
-export function Mono({ children, className = '', as: Component = 'span' }: MonoProps) {
+export function Mono({ children, className = "", ...rest }: MonoProps) {
   return (
-    <Component className={`mono ${className}`}>
+    <span className={`mono ${className}`} {...rest}>
       {children}
-    </Component>
-  )
+    </span>
+  );
 }

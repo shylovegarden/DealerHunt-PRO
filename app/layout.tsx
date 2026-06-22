@@ -1,55 +1,89 @@
-import type { Metadata } from 'next'
-import './globals.css'
-import { ResponsiveProvider } from '@/components/ui/responsive-design-system'
+import type { Metadata } from "next";
+import "./globals.css";
+import { ResponsiveProvider } from "@/components/ui/responsive-design-system";
+import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
+import { SWRProvider } from "@/components/providers/SWRProvider";
+import { ToastProvider } from "@/components/providers/ToastProvider";
+import { PWARegister } from "@/components/PWARegister";
+import { Inter, Fraunces } from "next/font/google";
+import { cn } from "@/lib/utils";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
-const geist = 'var(--fn)'
+const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
+const fraunces = Fraunces({ subsets: ["latin"], variable: "--font-serif" });
 
 export const metadata: Metadata = {
-  title: 'DealerHunt - Vehicle Sourcing Intelligence',
-  description: 'Smart vehicle sourcing platform for dealers with real-time market intelligence and profit optimization',
-  manifest: '/manifest.json',
+  title: "DealerHunt - Vehicle Sourcing Intelligence",
+  description:
+    "Smart vehicle sourcing platform for dealers with real-time market intelligence and profit optimization",
+  manifest: "/manifest.json",
   icons: {
-    icon: '/favicon.ico',
-    apple: '/apple-touch-icon.png',
+    icon: [
+      { url: "/favicon.ico" },
+      { url: "/icon.svg", type: "image/svg+xml" },
+    ],
+    apple: "/icon.svg",
   },
   appleWebApp: {
     capable: true,
-    statusBarStyle: 'black-translucent',
-    title: 'DealerHunt',
+    statusBarStyle: "black-translucent",
+    title: "DealerHunt",
   },
   openGraph: {
-    title: 'DealerHunt - Vehicle Sourcing Intelligence',
-    description: 'Smart vehicle sourcing platform for dealers',
-    type: 'website',
+    title: "DealerHunt - Vehicle Sourcing Intelligence",
+    description: "Smart vehicle sourcing platform for dealers",
+    type: "website",
   },
-}
+};
 
 export const viewport = {
-  width: 'device-width',
+  width: "device-width",
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: '#0a0a0c',
-}
+  viewportFit: "cover",
+  themeColor: "#f25b9a",
+};
 
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="h-full bg-[#0a0a0c]">
+    <html
+      lang="en"
+      className={cn(
+        "h-full bg-[var(--s1)]",
+        "font-sans",
+        inter.variable,
+        fraunces.variable,
+      )}
+    >
       <head>
+        <link rel="manifest" href="/manifest.json" />
+        <link rel="apple-touch-icon" href="/icon.svg" />
+        <meta name="theme-color" content="#f25b9a" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta
+          name="apple-mobile-web-app-status-bar-style"
+          content="black-translucent"
+        />
         <meta name="mobile-web-app-capable" content="yes" />
-        <meta name="color-scheme" content="dark" />
+        <meta name="color-scheme" content="light" />
       </head>
-      <body style={{ fontFamily: geist }} className="h-full bg-[#07070A] text-[#FAFAFA] antialiased overflow-hidden">
-        <ResponsiveProvider>
-          {children}
-        </ResponsiveProvider>
+      <body className="h-full min-h-screen bg-[var(--s1)] text-[var(--t1)] antialiased overflow-x-hidden">
+        <SWRProvider>
+          <ErrorBoundary>
+            <ResponsiveProvider>
+              {children}
+              <SpeedInsights />
+              <ToastProvider />
+              <PWARegister />
+            </ResponsiveProvider>
+          </ErrorBoundary>
+        </SWRProvider>
       </body>
     </html>
-  )
+  );
 }
