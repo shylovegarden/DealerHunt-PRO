@@ -19,6 +19,7 @@ import { PriceSparkline } from "@/components/deal/PriceSparkline";
 import { SimilarDeals } from "@/components/deal/SimilarDeals";
 import { MarketTiming } from "@/components/deal/MarketTiming";
 import { AIBrief } from "@/components/deal/AIBrief";
+import { DealIQCard } from "@/components/deal/DealIQCard";
 import useDealerDefaults from "@/hooks/useDealerDefaults";
 
 // Fetcher function for SWR
@@ -653,6 +654,9 @@ export default function DealPage({
           </CardContent>
         </Card>
       </div>
+
+      {/* DEAL IQ — fused, explainable intelligence score */}
+      <DealIQCard dealId={id} />
 
       {/* AI BRIEF — on-demand plain-English verdict rationale + risks */}
       <AIBrief dealId={id} />

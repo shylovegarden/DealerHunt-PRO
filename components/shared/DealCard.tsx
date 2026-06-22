@@ -4,6 +4,7 @@ import React, { memo } from "react";
 import { Mono } from "./Mono";
 import { cn } from "@/lib/utils";
 import type { Deal } from "@/lib/data/deals-service";
+import { liteDealIQ, IQ_TIER_COLOR } from "@/lib/intelligence/lite-iq";
 
 export interface DealCardProps {
   id: string;
@@ -92,6 +93,8 @@ export const DealCard = memo(function DealCard({
   const isPositive = profitEstimate >= 0;
   const location = [locationCity, locationState].filter(Boolean).join(", ");
   const verdict = dealVerdict ? VERDICT_STYLES[dealVerdict] : null;
+  // Zero-cost Deal IQ from fields already on the card.
+  const iq = liteDealIQ({ askPrice, sellEstimate, mmrValue, profitEstimate });
 
   return (
     <div
@@ -141,6 +144,15 @@ export const DealCard = memo(function DealCard({
               title="Engine verdict"
             >
               {verdict.label}
+            </span>
+          )}
+          {iq && (
+            <span
+              className="text-[10px] font-black uppercase tracking-wider px-2 py-1 rounded-[var(--r1)] shrink-0"
+              style={{ background: "var(--s2)", color: IQ_TIER_COLOR[iq.tier] }}
+              title={`Deal IQ ${iq.score}/100 (${iq.tier})`}
+            >
+              IQ {iq.score}
             </span>
           )}
         </div>

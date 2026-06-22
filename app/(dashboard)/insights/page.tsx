@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import useSWR from "swr";
 import { Ico } from "@/components/shared/Ico";
 import { Mono } from "@/components/shared/Mono";
+import { MarketPulse } from "@/components/insights/MarketPulse";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 const money = (v: any) =>
@@ -131,6 +132,9 @@ export default function InsightsPage() {
           Loading your intelligence…
         </div>
       )}
+
+      {/* AI Market Pulse — Deal IQ Layer 4 (explicit generate, cached) */}
+      <MarketPulse />
 
       {/* Calibration summary */}
       {!loadFailed && !(outLoading && !outData) && (

@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/shared/EmptyState";
 import { US_STATES } from "@/lib/utils/titleRules";
 import { DiscoveryCard } from "@/components/discovery/DiscoveryCard";
 import { FlashRail } from "@/components/discovery/FlashRail";
+import { IntelRail } from "@/components/discovery/IntelRail";
 import type {
   DiscoverResponse,
   DiscoveryRail,
@@ -151,6 +152,18 @@ export default function DiscoverPage() {
 
       {/* Flash deals — pinned urgency rail (self-fetching, hides when empty) */}
       <FlashRail state={state || undefined} />
+
+      {/* Deal IQ intel rails — personalized + statistical (self-fetching, hide when empty) */}
+      <IntelRail
+        endpoint="/api/recommendations"
+        title="🏆 Deals like your winners"
+        subtitle="Matched to the make/models you've actually profited on"
+      />
+      <IntelRail
+        endpoint={`/api/mispricing${state ? `?state=${state}` : ""}`}
+        title="📉 Underpriced vs peers"
+        subtitle="Statistical outliers priced well under their cluster"
+      />
 
       {/* Body */}
       {isLoading ? (
