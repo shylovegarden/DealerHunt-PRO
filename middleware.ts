@@ -19,6 +19,8 @@ const protectedRoutes = [
   "/list",
   "/insights",
   "/onboarding",
+  "/compare",
+  "/deal-check",
   "/deal",
   "/searches",
   "/alerts",

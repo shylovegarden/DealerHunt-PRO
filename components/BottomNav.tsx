@@ -14,12 +14,16 @@ import {
   Compass,
   Layers,
   TrendingUp,
+  GitCompare,
+  FileCheck,
 } from "lucide-react";
 
 const NAV_ITEMS = [
   { name: "Discover", href: "/discover", icon: Compass },
   { name: "Find", href: "/find", icon: Map },
   { name: "Scan", href: "/scan", icon: Search },
+  { name: "Compare", href: "/compare", icon: GitCompare },
+  { name: "Check", href: "/deal-check", icon: FileCheck },
   { name: "Bulk", href: "/bulk", icon: Layers },
   { name: "Saved", href: "/saved", icon: Bookmark },
   { name: "Move", href: "/move", icon: Truck },

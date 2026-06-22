@@ -4,6 +4,7 @@ import React from "react";
 import useSWR from "swr";
 import { Mono } from "@/components/shared/Mono";
 import { daysOnMarket, domTier } from "@/lib/intelligence/days-on-market";
+import { PriceMilesChart } from "@/components/deal/PriceMilesChart";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 const money = (v: any) =>
@@ -151,6 +152,15 @@ export function MarketContext({ dealId }: { dealId: string }) {
         <p className="text-sm font-semibold" style={{ color: curveNote.color }}>
           {curveNote.text}.
         </p>
+      )}
+
+      {/* Price-vs-miles scatter — this car against the market curve */}
+      {dep?.points && dep.points.length >= 6 && (
+        <PriceMilesChart
+          points={dep.points}
+          trend={dep.trend}
+          here={{ mileage: base.mileage, price: base.askPrice }}
+        />
       )}
 
       {/* Cross-source price table */}

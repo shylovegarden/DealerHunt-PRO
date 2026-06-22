@@ -18,6 +18,8 @@ import {
   Compass,
   Layers,
   TrendingUp,
+  GitCompare,
+  FileCheck,
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -32,6 +34,8 @@ const NAV_ITEMS = [
   { name: "Recon", href: "/recon", icon: Activity },
   { name: "Finance", href: "/finance", icon: Wallet },
   { name: "Parts", href: "/parts", icon: Wrench },
+  { name: "Compare", href: "/compare", icon: GitCompare },
+  { name: "Check", href: "/deal-check", icon: FileCheck },
   { name: "Intel", href: "/insights", icon: TrendingUp },
 ];
 
