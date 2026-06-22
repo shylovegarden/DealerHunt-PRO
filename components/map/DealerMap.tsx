@@ -1,9 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import { MapContainer, TileLayer, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
+import "leaflet.markercluster/dist/MarkerCluster.css";
+import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import L from "leaflet";
+import "leaflet.markercluster";
 
 // Fix Leaflet's default icon paths in Next.js
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -46,6 +49,32 @@ interface DealerMapProps {
   points?: MapPoint[];
 }
 
+// Clustered markers — collapses dense areas into "34" cluster bubbles (Visor map clustering). Uses
+// the raw leaflet.markercluster plugin via the react-leaflet map instance.
+function ClusteredMarkers({ points }: { points: MapPoint[] }) {
+  const map = useMap();
+  useEffect(() => {
+    const group = (L as any).markerClusterGroup({
+      showCoverageOnHover: false,
+      maxClusterRadius: 50,
+    });
+    for (const p of points) {
+      const marker = L.marker([p.lat, p.lng], {
+        icon: icons[p.type ?? "dealer"],
+      });
+      marker.bindPopup(
+        `<div style="padding:2px"><strong>${p.name}</strong>${p.label ? `<br/><span style="font-size:11px;color:#888">${p.label}</span>` : ""}</div>`,
+      );
+      group.addLayer(marker);
+    }
+    map.addLayer(group);
+    return () => {
+      map.removeLayer(group);
+    };
+  }, [map, points]);
+  return null;
+}
+
 export default function DealerMap({ points = [] }: DealerMapProps) {
   const [mapKey, setMapKey] = useState("map-initial");
 
@@ -76,24 +105,7 @@ export default function DealerMap({ points = [] }: DealerMapProps) {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
         />
 
-        {validPoints.map((point) => (
-          <Marker
-            key={point.id}
-            position={[point.lat, point.lng]}
-            icon={icons[point.type ?? "dealer"]}
-          >
-            <Popup className="custom-popup">
-              <div className="p-1">
-                <h3 className="font-bold text-[var(--t1)] text-sm mb-1">
-                  {point.name}
-                </h3>
-                {point.label && (
-                  <div className="text-xs text-[var(--t4)]">{point.label}</div>
-                )}
-              </div>
-            </Popup>
-          </Marker>
-        ))}
+        <ClusteredMarkers points={validPoints} />
       </MapContainer>
 
       {/* Empty-state overlay when there is no real geo data to plot */}

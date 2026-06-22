@@ -9,6 +9,7 @@ import { US_STATES } from "@/lib/utils/titleRules";
 import { DiscoveryCard } from "@/components/discovery/DiscoveryCard";
 import { FlashRail } from "@/components/discovery/FlashRail";
 import { IntelRail } from "@/components/discovery/IntelRail";
+import { MarketSummary } from "@/components/discovery/MarketSummary";
 import type {
   DiscoverResponse,
   DiscoveryRail,
@@ -149,6 +150,9 @@ export default function DiscoverPage() {
           </span>
         </a>
       )}
+
+      {/* Market summary — at-a-glance intelligence (hides when empty) */}
+      <MarketSummary />
 
       {/* Flash deals — pinned urgency rail (self-fetching, hides when empty) */}
       <FlashRail state={state || undefined} />

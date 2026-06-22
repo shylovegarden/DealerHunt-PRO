@@ -39,6 +39,7 @@ function mapDeal(
     locationState: d.location_state,
     images: d.images || [],
     lastSeenAt: d.last_seen_at,
+    firstSeenAt: d.first_seen_at,
     auctionEndAt: d.auction_end_at,
     heat,
     hoursLeft: hoursLeft != null ? Math.round(hoursLeft * 10) / 10 : null,
@@ -67,7 +68,7 @@ export async function GET(request: NextRequest) {
     let q = supabase
       .from("deals")
       .select(
-        "id, source, source_url, title, year, make, model, trim, vin, mileage, condition, ask_price, sell_estimate, mmr_value, deal_analysis, profit_score, true_net_profit, recommended_max_bid, deal_verdict, location_city, location_state, images, last_seen_at, auction_end_at",
+        "id, source, source_url, title, year, make, model, trim, vin, mileage, condition, ask_price, sell_estimate, mmr_value, deal_analysis, profit_score, true_net_profit, recommended_max_bid, deal_verdict, location_city, location_state, images, last_seen_at, first_seen_at, auction_end_at",
       )
       .eq("active", true)
       .gt("ask_price", 0)

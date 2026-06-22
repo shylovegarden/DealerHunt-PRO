@@ -16,6 +16,13 @@ import { scrapeCarPartsCom } from "./sources/carparts-com";
 import { scrapeFacebookMarketplace } from "./sources/facebook-marketplace";
 import { scrapeAdesa } from "./sources/adesa";
 import { scrapeManheim } from "./sources/manheim";
+// Retail comps sources (coded, no auth) — feed the comps index that powers valuation + Deal IQ.
+import { scrapeCarvana } from "./sources/carvana";
+import { scrapeVroom } from "./sources/vroom";
+import { scrapeTrueCar } from "./sources/truecar";
+import { scrapeCarGurus } from "./sources/cargurus";
+import { scrapeAutoTrader } from "./sources/autotrader";
+import { scrapeOfferUp } from "./sources/offerup";
 import { ScraperRegistry } from "./tools/registry";
 import {
   SequentialOrchestrator,
@@ -210,6 +217,86 @@ export function createScraperRegistry(
     },
     enabled: true,
     estimatedDealsPerRun: 100,
+  });
+
+  // ── Retail comps (coded sources, no auth). More retail asks → sharper resale comps →
+  //    better verdicts + Deal IQ. Lower frequency to stay polite. ──
+  registry.register({
+    id: "cargurus",
+    name: "CarGurus",
+    type: "marketplace",
+    priority: "medium",
+    frequencyMinutes: 240,
+    requiresAuth: false,
+    stealthRequired: true,
+    fn: () => scrapeCarGurus(),
+    enabled: true,
+    estimatedDealsPerRun: 300,
+  });
+
+  registry.register({
+    id: "autotrader",
+    name: "AutoTrader",
+    type: "marketplace",
+    priority: "medium",
+    frequencyMinutes: 240,
+    requiresAuth: false,
+    stealthRequired: true,
+    fn: () => scrapeAutoTrader(),
+    enabled: true,
+    estimatedDealsPerRun: 300,
+  });
+
+  registry.register({
+    id: "truecar",
+    name: "TrueCar",
+    type: "marketplace",
+    priority: "medium",
+    frequencyMinutes: 360,
+    requiresAuth: false,
+    stealthRequired: true,
+    fn: () => scrapeTrueCar(),
+    enabled: true,
+    estimatedDealsPerRun: 250,
+  });
+
+  registry.register({
+    id: "carvana",
+    name: "Carvana",
+    type: "marketplace",
+    priority: "medium",
+    frequencyMinutes: 360,
+    requiresAuth: false,
+    stealthRequired: true,
+    fn: () => scrapeCarvana(),
+    enabled: true,
+    estimatedDealsPerRun: 200,
+  });
+
+  registry.register({
+    id: "vroom",
+    name: "Vroom",
+    type: "marketplace",
+    priority: "low",
+    frequencyMinutes: 720,
+    requiresAuth: false,
+    stealthRequired: true,
+    fn: () => scrapeVroom(),
+    enabled: true,
+    estimatedDealsPerRun: 150,
+  });
+
+  registry.register({
+    id: "offerup",
+    name: "OfferUp",
+    type: "marketplace",
+    priority: "low",
+    frequencyMinutes: 360,
+    requiresAuth: false,
+    stealthRequired: true,
+    fn: () => scrapeOfferUp(),
+    enabled: true,
+    estimatedDealsPerRun: 150,
   });
 
   registry.register({

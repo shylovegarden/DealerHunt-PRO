@@ -36,7 +36,14 @@ async function cacheLookup(vin: string) {
 
 async function backfillDecoded(
   vin: string,
-  decoded: { year?: any; make?: any; model?: any; trim?: any },
+  decoded: {
+    year?: any;
+    make?: any;
+    model?: any;
+    trim?: any;
+    assembly_country?: any;
+    assembly_plant?: any;
+  },
 ) {
   try {
     const supabase = getSupabase();
@@ -54,6 +61,8 @@ async function backfillDecoded(
           make: decoded.make ?? undefined,
           model: decoded.model ?? undefined,
           trim: decoded.trim ?? undefined,
+          assembly_country: decoded.assembly_country ?? undefined,
+          assembly_plant: decoded.assembly_plant ?? undefined,
           updated_at: new Date().toISOString(),
         })
         .eq("id", drow.id);
@@ -125,6 +134,12 @@ export async function GET(
             " " +
             (r.EngineCylinders || "") +
             " Cyl",
+          // Assembly origin (tariff-aware sourcing) — NHTSA returns plant fields.
+          assembly_country: r.PlantCountry || undefined,
+          assembly_plant:
+            [r.PlantCompanyName, r.PlantCity, r.PlantState]
+              .filter(Boolean)
+              .join(", ") || undefined,
         };
       }
     }
@@ -147,6 +162,9 @@ export async function GET(
       model: decoded.model || decoded.Model,
       trim: decoded.trim || decoded.Trim,
       engine: decoded.engine || decoded.Engine || undefined,
+      assembly_country:
+        decoded.assembly_country || decoded.PlantCountry || undefined,
+      assembly_plant: decoded.assembly_plant || undefined,
       recalls: decoded.recalls ?? undefined,
     };
 

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { DealGradeBadge } from "./DealGradeBadge";
 import type { DiscoveryDeal } from "./types";
 import { liteDealIQ, IQ_TIER_COLOR } from "@/lib/intelligence/lite-iq";
+import { daysOnMarket, domTier } from "@/lib/intelligence/days-on-market";
 
 const TITLE_STYLES: Record<
   string,
@@ -144,6 +145,25 @@ export const DiscoveryCard = memo(function DiscoveryCard({
               <span style={{ color: IQ_TIER_COLOR[iq.tier] }}>
                 IQ&nbsp;{iq.score}
               </span>
+            </span>
+          );
+        })()}
+
+        {/* Days-on-market chip — floating bottom-right (negotiating signal) */}
+        {(() => {
+          const dom = daysOnMarket(deal.firstSeenAt);
+          if (dom == null) return null;
+          const tier = domTier(dom);
+          return (
+            <span
+              className="absolute right-2.5 bottom-2.5 inline-flex items-center rounded-full px-2 py-1 text-[10px] font-bold text-white"
+              style={{
+                background: "rgba(20,10,20,.72)",
+                backdropFilter: "blur(8px)",
+              }}
+              title={`${dom} days on market — ${tier.label}`}
+            >
+              <span style={{ color: tier.color }}>{dom}d</span>
             </span>
           );
         })()}

@@ -90,6 +90,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q") || "";
   const state = searchParams.get("state") || "";
+  const make = searchParams.get("make") || "";
   const source = searchParams.get("source") || "";
   const titleType = searchParams.get("titleType") || "";
   const category = searchParams.get("cat") || "";
@@ -100,10 +101,27 @@ export async function GET(req: NextRequest) {
   const maxPrice = parseInt(searchParams.get("maxPrice") || "0");
   const minMileage = parseInt(searchParams.get("minMileage") || "0");
   const maxMileage = parseInt(searchParams.get("maxMileage") || "0");
+  const availability = searchParams.get("availability") || "";
+  const madeInUsa = searchParams.get("madeInUsa") === "1";
   const page = parseInt(searchParams.get("page") || "0");
   const pageSize = 20;
 
   let query = supabase.from("deals").select("*", { count: "exact" });
+
+  if (make) {
+    query = query.ilike("make", make);
+  }
+
+  if (availability) {
+    query = query.eq("availability_status", availability);
+  }
+
+  if (madeInUsa) {
+    // NHTSA returns assembly country like "UNITED STATES (USA)".
+    query = query.or(
+      "assembly_country.ilike.%united states%,assembly_country.ilike.%usa%",
+    );
+  }
 
   if (q) {
     query = query.or(
@@ -190,36 +208,14 @@ export async function GET(req: NextRequest) {
   });
 }
 
-import { Queue } from "bullmq";
-
-// Lazily create the queue at request time only — instantiating at module scope opens a Redis
-// connection during build/prerender (ECONNREFUSED when no Redis is present).
-let scrapeQueue: Queue | null = null;
-function getScrapeQueue(): Queue {
-  if (!scrapeQueue) {
-    const redisUrl =
-      process.env.UPSTASH_REDIS_URL ||
-      process.env.REDIS_URL ||
-      "redis://localhost:6379";
-    scrapeQueue = new Queue("scrape", {
-      connection: {
-        url: redisUrl,
-        maxRetriesPerRequest: null,
-        enableReadyCheck: false,
-      } as any,
-    });
-  }
-  return scrapeQueue;
-}
-
 // POST — trigger a new scan
+// The legacy BullMQ "scrape" queue has been removed; scraping is now handled by the
+// GitHub Actions ingestion pipeline (or by the AI parsing queue when a user saves a
+// specific URL). This endpoint remains so the UI can signal a refresh, but the actual
+// live results come from the deals table via the GET endpoint above.
 export async function POST(req: NextRequest) {
   try {
-    const {
-      searchTerm,
-      sources = ["iaa", "craigslist", "copart"],
-      dealerId,
-    } = await req.json();
+    const { searchTerm } = await req.json();
 
     if (!searchTerm) {
       return NextResponse.json(
@@ -228,22 +224,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Dispatch a job for each source
-    for (const source of sources) {
-      await getScrapeQueue().add(
-        source,
-        { term: searchTerm, dealerId },
-        {
-          attempts: 2,
-          backoff: { type: "exponential", delay: 1000 },
-          removeOnComplete: true,
-        },
-      );
-    }
-
     return NextResponse.json({
-      queued: sources,
-      message: `Scanning ${sources.length} sources for "${searchTerm}". Results will stream in.`,
+      ok: true,
+      message: `Live scanner is active. Results for "${searchTerm}" stream in automatically as the pipeline finds new deals.`,
     });
   } catch (error: any) {
     console.error("Scan trigger error:", error);

@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { Ico } from "@/components/shared/Ico";
 import { createClientComponentClient } from "@/lib/supabase";
+import { parseSearchQuery } from "@/lib/nlp/parse-search";
 
 export default function SearchesPage() {
   const supabase = createClientComponentClient();
@@ -21,6 +22,21 @@ export default function SearchesPage() {
   const [formRequireGo, setFormRequireGo] = useState(false);
   const [formNotifyEmail, setFormNotifyEmail] = useState(true);
   const [formNotifySms, setFormNotifySms] = useState(false);
+  const [nlQuery, setNlQuery] = useState("");
+
+  // Parse a plain-English query into the form fields.
+  function applyNl() {
+    const p = parseSearchQuery(nlQuery);
+    if (p.make) setFormMake(p.make);
+    if (p.model) setFormModel(p.model);
+    if (p.min_year) setFormMinYear(String(p.min_year));
+    if (p.max_year) setFormMaxYear(String(p.max_year));
+    if (p.max_price) setFormMaxPrice(String(p.max_price));
+    if (p.target_profit) setFormTargetProfit(String(p.target_profit));
+    if (p.require_go) setFormRequireGo(true);
+    if (!formName) setFormName(nlQuery.slice(0, 50));
+    setIsCreating(true);
+  }
 
   useEffect(() => {
     fetchSearches();
@@ -122,6 +138,26 @@ export default function SearchesPage() {
         >
           <Ico name={isCreating ? "x" : "plus"} size={16} />
           {isCreating ? "Cancel" : "New Alert"}
+        </button>
+      </div>
+
+      {/* Natural-language search → fills the alert form */}
+      <div className="glass-panel p-4 mb-6 flex gap-2">
+        <input
+          value={nlQuery}
+          onChange={(e) => setNlQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") applyNl();
+          }}
+          placeholder="Describe it: “clean F-150s under 25k in Texas with good profit”"
+          className="flex-1 bg-[var(--s0)] border border-[var(--b2)] rounded-[var(--r2)] px-3 py-2 text-sm text-[var(--t1)]"
+        />
+        <button
+          onClick={applyNl}
+          className="px-4 py-2 rounded-[var(--r3)] font-bold text-sm text-white shrink-0"
+          style={{ background: "var(--grad)" }}
+        >
+          Parse
         </button>
       </div>
 

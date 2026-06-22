@@ -25,6 +25,7 @@ import {
   waitForPageLoad,
 } from "./bypass/stealth-engine";
 import { userAgentRotator } from "./bypass/user-agent-pool";
+import { escalatedFetch } from "./tools/escalation";
 
 let _adaptiveEngine: AdaptiveEngine | null = null;
 
@@ -137,41 +138,38 @@ async function injectStealth(page: Page, config: ScraperConfig) {
   }
 }
 
-// ─── Core fetch — static HTML via fetch() ────────────────────────────────────
+// ─── Core fetch — static HTML, with tiered escalation ────────────────────────
+// Redesign: direct fetch → FlareSolverr (auto, when FLARESOLVERR_URL is set). Block-page detection
+// means Cloudflare/challenge responses transparently retry through FlareSolverr instead of silently
+// parsing a challenge page as "0 listings". Browser rendering stays the job of renderMode:
+// 'browser'|'adaptive' (this path is for 'static' sources).
 export async function fetchHtml(
   url: string,
   config: ScraperConfig,
 ): Promise<cheerio.CheerioAPI> {
-  const response = await pRetry(
-    async () => {
-      const res = await fetch(url, {
-        headers: {
-          "User-Agent": randomUA(config.userAgents),
-          Accept:
-            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-          "Accept-Language": "en-US,en;q=0.9",
-          "Accept-Encoding": "gzip, deflate, br",
-          "Cache-Control": "no-cache",
-          ...config.headers,
-        },
-      });
-      if (res.status === 429) throw new Error("RATE_LIMITED");
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res;
+  const result = await escalatedFetch(url, {
+    headers: {
+      "Accept-Encoding": "gzip, deflate, br",
+      "Cache-Control": "no-cache",
+      ...config.headers,
     },
-    {
-      retries: 3,
-      factor: 2,
-      minTimeout: 2000,
-      maxTimeout: 15000,
-      onFailedAttempt: (err) =>
-        console.warn(
-          `[${config.name}] Retry ${err.attemptNumber}: ${err.message}`,
-        ),
-    },
+    userAgent: randomUA(config.userAgents),
+    label: config.name,
+    retries: 3,
+  });
+
+  if (result.html) {
+    if (result.strategy === "flaresolverr") {
+      console.log(`[${config.name}] served via FlareSolverr`);
+    }
+    return cheerio.load(result.html);
+  }
+
+  // Both cheap tiers blocked. Static sources can't escalate to browser here — surface the failure
+  // so the orchestrator records it (and the circuit breaker can trip).
+  throw new Error(
+    `[${config.name}] fetch blocked for ${url} (direct + FlareSolverr exhausted)`,
   );
-  const html = await response.text();
-  return cheerio.load(html);
 }
 
 // ─── Core fetch — full browser with Playwright ───────────────────────────────

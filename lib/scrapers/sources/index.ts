@@ -485,6 +485,47 @@ export async function scrapeIndependentDealer(
         });
       });
 
+      // AI rescue: generic selectors match nothing on many dealer layouts. When that happens (and
+      // the page genuinely has content), let the LLM extract the listings. Cost-gated — only fires
+      // on a selector miss, only when a provider key + AI_SCRAPE_EXTRACT are configured.
+      if (
+        items.length === 0 &&
+        typeof rawHtml === "string" &&
+        rawHtml.length > 1500
+      ) {
+        const { aiExtractVehicles, aiExtractEnabled } =
+          await import("../tools/ai-extract");
+        if (aiExtractEnabled()) {
+          const extracted = await aiExtractVehicles(rawHtml, baseUrl);
+          for (const v of extracted) {
+            if (!v.price || v.price < 100) continue;
+            if (!v.make && !v.title) continue;
+            items.push({
+              source: "independent_dealer",
+              source_deal_id:
+                v.url?.split("/").filter(Boolean).pop() ||
+                `${profile.dealerId}-${(v.title || "").slice(0, 40)}`,
+              source_url: v.url ? normalizeUrl(v.url, baseUrl) : baseUrl,
+              title:
+                v.title || [v.year, v.make, v.model].filter(Boolean).join(" "),
+              year: v.year,
+              make: v.make || "",
+              model: v.model || "",
+              ask_price: v.price,
+              mileage: v.mileage,
+              condition: "run_drive",
+              location_city: v.location_city || profile.city,
+              location_state: v.location_state || profile.state,
+              images: [],
+            });
+          }
+          if (items.length)
+            console.log(
+              `[IndiDealer] ${profile.name}: AI-extracted ${items.length} (selector miss)`,
+            );
+        }
+      }
+
       // Detect "no more results" — check for next page link or empty results
       const hasNext =
         $(
