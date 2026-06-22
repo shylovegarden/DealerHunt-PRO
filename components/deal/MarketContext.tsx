@@ -54,6 +54,9 @@ export function MarketContext({ dealId }: { dealId: string }) {
     fetcher,
     { revalidateOnFocus: false },
   );
+  const { data: sold } = useSWR(qs ? `/api/market/sold?${qs}` : null, fetcher, {
+    revalidateOnFocus: false,
+  });
 
   if (!base) return null;
 
@@ -95,7 +98,8 @@ export function MarketContext({ dealId }: { dealId: string }) {
     dom == null &&
     !dep?.depreciationPer1000Miles &&
     snap?.change == null &&
-    !showTable
+    !showTable &&
+    !(sold?.count > 0)
   )
     return null;
 
@@ -161,6 +165,21 @@ export function MarketContext({ dealId }: { dealId: string }) {
           trend={dep.trend}
           here={{ mileage: base.mileage, price: base.askPrice }}
         />
+      )}
+
+      {/* Recent SOLD comps — actual transaction prices (hides until sold data exists) */}
+      {sold?.count > 0 && (
+        <div
+          className="rounded-[var(--r2)] p-3"
+          style={{ background: "var(--glo)" }}
+        >
+          <p className="text-xs font-bold text-[var(--green)]">
+            Recent sold comps: avg {money(sold.avg)}{" "}
+            <span className="font-semibold text-[var(--t3)]">
+              ({money(sold.low)}–{money(sold.high)}, {sold.count} sales / 90d)
+            </span>
+          </p>
+        </div>
       )}
 
       {/* Cross-source price table */}
