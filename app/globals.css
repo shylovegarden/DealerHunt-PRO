@@ -542,3 +542,23 @@ input[type="number"] {
       sans-serif;
   }
 }
+
+/* ── Home market ticker (Visor-style marquee) ── */
+@keyframes dhp-tick {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+.ticker-inner {
+  display: flex;
+  gap: 28px;
+  width: max-content;
+  padding-left: 28px;
+  animation: dhp-tick 30s linear infinite;
+}
+.ticker-inner:hover {
+  animation-play-state: paused;
+}

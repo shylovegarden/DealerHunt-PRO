@@ -21,6 +21,7 @@ import {
   GitCompare,
   FileCheck,
   Code2,
+  Sparkles,
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -39,6 +40,7 @@ const NAV_ITEMS = [
   { name: "Check", href: "/deal-check", icon: FileCheck },
   { name: "Intel", href: "/insights", icon: TrendingUp },
   { name: "API", href: "/developer", icon: Code2 },
+  { name: "Upgrade", href: "/upgrade", icon: Sparkles },
 ];
 
 export function TopNav() {
