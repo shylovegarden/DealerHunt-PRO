@@ -1,50 +1,106 @@
-import { createServerClient } from '@supabase/ssr';
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
+import { createServerClient } from "@supabase/ssr";
+import { NextResponse, type NextRequest } from "next/server";
 
-export async function middleware(req: NextRequest) {
-  const res = NextResponse.next();
+// Protected routes that require authentication.
+// Note: '/' is intentionally PUBLIC — the landing page handles its own
+// auth check and redirects logged-in users to /find.
+const protectedRoutes = [
+  // Dashboard pages — all live behind auth; '/' (landing), '/login', '/register' stay public.
+  "/scan",
+  "/discover",
+  "/find",
+  "/bulk",
+  "/saved",
+  "/move",
+  "/fleet",
+  "/recon",
+  "/finance",
+  "/parts",
+  "/list",
+  "/insights",
+  "/deal",
+  "/searches",
+  "/alerts",
+  "/settings",
+  // User-scoped APIs.
+  "/api/inventory",
+  "/api/alerts",
+  "/api/watchlist",
+  "/api/dealers",
+  "/api/outcomes",
+  "/api/calibration",
+  "/api/saved-cars",
+];
 
-  // We wrap this in a try-catch because if the Supabase environment
-  // variables are not set yet, we don't want the entire app to crash during dev.
-  try {
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll: () => req.cookies.getAll(),
-          setAll: (cookies: { name: string; value: string; options?: Record<string, unknown> }[]) => {
-            cookies.forEach((cookie: { name: string; value: string; options?: Record<string, unknown> }) => {
-              res.cookies.set(cookie.name, cookie.value, cookie.options as any)
-            })
-          },
+// Auth routes
+const authRoutes = ["/login", "/register"];
+
+export async function middleware(request: NextRequest) {
+  let supabaseResponse = NextResponse.next({
+    request,
+  });
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
         },
-      }
-    );
-    const { data: { session } } = await supabase.auth.getSession();
+        setAll(cookiesToSet: { name: string; value: string; options: any }[]) {
+          cookiesToSet.forEach(({ name, value, options }) =>
+            request.cookies.set(name, value),
+          );
+          supabaseResponse = NextResponse.next({
+            request,
+          });
+          cookiesToSet.forEach(({ name, value, options }) =>
+            supabaseResponse.cookies.set(name, value, options),
+          );
+        },
+      },
+    },
+  );
 
-    // Redirect unauthenticated users to login if they try to hit dashboard
-    // Currently disabled for smooth development flow. Enable when auth UI is ready.
-    /*
-    if (!session && req.nextUrl.pathname.match(/^\/(find|scan|deal|move|fleet|finance|parts|settings)/)) {
-      return NextResponse.redirect(new URL('/login', req.url));
-    }
-    */
-  } catch (e) {
-    // Supabase keys not set yet, allow pass-through
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { pathname } = request.nextUrl;
+
+  // Check if current route is protected ('/' is public — handled by the landing page)
+  const isProtectedRoute = protectedRoutes.some((route) =>
+    pathname.startsWith(route),
+  );
+  // Check if current route is an auth route
+  const isAuthRoute = authRoutes.some((route) => pathname.startsWith(route));
+
+  if (isProtectedRoute && !user) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    return NextResponse.redirect(url);
   }
 
-  // Rate limit API routes could go here using Upstash Redis
-  // const ip = req.ip || req.headers.get('x-forwarded-for') || 'unknown';
+  // Logged-in users shouldn't see the auth pages — send them into the app.
+  if (isAuthRoute && user) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/find";
+    return NextResponse.redirect(url);
+  }
 
-  return res;
+  return supabaseResponse;
 }
 
 export const config = {
-  // Only run middleware on the dashboard and API routes
   matcher: [
-    '/(find|scan|deal|move|fleet|finance|parts|settings)/:path*', 
-    '/api/:path*'
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * Feel free to modify this pattern to include more paths.
+     */
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

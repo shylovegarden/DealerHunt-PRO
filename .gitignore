@@ -23,6 +23,19 @@ yarn-error.log*
 .env*.local
 .env
 
+# loose one-off scripts / debug artifacts (never commit — may contain secrets)
+/scripts/apply-migrations.js
+/fix-*
+/test-*.js
+/test-*.ts
+/inspect-*
+/cleanup-user.ts
+/restore.py
+/rewrite_*.py
+/upgrade_*.py
+/*-debug.*
+/copart-debug.html
+
 # vercel
 .vercel
 

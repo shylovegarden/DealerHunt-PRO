@@ -1,42 +1,45 @@
-'use client'
+"use client";
 
-import React from 'react'
+import React from "react";
 
-type BtnVariant = 'primary' | 'ghost' | 'danger'
-type BtnSize = 'sm' | 'md' | 'lg'
+type BtnVariant = "primary" | "ghost" | "danger";
+type BtnSize = "sm" | "md" | "lg";
 
 interface BtnProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: BtnVariant
-  size?: BtnSize
-  loading?: boolean
-  children: React.ReactNode
+  variant?: BtnVariant;
+  size?: BtnSize;
+  loading?: boolean;
+  children: React.ReactNode;
 }
 
 export function Btn({
-  variant = 'primary',
-  size = 'md',
+  variant = "primary",
+  size = "md",
   loading = false,
   disabled,
   children,
-  className = '',
+  className = "",
   ...props
 }: BtnProps) {
   const sizeClasses = {
-    sm: 'px-3 py-2 text-xs',
-    md: 'px-4 py-3 text-sm',
-    lg: 'px-6 py-4 text-base',
-  }
+    sm: "px-3 py-2 text-xs",
+    md: "px-4 py-3 text-sm",
+    lg: "px-6 py-4 text-base",
+  };
 
   const variantClasses = {
-    primary: 'btn-primary',
-    ghost: 'btn-ghost',
-    danger: 'bg-[rgba(239,68,68,.10)] text-[#EF4444] border border-[rgba(239,68,68,.20)] hover:bg-[rgba(239,68,68,.20)]',
-  }
+    primary: "btn-primary",
+    ghost: "btn-ghost",
+    danger: "text-white border-none",
+  };
+
+  const dangerStyle: React.CSSProperties = { background: "var(--red)" };
 
   return (
     <button
       disabled={disabled || loading}
       className={`btn ${sizeClasses[size]} ${variantClasses[variant]} disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
+      style={variant === "danger" ? dangerStyle : undefined}
       {...props}
     >
       {loading && (
@@ -44,5 +47,5 @@ export function Btn({
       )}
       {children}
     </button>
-  )
+  );
 }

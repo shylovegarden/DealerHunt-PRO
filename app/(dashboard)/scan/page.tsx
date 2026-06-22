@@ -1,336 +1,896 @@
-'use client'
+"use client";
 
-import React, { useState, useEffect, useRef } from 'react'
-import { Panel } from '@/components/shared/Panel'
-import { Btn } from '@/components/shared/Btn'
-import { Tag } from '@/components/shared/Tag'
-import { Mono } from '@/components/shared/Mono'
-import { Ico } from '@/components/shared/Ico'
-import { ALL_VEHICLE_SOURCES, PARTS_SOURCES } from '@/lib/utils/sources'
-import { cn } from '@/lib/utils'
-import { Deal } from '@/lib/data/deals-service'
-import { US_STATES } from '@/lib/utils/titleRules'
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+  useCallback,
+} from "react";
+import { useViewTransition } from "@/hooks/useViewTransition";
+import useSWR from "swr";
+import { Mono } from "@/components/shared/Mono";
+import { Ico } from "@/components/shared/Ico";
+import { DealCard, DealCardSkeleton } from "@/components/shared/DealCard";
+import { ErrorState as SharedErrorState } from "@/components/shared/ErrorState";
+import { ALL_VEHICLE_SOURCES } from "@/lib/utils/sources";
+import { cn } from "@/lib/utils";
+import { Deal } from "@/lib/data/deals-service";
+import { US_STATES } from "@/lib/utils/titleRules";
+import { createClientComponentClient } from "@/lib/supabase";
+import { useDealerId } from "@/hooks/useDealerId";
+import { fetcher } from "@/lib/swr-config";
 
-const INITIAL_LOGS = [
-  '[SYS] DealerHunt Scan Engine online',
-  '[SYS] Real-time deal pipeline active',
-  '[OK] Supabase connected',
-  '[OK] Query filters loaded',
-  '[SYS] Ready for query.',
-]
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 interface ScanResult {
-  id: string
-  source: string
-  type: string
-  score: number
-  year: number
-  make: string
-  model: string
-  dealer: string
-  city?: string
-  state?: string
-  miles: number
-  ask: number
-  mmr: number
-  profit: number
-  repair: number
-  title: string
-  ends: string
+  id: string;
+  source: string;
+  year: number;
+  make: string;
+  model: string;
+  askPrice: number;
+  mmrValue: number;
+  profitEstimate: number;
+  profitScore: number;
+  locationCity?: string;
+  locationState?: string;
+  mileage?: number;
+  condition?: string;
+  damageType?: string;
+  dealVerdict?: "go" | "hold" | "pass";
+  recommendedMaxBid?: number;
+  sellEstimate?: number;
+  repairEstimate: number;
+  auctionEnds: string;
 }
 
 function mapDealToResult(deal: Deal): ScanResult {
   return {
     id: deal.id,
     source: deal.source,
-    type: (deal.condition || 'deal').toUpperCase(),
-    score: deal.profitScore ?? 50,
     year: deal.year ?? 0,
-    make: deal.make || '',
-    model: deal.model || '',
-    dealer: deal.seller || deal.source,
-    city: deal.locationCity,
-    state: deal.locationState,
-    miles: deal.mileage ?? 0,
-    ask: deal.askPrice ?? 0,
-    mmr: deal.mmrValue ?? 0,
-    profit: deal.profitEstimate ?? 0,
-    repair: deal.repair_estimate ?? 0,
-    title: deal.damageType ? `${deal.damageType} / ${deal.condition || ''}` : (deal.condition || 'Unknown'),
-    ends: deal.auctionEndAt ? new Date(deal.auctionEndAt).toLocaleDateString() : 'Active',
-  }
+    make: deal.make || "",
+    model: deal.model || "",
+    askPrice: deal.askPrice ?? 0,
+    mmrValue: deal.mmrValue ?? 0,
+    profitEstimate: deal.profitEstimate ?? 0,
+    profitScore: deal.profitScore ?? 50,
+    locationCity: deal.locationCity,
+    locationState: deal.locationState,
+    mileage: deal.mileage,
+    condition: deal.condition,
+    damageType: deal.damageType,
+    dealVerdict: deal.dealVerdict,
+    recommendedMaxBid: deal.recommendedMaxBid,
+    sellEstimate: deal.sellEstimate,
+    repairEstimate: (deal as any).repair_estimate ?? 0,
+    auctionEnds: deal.auctionEndAt
+      ? new Date(deal.auctionEndAt).toLocaleDateString()
+      : "Active",
+  };
 }
 
-export default function ScanPage() {
-  const [search, setSearch] = useState('')
-  const [activeTab, setActiveTab] = useState<'vehicles' | 'parts'>('vehicles')
-  const [scanning, setScanning] = useState(false)
-  const [logs, setLogs] = useState<string[]>(INITIAL_LOGS)
-  const [results, setResults] = useState<ScanResult[]>([])
-  const [total, setTotal] = useState(0)
-  const [error, setError] = useState<string | null>(null)
-  const terminalRef = useRef<HTMLDivElement>(null)
+// ── Toast notification ────────────────────────────────────────────────────────
 
-  // Filters
-  const [minProfit, setMinProfit] = useState('1k')
-  const [titleType, setTitleType] = useState('all')
-  const [damage, setDamage] = useState('any')
-  const [sourceFilter, setSourceFilter] = useState('all')
-  const [state, setState] = useState('TX')
-  const [sort, setSort] = useState('profit')
+interface ToastItem {
+  id: number;
+  message: string;
+  type: "success" | "info" | "error";
+}
 
-  const sources = activeTab === 'vehicles' ? ALL_VEHICLE_SOURCES : PARTS_SOURCES
-
-  const fetchResults = async () => {
-    const params = new URLSearchParams({
-      state,
-      sort,
-      minProfit: minProfit.replace('k', '000'),
-      ...(search ? { q: search } : {}),
-      ...(sourceFilter !== 'all' ? { source: sourceFilter } : {}),
-      ...(titleType !== 'all' ? { titleType } : {}),
-    })
-
-    const res = await fetch(`/api/scan?${params.toString()}`)
-    const data = await res.json()
-
-    if (!res.ok) {
-      throw new Error(data.error || 'Failed to fetch scan results')
-    }
-
-    const mapped = (data.vehicles || []).map(mapDealToResult)
-    setResults(mapped)
-    setTotal(data.total || 0)
-  }
-
-  // Auto-scroll terminal
-  useEffect(() => {
-    if (terminalRef.current) {
-      terminalRef.current.scrollTop = terminalRef.current.scrollHeight
-    }
-  }, [logs])
-
-  // Initial load and refetch when filters change
-  useEffect(() => {
-    fetchResults().catch((e) => setError(e.message))
-  }, [state, minProfit, titleType, sourceFilter, sort])
-
-  const runScan = async () => {
-    if (!search) return
-    setScanning(true)
-    setError(null)
-    setResults([])
-    setLogs((prev) => [...prev, `[QUERY] Scanning for "${search}" near ${state}`])
-
-    try {
-      const res = await fetch('/api/scan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ searchTerm: search, sources: ['iaa', 'craigslist', 'ebay'], dealerId: '' }),
-      })
-      const data = await res.json()
-      setLogs((prev) => [...prev, `[SYS] ${data.message || 'Scan queued'}`])
-    } catch (e) {
-      setLogs((prev) => [...prev, `[WARN] Could not queue scan: ${e instanceof Error ? e.message : 'unknown'}`])
-    }
-
-    // Fetch existing deals immediately while the queue warms up
-    try {
-      await fetchResults()
-      setLogs((prev) => [...prev, `[DONE] Loaded ${total} real deals from database`])
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Scan failed')
-      setLogs((prev) => [...prev, `[WARN] ${e instanceof Error ? e.message : 'Scan failed'}`])
-    } finally {
-      setScanning(false)
-    }
-  }
-
+function ToastStack({
+  toasts,
+  onDismiss,
+}: {
+  toasts: ToastItem[];
+  onDismiss: (id: number) => void;
+}) {
+  if (!toasts.length) return null;
   return (
-    <div className="space-y-4 max-w-7xl mx-auto animate-fadeUp pb-24">
-      
-      {/* SEARCH BAR */}
-      <Panel className="flex flex-col sm:flex-row gap-3 p-4 items-center bg-[var(--s2)] sticky top-0 z-10 border-b border-[var(--b1)]">
-        <div className="flex-1 w-full relative">
-          <input
-            type="text"
-            className="w-full bg-[var(--s3)] border border-[var(--b1)] rounded-[var(--r2)] py-3 px-4 text-[var(--t1)] outline-none focus:border-[var(--amber)] focus:ring-1 focus:ring-[var(--amber)] transition-all placeholder-[var(--t4)]"
-            placeholder='Make/model, VIN, city... "F-150 Dallas" · "Tesla salvage TX"'
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && runScan()}
-          />
-          <button className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--t3)] hover:text-[var(--amber)] transition-colors">
-            <Ico name="camera" size={20} />
+    <div className="fixed bottom-6 right-4 z-50 flex flex-col gap-2 items-end pointer-events-none">
+      {toasts.map((t) => (
+        <div
+          key={t.id}
+          className="pointer-events-auto flex items-center gap-3 rounded-[var(--r3)] px-4 py-3 border shadow-lg"
+          style={{
+            background:
+              t.type === "success"
+                ? "rgba(5,150,105,0.10)"
+                : t.type === "error"
+                  ? "rgba(220,38,38,0.10)"
+                  : "rgba(255,56,92,0.08)",
+            borderColor:
+              t.type === "success"
+                ? "rgba(5,150,105,0.25)"
+                : t.type === "error"
+                  ? "rgba(220,38,38,0.25)"
+                  : "rgba(255,56,92,0.25)",
+            color:
+              t.type === "success"
+                ? "var(--green)"
+                : t.type === "error"
+                  ? "var(--red)"
+                  : "var(--amber)",
+            animation: "fadeUp 200ms cubic-bezier(.16,1,.3,1)",
+            backdropFilter: "blur(12px)",
+          }}
+        >
+          <span className="text-sm font-semibold">{t.message}</span>
+          <button
+            onClick={() => onDismiss(t.id)}
+            className="ml-1 opacity-60 hover:opacity-100 transition-opacity"
+            aria-label="Dismiss"
+          >
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+            >
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
           </button>
         </div>
-        <button 
-          onClick={runScan}
-          disabled={scanning || !search}
-          className="w-full sm:w-auto bg-[var(--amber)] text-[var(--s0)] font-bold py-3 px-6 rounded-[var(--r2)] hover:bg-[var(--amber-d)] disabled:opacity-50 transition-all shadow-[0_0_15px_rgba(245,158,11,0.2)]"
-        >
-          {scanning ? 'SCANNING...' : 'SCAN ALL'}
-        </button>
-      </Panel>
+      ))}
+    </div>
+  );
+}
 
-      {/* SOURCE TABS & GRID */}
-      {!results.length && !scanning && (
+// ── Status strip ──────────────────────────────────────────────────────────────
+
+function StatusStrip({
+  loading,
+  error,
+  total,
+  results,
+  lastScan,
+}: {
+  loading: boolean;
+  error: string | null;
+  total: number;
+  results: ScanResult[];
+  lastScan: Date | null;
+}) {
+  const sourceCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    results.forEach((r) => {
+      counts[r.source] = (counts[r.source] || 0) + 1;
+    });
+    return counts;
+  }, [results]);
+
+  const topSources = Object.entries(sourceCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 4);
+
+  const lastScanText = lastScan
+    ? lastScan.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    : "never";
+
+  return (
+    <div
+      className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2 rounded-[var(--r3)] font-mono text-[11px] overflow-x-auto"
+      style={{ background: "var(--s1)", border: "1px solid var(--b1)" }}
+    >
+      {/* Status dot */}
+      <span className="flex items-center gap-1.5 shrink-0">
+        <span
+          className={cn(
+            "w-2 h-2 rounded-full inline-block",
+            loading ? "animate-pulse" : "",
+          )}
+          style={{ background: error ? "var(--red)" : "var(--green)" }}
+        />
+        <span style={{ color: error ? "var(--red)" : "var(--green)" }}>
+          {error ? "[ERR]" : "[OK]"}
+        </span>
+        <span className="text-[var(--t4)] font-semibold">Connected</span>
+      </span>
+
+      <span className="text-[var(--b3)] hidden sm:inline">·</span>
+
+      <span className="text-[var(--t2)] shrink-0">
+        <span style={{ color: "var(--amber)" }}>{total}</span> active deals
+      </span>
+
+      <span className="text-[var(--b3)] hidden sm:inline">·</span>
+
+      <span className="text-[var(--t4)] shrink-0">
+        Last scan: <span className="text-[var(--t2)]">{lastScanText}</span>
+      </span>
+
+      {topSources.length > 0 && (
         <>
-          <div className="flex gap-4 border-b border-[var(--b1)] px-1">
-            <button
-              onClick={() => setActiveTab('vehicles')}
-              className={cn('pb-3 text-sm font-semibold uppercase tracking-wider transition-all', activeTab === 'vehicles' ? 'text-[var(--amber)] border-b-2 border-[var(--amber)]' : 'text-[var(--t4)] hover:text-[var(--t2)]')}
-            >
-              Vehicles ({ALL_VEHICLE_SOURCES.length})
-            </button>
-            <button
-              onClick={() => setActiveTab('parts')}
-              className={cn('pb-3 text-sm font-semibold uppercase tracking-wider transition-all', activeTab === 'parts' ? 'text-[var(--amber)] border-b-2 border-[var(--amber)]' : 'text-[var(--t4)] hover:text-[var(--t2)]')}
-            >
-              Parts ({PARTS_SOURCES.length})
-            </button>
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
-            {sources.slice(0, 12).map((src) => (
-              <button
-                key={src.id}
-                onClick={() => {
-                  setSourceFilter(src.id)
-                  setLogs((prev) => [...prev, `[FILTER] Source: ${src.name}`])
-                }}
-                className="bg-[var(--s3)] border border-[var(--b1)] rounded-[var(--r2)] p-3 flex flex-col justify-between hover:border-[var(--amber)] transition-colors text-left"
-              >
-                <div>
-                  <div className="flex justify-between items-start mb-2">
-                    <span className="font-bold text-[var(--t1)] truncate">{src.name}</span>
-                    <span className="text-[0.6rem] font-bold px-1.5 py-0.5 rounded-[var(--r1)] bg-[var(--glo)] text-[var(--green)] border border-[var(--gbd)]">LIVE</span>
-                  </div>
-                  <p className="text-xs text-[var(--t3)] line-clamp-2">{src.notes || 'Aggregated inventory pool.'}</p>
-                </div>
-                <div className="mt-3 flex justify-between items-end text-[10px] text-[var(--t4)] uppercase tracking-wider">
-                  <span>Click to filter</span>
-                  <span className="text-[var(--t2)] font-[var(--fm)]">{src.id}</span>
-                </div>
-              </button>
+          <span className="text-[var(--b3)] hidden md:inline">·</span>
+          <span className="text-[var(--t4)] hidden md:inline">
+            {topSources.map(([src, n], i) => (
+              <span key={src}>
+                {i > 0 && <span className="mx-1.5 opacity-30">·</span>}
+                <span className="text-[var(--t2)]">
+                  {src.charAt(0).toUpperCase() + src.slice(1)}
+                </span>
+                <span className="text-[var(--t4)">: {n}</span>
+              </span>
             ))}
-            {sources.length > 12 && (
-              <div className="bg-[var(--s3)] border border-[var(--b1)] border-dashed rounded-[var(--r2)] p-3 flex items-center justify-center text-[var(--t3)] hover:text-[var(--t1)] cursor-pointer">
-                + View All {sources.length} Sources
-              </div>
-            )}
-          </div>
+          </span>
         </>
       )}
 
-      {/* SCAN TERMINAL */}
-      <div className="bg-[#050508] border border-[var(--b1)] rounded-[var(--r3)] p-4 h-[150px] overflow-y-auto font-[var(--fm)] text-xs relative shadow-inner" ref={terminalRef}>
-        <div className="absolute top-2 right-3 text-[10px] text-[var(--t4)] uppercase tracking-widest flex items-center gap-2">
-          {scanning && <span className="animate-pulse w-2 h-2 rounded-full bg-[var(--amber)] inline-block" />}
-          Live Stream
-        </div>
-        <div className="space-y-1 mt-2">
-          {logs.map((log, i) => {
-            const isMatch = log.includes('[MATCH]')
-            const isDone = log.includes('[DONE]')
-            const isSys = log.includes('[SYS]')
-            
-            return (
-              <div key={i} className={cn(
-                'transition-all',
-                isMatch ? 'text-[var(--amber)] font-bold' :
-                isDone ? 'text-[var(--green)] font-bold' :
-                isSys ? 'text-[#62627A]' :
-                'text-[#9898A8]'
-              )}>
-                {log}
-              </div>
-            )
-          })}
+      {loading && (
+        <span className="text-[var(--amber)] animate-pulse shrink-0 ml-auto">
+          Fetching...
+        </span>
+      )}
+    </div>
+  );
+}
+
+// ── Empty state ───────────────────────────────────────────────────────────────
+
+function EmptyState({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div
+      className="flex flex-col items-center justify-center text-center py-20 px-6 rounded-2xl"
+      style={{ border: "2px dashed var(--b2)", background: "var(--s0)" }}
+    >
+      {/* Animated radar pulse */}
+      <div className="relative w-24 h-24 mb-8 flex items-center justify-center">
+        {/* Pulse rings */}
+        <span
+          className="absolute inset-0 rounded-full border-2"
+          style={{
+            borderColor: "rgba(255,56,92,0.20)",
+            animation: "pulse-ring 2s ease-out infinite",
+          }}
+        />
+        <span
+          className="absolute inset-0 rounded-full border-2 scale-75"
+          style={{
+            borderColor: "rgba(255,56,92,0.30)",
+            animation: "pulse-ring 2s ease-out infinite 0.5s",
+          }}
+        />
+        <span
+          className="absolute inset-0 rounded-full border-2 scale-50"
+          style={{
+            borderColor: "rgba(255,56,92,0.40)",
+            animation: "pulse-ring 2s ease-out infinite 1s",
+          }}
+        />
+        {/* Center icon */}
+        <div
+          className="relative z-10 w-14 h-14 rounded-full flex items-center justify-center"
+          style={{ background: "var(--clo)", border: "2px solid var(--cbd)" }}
+        >
+          <svg
+            width="26"
+            height="26"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="var(--amber)"
+            strokeWidth="1.75"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <circle cx="12" cy="12" r="2" />
+            <path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49m11.31-2.82a10 10 0 0 1 0 14.14m-14.14 0a10 10 0 0 1 0-14.14" />
+          </svg>
         </div>
       </div>
 
-      {/* FILTER BAR & RESULTS */}
-      {(results.length > 0 || scanning) && (
-        <div className="animate-fadeUp">
-          <div className="flex flex-wrap items-center justify-between gap-3 bg-[var(--s2)] p-3 rounded-[var(--r2)] border border-[var(--b1)] mb-4">
-            <div className="flex flex-wrap gap-2">
-              <select className="bg-[var(--s3)] border border-[var(--b1)] rounded-[var(--r1)] px-2 py-1.5 text-xs text-[var(--t2)] outline-none focus:border-[var(--amber)]" value={minProfit} onChange={e=>setMinProfit(e.target.value)}>
-                <option value="1k">Min Profit: $1k+</option>
-                <option value="2k">Min Profit: $2k+</option>
-                <option value="3k">Min Profit: $3k+</option>
-                <option value="4k">Min Profit: $4k+</option>
-              </select>
-              <select className="bg-[var(--s3)] border border-[var(--b1)] rounded-[var(--r1)] px-2 py-1.5 text-xs text-[var(--t2)] outline-none focus:border-[var(--amber)]" value={titleType} onChange={e=>setTitleType(e.target.value)}>
-                <option value="all">Title: All</option>
-                <option value="clean">Title: Clean</option>
-                <option value="rebuilt">Title: Rebuilt</option>
-                <option value="salvage">Title: Salvage</option>
-              </select>
-              <select className="bg-[var(--s3)] border border-[var(--b1)] rounded-[var(--r1)] px-2 py-1.5 text-xs text-[var(--t2)] outline-none focus:border-[var(--amber)]" value={damage} onChange={e=>setDamage(e.target.value)}>
-                <option value="any">Damage: Any</option>
-                <option value="minor">Damage: Minor</option>
-                <option value="mod">Damage: Moderate</option>
-                <option value="sev">Damage: Severe</option>
-              </select>
-            </div>
-            
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-[var(--t3)]">Showing near:</span>
-              <select className="bg-[var(--s3)] border border-[var(--b1)] rounded-[var(--r1)] px-2 py-1.5 text-xs font-bold text-[var(--t1)] outline-none focus:border-[var(--amber)]" value={state} onChange={e=>setState(e.target.value)}>
-                {US_STATES.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-          </div>
+      <h2 className="text-2xl font-bold text-[var(--t1)] mb-3">
+        Scrapers Warming Up
+      </h2>
+      <p className="text-[var(--t3)] max-w-sm mb-2 leading-relaxed">
+        First results appear within{" "}
+        <strong className="text-[var(--t1)]">5 minutes</strong> of starting the
+        worker. The deal pipeline is initializing.
+      </p>
+      <p className="text-[var(--t4)] text-sm mb-8">
+        The database is empty — scrapers haven't run yet.
+      </p>
 
-          <div className="space-y-3">
-            {results.map((car) => (
-              <Panel key={car.id} className="p-4 flex flex-col md:flex-row gap-4 justify-between group hover:border-[var(--amber-bd)]">
-                {/* Left: Info */}
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded-[var(--r1)] bg-[var(--s4)] text-[var(--t2)] border border-[var(--b1)]">{car.source}</span>
-                    <span className="text-[10px] uppercase font-bold text-[var(--t3)]">{car.type}</span>
-                    <div className="ml-auto md:hidden text-lg font-black text-[var(--amber)]">{car.score}</div>
-                  </div>
-                  
-                  <h3 className="text-lg font-bold text-[var(--t1)] mb-1">{car.year} {car.make} {car.model}</h3>
-                  <p className="text-sm text-[var(--t3)] mb-3">{car.dealer} · {car.city}, {car.state} · <Mono>{car.miles.toLocaleString()} mi</Mono></p>
-                  
-                  <div className="flex flex-wrap items-center gap-3 text-sm">
-                    <Tag color="green">Est. profit +<Mono>${car.profit.toLocaleString()}</Mono></Tag>
-                    <span className="text-[var(--t2)]"><Mono>${car.ask.toLocaleString()}</Mono> ask</span>
-                    <span className="text-[var(--t4)]">MMR <Mono>${car.mmr.toLocaleString()}</Mono></span>
-                  </div>
-                </div>
+      {/* Command block */}
+      <div
+        className="w-full max-w-sm rounded-[var(--r3)] p-4 mb-6 text-left"
+        style={{ background: "var(--s2)", border: "1px solid var(--b2)" }}
+      >
+        <p className="text-[10px] uppercase tracking-widest text-[var(--t4)] font-bold mb-2">
+          Start the worker
+        </p>
+        <div
+          className="flex items-center justify-between gap-3 rounded-[var(--r2)] px-3 py-2.5"
+          style={{
+            background: "#111827",
+            border: "1px solid rgba(255,255,255,0.08)",
+          }}
+        >
+          <Mono className="text-sm text-[#4ADE80]">npm run worker</Mono>
+          <button
+            onClick={() =>
+              navigator.clipboard?.writeText("npm run worker").catch(() => {})
+            }
+            className="text-[var(--t4)] hover:text-white transition-colors shrink-0"
+            title="Copy"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+            >
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+            </svg>
+          </button>
+        </div>
+      </div>
 
-                {/* Right: Score & Actions */}
-                <div className="flex flex-col justify-between items-end gap-4 border-t border-[var(--b1)] md:border-t-0 md:border-l pl-0 md:pl-4 pt-4 md:pt-0 shrink-0">
-                  <div className="hidden md:flex flex-col items-end">
-                    <span className="text-[10px] uppercase font-bold tracking-widest text-[var(--t4)]">Score</span>
-                    <span className={cn('text-3xl font-black', car.score > 80 ? 'text-[var(--green)]' : car.score > 60 ? 'text-[var(--amber)]' : 'text-[var(--red)]')}>{car.score}</span>
-                  </div>
-                  
-                  <div className="flex flex-wrap md:flex-col gap-2 w-full md:w-auto mt-auto">
-                    <div className="flex gap-2 text-[10px] uppercase font-bold tracking-wider text-[var(--t3)] mb-2 md:mb-1 w-full justify-between md:justify-end">
-                      <span>[REPAIR: ~<Mono>${car.repair}</Mono>]</span>
-                      <span>[{car.title}]</span>
-                      <span>[{car.ends}]</span>
-                    </div>
-                    <div className="flex gap-2 w-full justify-end">
-                      <Btn className="bg-[var(--s3)] text-[var(--t2)] hover:bg-[var(--s4)] border border-[var(--b1)]">Watch</Btn>
-                      <a href={`/deal/${car.id}`} className="inline-flex items-center justify-center gap-2 rounded-xl font-bold transition-all px-4 bg-[var(--amber-lo)] text-[var(--amber)] border border-[var(--amber-bd)] hover:bg-[var(--amber)] hover:text-[var(--s0)]">
-                        Analyze &rarr;
-                      </a>
-                    </div>
-                  </div>
-                </div>
-              </Panel>
-            ))}
-          </div>
+      <button
+        onClick={onRetry}
+        className="flex items-center gap-2 text-sm font-bold rounded-xl px-5 py-2.5 transition-all text-white border-none"
+        style={{ background: "var(--grad)" }}
+      >
+        <Ico name="refresh" size={16} />
+        Refresh Now
+      </button>
+
+      <style>{`
+        @keyframes pulse-ring {
+          0%   { transform: scale(1);    opacity: 1; }
+          100% { transform: scale(1.5);  opacity: 0; }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+// ── Error state (uses shared ErrorState component) ────────────────────────────
+
+function ErrorState({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry: () => void;
+}) {
+  return (
+    <SharedErrorState
+      title="Scan Failed"
+      message={message}
+      onRetry={onRetry}
+      retryLabel="Retry"
+    />
+  );
+}
+
+// ── Filter select ─────────────────────────────────────────────────────────────
+
+function FilterSelect({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+}) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="text-sm text-[var(--t1)] rounded-[var(--r2)] px-3 py-2 outline-none transition-all"
+      style={{
+        background: "var(--s0)",
+        border: "1px solid var(--b2)",
+        fontFamily: "var(--fn)",
+      }}
+      aria-label={label}
+    >
+      {options.map((o) => (
+        <option key={o.value} value={o.value}>
+          {o.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
+
+let _toastId = 0;
+
+export default function ScanPage() {
+  const { transitionTo } = useViewTransition();
+  const { dealerId, loading: dealerLoading } = useDealerId();
+
+  // Search
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Filters
+  const [sourceFilter, setSourceFilter] = useState("all");
+  const [titleType, setTitleType] = useState("all");
+  const [minProfit, setMinProfit] = useState("any");
+  const [state, setState] = useState("all");
+  const [maxPrice, setMaxPrice] = useState("any");
+  const [minYear, setMinYear] = useState("any");
+  const [maxMileage, setMaxMileage] = useState("any");
+  const [sort, setSort] = useState("profit");
+
+  // Build SWR key from filters
+  const swrKey = useMemo(() => {
+    if (dealerLoading || !dealerId) return null;
+    const params = new URLSearchParams({ sort });
+    if (search) params.set("q", search);
+    if (sourceFilter !== "all") params.set("source", sourceFilter);
+    if (titleType !== "all") params.set("titleType", titleType);
+    if (state !== "all") params.set("state", state);
+    if (minProfit !== "any")
+      params.set("minProfit", minProfit.replace("k", "000"));
+    if (maxPrice !== "any")
+      params.set("maxPrice", maxPrice.replace("k", "000"));
+    if (minYear !== "any") params.set("minYear", minYear);
+    if (maxMileage !== "any")
+      params.set("maxMileage", maxMileage.replace("k", "000"));
+    return `/api/scan?${params.toString()}`;
+  }, [
+    dealerId,
+    dealerLoading,
+    search,
+    sourceFilter,
+    titleType,
+    state,
+    minProfit,
+    maxPrice,
+    minYear,
+    maxMileage,
+    sort,
+  ]);
+
+  // Use SWR for data fetching
+  const {
+    data: swrData,
+    error: swrError,
+    isLoading: swrLoading,
+    mutate,
+  } = useSWR(swrKey, fetcher, {
+    revalidateOnFocus: false,
+    dedupingInterval: 30000,
+    onSuccess: (data) => {
+      // Cache for offline fallback
+      if (swrKey) {
+        try {
+          localStorage.setItem(
+            `dhp-scan-${swrKey}`,
+            JSON.stringify({
+              results: data.vehicles || [],
+              total: data.total || 0,
+              ts: Date.now(),
+            }),
+          );
+        } catch {}
+      }
+    },
+    onError: () => {
+      // Try offline cache on error
+      if (swrKey) {
+        try {
+          const cached = localStorage.getItem(`dhp-scan-${swrKey}`);
+          if (cached) {
+            const { results: r, total: t } = JSON.parse(cached);
+            mutate({ vehicles: r, total: t }, false);
+            addToast("Running offline — showing cached results", "info");
+          }
+        } catch {}
+      }
+    },
+  });
+
+  // Derive state from SWR
+  const results = useMemo(
+    () => (swrData?.vehicles || []).map(mapDealToResult),
+    [swrData],
+  );
+  const total = swrData?.total || 0;
+  const loading = dealerLoading || swrLoading;
+  const error =
+    !dealerId && !dealerLoading
+      ? "Please sign in to view scan results."
+      : swrError?.message || swrData?.error || null;
+  const [lastScan, setLastScan] = useState<Date | null>(null);
+
+  // Toasts
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+
+  const addToast = useCallback(
+    (message: string, type: ToastItem["type"] = "success") => {
+      const id = ++_toastId;
+      setToasts((prev) => [...prev, { id, message, type }]);
+      setTimeout(
+        () => setToasts((prev) => prev.filter((t) => t.id !== id)),
+        4000,
+      );
+    },
+    [],
+  );
+
+  const dismissToast = useCallback((id: number) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  // Debounce search input → set search state after 300ms idle
+  const handleSearchInput = useCallback((val: string) => {
+    setSearchInput(val);
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => setSearch(val), 300);
+  }, []);
+
+  // Update last scan time when data changes
+  useEffect(() => {
+    if (swrData && !swrLoading) {
+      setLastScan(new Date());
+    }
+  }, [swrData, swrLoading]);
+
+  // Realtime subscription
+  useEffect(() => {
+    const supabase = createClientComponentClient();
+    const channel = supabase
+      .channel("scan-realtime")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "deals" },
+        (payload) => {
+          const d = payload.new;
+          if (state !== "all" && d.location_state !== state) return;
+          if (sourceFilter !== "all" && d.source !== sourceFilter) return;
+
+          // Build a row in the SAME (camelCase, Deal-like) shape the rest of the
+          // `vehicles` array holds — i.e. the shape `normalizeRow()` produces on the
+          // server — so that `mapDealToResult` reads it correctly. Pushing the raw
+          // snake_case `payload.new` here would surface as a $0 / score-50 card.
+          const newVehicle = {
+            id: d.id,
+            source: d.source || "unknown",
+            year: d.year ?? undefined,
+            make: d.make || "",
+            model: d.model || "",
+            askPrice: Number(d.ask_price ?? 0),
+            mmrValue: Number(d.mmr_value ?? 0),
+            profitEstimate: Number(d.profit_estimate ?? 0),
+            profitScore:
+              d.profit_score != null ? Number(d.profit_score) : undefined,
+            locationCity: d.location_city || undefined,
+            locationState: d.location_state || undefined,
+            mileage: d.mileage ?? undefined,
+            condition: d.condition || "",
+            damageType: d.damage_type || undefined,
+            dealVerdict: d.deal_verdict || undefined,
+            recommendedMaxBid:
+              d.recommended_max_bid != null
+                ? Number(d.recommended_max_bid)
+                : undefined,
+            sellEstimate:
+              d.sell_estimate != null ? Number(d.sell_estimate) : undefined,
+            true_net_profit:
+              d.true_net_profit != null ? Number(d.true_net_profit) : undefined,
+            repair_estimate:
+              d.repair_estimate != null ? Number(d.repair_estimate) : undefined,
+            auctionEndAt: d.auction_end ? new Date(d.auction_end) : undefined,
+          };
+
+          // Optimistically add to SWR cache (same shape as other `vehicles` entries)
+          mutate((current: any) => {
+            const vehicles = current?.vehicles || [];
+            if (vehicles.some((x: any) => x.id === d.id)) return current;
+            return {
+              vehicles: [newVehicle, ...vehicles],
+              total: (current?.total || 0) + 1,
+            };
+          }, false);
+          addToast(
+            `+1 new deal found · ${newVehicle.year ?? ""} ${newVehicle.make} ${newVehicle.model}`,
+            "success",
+          );
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [state, sourceFilter, sort, addToast, mutate]);
+
+  // Client-side filtering + sorting with useMemo (instant, no re-fetch).
+  // The API ignores `sort`, so the sort control is honored here.
+  const filteredResults = useMemo(() => {
+    let list = results;
+    if (search) {
+      const q = search.toLowerCase();
+      list = list.filter((r: ScanResult) =>
+        `${r.year} ${r.make} ${r.model} ${r.locationCity ?? ""} ${r.locationState ?? ""}`
+          .toLowerCase()
+          .includes(q),
+      );
+    }
+    const sorted = [...list];
+    if (sort === "score") {
+      sorted.sort((a, b) => (b.profitScore ?? 0) - (a.profitScore ?? 0));
+    } else if (sort === "price") {
+      sorted.sort((a, b) => (a.askPrice ?? 0) - (b.askPrice ?? 0));
+    } else {
+      // default: profit (descending)
+      sorted.sort((a, b) => (b.profitEstimate ?? 0) - (a.profitEstimate ?? 0));
+    }
+    return sorted;
+  }, [results, search, sort]);
+
+  // Source options for filter
+  const sourceOptions = useMemo(() => {
+    const opts = [{ value: "all", label: "Source: All" }];
+    ALL_VEHICLE_SOURCES.slice(0, 20).forEach((s) =>
+      opts.push({ value: s.id, label: s.name }),
+    );
+    return opts;
+  }, []);
+
+  const stateOptions = useMemo(() => {
+    const opts = [{ value: "all", label: "State: All" }];
+    US_STATES.forEach((s) => opts.push({ value: s, label: s }));
+    return opts;
+  }, []);
+
+  return (
+    <div
+      className="max-w-7xl mx-auto px-4 space-y-5 pb-24"
+      style={{ animation: "fadeUp 200ms cubic-bezier(.16,1,.3,1)" }}
+    >
+      {/* ── Search bar ── */}
+      <div className="glass-panel p-4 flex flex-col sm:flex-row gap-3 items-center sticky top-4 z-20">
+        <div className="relative flex-1 w-full">
+          <Ico
+            name="search"
+            size={18}
+            className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--t4)] pointer-events-none"
+          />
+          <input
+            type="text"
+            className="w-full rounded-[var(--r3)] py-3.5 pl-11 pr-5 text-[var(--t1)] text-base outline-none transition-all"
+            style={{
+              background: "var(--s1)",
+              border: "1.5px solid var(--b1)",
+            }}
+            placeholder='Search make, model, city… e.g. "F-150 Dallas" or "Tesla salvage"'
+            value={searchInput}
+            onChange={(e) => handleSearchInput(e.target.value)}
+            onFocus={(e) => {
+              e.currentTarget.style.borderColor = "var(--amber)";
+            }}
+            onBlur={(e) => {
+              e.currentTarget.style.borderColor = "var(--b1)";
+            }}
+          />
+          {searchInput && (
+            <button
+              onClick={() => {
+                setSearchInput("");
+                setSearch("");
+              }}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--t4)] hover:text-[var(--t1)] transition-colors"
+              aria-label="Clear search"
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+              >
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
+        <button
+          onClick={() => mutate()}
+          disabled={loading}
+          className="w-full sm:w-auto flex items-center justify-center gap-2 font-bold text-white rounded-xl py-3.5 px-7 transition-all disabled:opacity-50 border-none"
+          style={{ background: "var(--grad)" }}
+        >
+          {loading ? (
+            <>
+              <span
+                className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full"
+                style={{ animation: "spin 700ms linear infinite" }}
+              />
+              Scanning…
+            </>
+          ) : (
+            <>
+              <Ico name="scan" size={16} />
+              Scan Market
+            </>
+          )}
+        </button>
+      </div>
+
+      {/* ── Status strip ── */}
+      <StatusStrip
+        loading={loading}
+        error={error}
+        total={total}
+        results={results}
+        lastScan={lastScan}
+      />
+
+      {/* ── Filter bar ── */}
+      <div className="glass-panel px-4 py-3 flex flex-wrap items-center gap-3">
+        <span className="text-xs text-[var(--t4)] font-semibold uppercase tracking-wider flex items-center gap-1.5 shrink-0">
+          <Ico name="filter" size={13} />
+          Filters
+        </span>
+
+        <div className="flex flex-wrap gap-2 flex-1">
+          <FilterSelect
+            label="Source"
+            value={sourceFilter}
+            onChange={setSourceFilter}
+            options={sourceOptions}
+          />
+          <FilterSelect
+            label="Title Type"
+            value={titleType}
+            onChange={setTitleType}
+            options={[
+              { value: "all", label: "Title: All" },
+              { value: "clean", label: "Clean Title" },
+              { value: "salvage", label: "Salvage Title" },
+              { value: "rebuilt", label: "Rebuilt Title" },
+            ]}
+          />
+          <FilterSelect
+            label="Min Profit"
+            value={minProfit}
+            onChange={setMinProfit}
+            options={[
+              { value: "any", label: "Profit: Any" },
+              { value: "1k", label: "Min $1,000" },
+              { value: "2k", label: "Min $2,000" },
+              { value: "3k", label: "Min $3,000" },
+              { value: "5k", label: "Min $5,000" },
+            ]}
+          />
+          <FilterSelect
+            label="Max Price"
+            value={maxPrice}
+            onChange={setMaxPrice}
+            options={[
+              { value: "any", label: "Price: Any" },
+              { value: "5k", label: "Under $5,000" },
+              { value: "10k", label: "Under $10,000" },
+              { value: "20k", label: "Under $20,000" },
+              { value: "35k", label: "Under $35,000" },
+              { value: "50k", label: "Under $50,000" },
+            ]}
+          />
+          <FilterSelect
+            label="Year From"
+            value={minYear}
+            onChange={setMinYear}
+            options={[
+              { value: "any", label: "Year: Any" },
+              { value: "2000", label: "2000 +" },
+              { value: "2010", label: "2010 +" },
+              { value: "2015", label: "2015 +" },
+              { value: "2018", label: "2018 +" },
+              { value: "2021", label: "2021 +" },
+            ]}
+          />
+          <FilterSelect
+            label="Max Miles"
+            value={maxMileage}
+            onChange={setMaxMileage}
+            options={[
+              { value: "any", label: "Miles: Any" },
+              { value: "50k", label: "Under 50k" },
+              { value: "100k", label: "Under 100k" },
+              { value: "150k", label: "Under 150k" },
+            ]}
+          />
+          <FilterSelect
+            label="State"
+            value={state}
+            onChange={setState}
+            options={stateOptions}
+          />
+          <FilterSelect
+            label="Sort"
+            value={sort}
+            onChange={setSort}
+            options={[
+              { value: "profit", label: "Sort: Profit ↓" },
+              { value: "score", label: "Sort: Score ↓" },
+              { value: "price", label: "Sort: Price ↑" },
+            ]}
+          />
+        </div>
+
+        {/* Results count */}
+        {!loading && (
+          <span className="text-xs text-[var(--t3)] ml-auto shrink-0 font-mono">
+            {filteredResults.length} result
+            {filteredResults.length !== 1 ? "s" : ""}
+          </span>
+        )}
+      </div>
+
+      {/* ── Results grid ── */}
+      {loading && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <DealCardSkeleton key={i} />
+          ))}
         </div>
       )}
 
+      {!loading && error && (
+        <ErrorState message={error} onRetry={() => mutate()} />
+      )}
+
+      {!loading && !error && filteredResults.length === 0 && (
+        <EmptyState onRetry={() => mutate()} />
+      )}
+
+      {!loading && !error && filteredResults.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredResults.map((car: ScanResult, idx: number) => (
+            <div
+              key={car.id}
+              style={{
+                animation: `fadeUp 200ms cubic-bezier(.16,1,.3,1) both`,
+                animationDelay: `${Math.min(idx * 40, 400)}ms`,
+              }}
+            >
+              <DealCard
+                id={car.id}
+                source={car.source}
+                year={car.year}
+                make={car.make}
+                model={car.model}
+                askPrice={car.askPrice}
+                mmrValue={car.mmrValue}
+                profitEstimate={car.profitEstimate}
+                profitScore={car.profitScore}
+                locationCity={car.locationCity}
+                locationState={car.locationState}
+                mileage={car.mileage}
+                condition={car.condition}
+                damageType={car.damageType}
+                dealVerdict={car.dealVerdict}
+                recommendedMaxBid={car.recommendedMaxBid}
+                sellEstimate={car.sellEstimate}
+                onClick={() => transitionTo(`/deal/${car.id}`)}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Toasts */}
+      <ToastStack toasts={toasts} onDismiss={dismissToast} />
     </div>
-  )
+  );
 }

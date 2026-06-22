@@ -1,12 +1,16 @@
-import { Worker, Queue } from 'bullmq';
-import { scrapeIAA } from '../lib/scrapers/sources/iaa';
-import { scrapeCraigslist } from '../lib/scrapers/sources/craigslist';
-import { scrapeCopart } from '../lib/scrapers/sources/copart';
-// Stubbing Ebay for now since we didn't implement it in this sprint
-const scrapeEbay = async () => { console.log('Ebay scrape stub'); return 0; };
-import { checkAlerts } from '../lib/alerts/alert-engine';
+import { Worker, Queue } from "bullmq";
+import { checkAlerts } from "../lib/alerts/alert-engine";
+import { trackPriceChanges } from "../lib/alerts/price-tracker";
+import { updateMarketTrends } from "../lib/scoring/market-intelligence";
 
-const redisUrl = process.env.UPSTASH_REDIS_URL || process.env.REDIS_URL || 'redis://localhost:6379'
+// Optional self-hosted worker for the recurring maintenance jobs that aren't a good fit for
+// serverless: alert delivery, price-drop tracking, and nightly market-trend aggregation.
+// Scraping/ingestion runs on GitHub Actions (see .github/workflows), NOT here.
+
+const redisUrl =
+  process.env.UPSTASH_REDIS_URL ||
+  process.env.REDIS_URL ||
+  "redis://localhost:6379";
 
 const connection = {
   url: redisUrl,
@@ -14,69 +18,79 @@ const connection = {
   enableReadyCheck: false,
 } as any;
 
-export const scrapeQueue = new Queue('scrape', { connection });
-
-// Schedule recurring jobs
-async function scheduleJobs() {
-  await scrapeQueue.add('iaa',         {}, { repeat: { pattern: '*/30 * * * *' }, attempts: 3, backoff: { type: 'exponential', delay: 30000 }});
-  await scrapeQueue.add('craigslist',  {}, { repeat: { pattern: '0 * * * *' },    attempts: 3, backoff: { type: 'exponential', delay: 30000 }});
-  await scrapeQueue.add('copart',      {}, { repeat: { pattern: '*/5 8-18 * * 1-5' }, attempts: 3, backoff: { type: 'exponential', delay: 60000 }});
-  await scrapeQueue.add('ebay',        {}, { repeat: { pattern: '*/15 * * * *' }, attempts: 3 });
-  await scrapeQueue.add('alert-check', {}, { repeat: { pattern: '*/5 * * * *' },  attempts: 3 });
-  
-  console.log('[Queue] Jobs scheduled');
+if (
+  !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+  !process.env.SUPABASE_SERVICE_ROLE_KEY
+) {
+  throw new Error(
+    "[Worker] Missing NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY",
+  );
 }
 
-// Worker — processes jobs
-const worker = new Worker('scrape', async (job) => {
-  console.log(`[Worker] Processing job: ${job.name}`);
-  
-  const startTime = Date.now();
-  let found = 0;
-  
+export const maintenanceQueue = new Queue("maintenance", { connection });
+
+async function scheduleJobs() {
   try {
+    await maintenanceQueue.add(
+      "alert-check",
+      {},
+      { repeat: { pattern: "*/5 * * * *" }, attempts: 3 },
+    );
+    await maintenanceQueue.add(
+      "price-track",
+      {},
+      { repeat: { pattern: "*/10 * * * *" }, attempts: 2 },
+    );
+    await maintenanceQueue.add(
+      "market-intelligence",
+      {},
+      { repeat: { pattern: "0 2 * * *" }, attempts: 2 },
+    );
+    console.log("[Queue] Maintenance jobs scheduled");
+  } catch (err) {
+    console.error("[Queue] Failed to schedule jobs. Is Redis running?", err);
+  }
+}
+
+const worker = new Worker(
+  "maintenance",
+  async (job) => {
+    console.log(`[Worker] Processing job: ${job.name}`);
     switch (job.name) {
-      case 'iaa':        found = await scrapeIAA(); break;
-      case 'craigslist': found = await scrapeCraigslist(); break;
-      case 'copart':     found = await scrapeCopart(); break;
-      case 'ebay':       found = await scrapeEbay(); break;
-      case 'alert-check': await checkAlerts(); return;
+      case "alert-check":
+        await checkAlerts();
+        return;
+      case "price-track": {
+        const priceChanges = await trackPriceChanges();
+        console.log(`[Worker] Tracked ${priceChanges.length} price changes`);
+        return;
+      }
+      case "market-intelligence": {
+        const trendsUpdated = await updateMarketTrends();
+        console.log(`[Worker] Updated ${trendsUpdated} market trends`);
+        return;
+      }
       default:
         console.warn(`[Worker] Unknown job: ${job.name}`);
     }
-    
-    // Log job to Supabase
-    const { createClient } = await import('@supabase/supabase-js');
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://mock.supabase.co', 
-      process.env.SUPABASE_SERVICE_ROLE_KEY || 'mock-key'
-    );
-    await supabase.from('scrape_jobs').insert({
-      source: job.name,
-      status: 'done',
-      listings_found: found,
-      started_at: new Date(startTime).toISOString(),
-      completed_at: new Date().toISOString(),
-    });
-    
-    console.log(`[Worker] ${job.name} done: ${found} listings in ${Date.now() - startTime}ms`);
-    
-  } catch (error) {
-    console.error(`[Worker] ${job.name} failed:`, error);
-    throw error; // BullMQ will retry
-  }
-  
-}, {
-  connection,
-  concurrency: 3, // Run 3 jobs at once max
-  limiter: { max: 10, duration: 1000 }, // Max 10 jobs/sec
-});
+  },
+  {
+    connection,
+    concurrency: 3,
+    limiter: { max: 10, duration: 1000 },
+  },
+);
 
-worker.on('failed', (job, err) => {
+worker.on("failed", (job, err) => {
   console.error(`[Worker] Job ${job?.name} failed after retries:`, err.message);
 });
 
-// Start
+worker.on("error", (err) => {
+  console.error(`[Worker] Connection Error:`, err);
+});
+
 scheduleJobs().then(() => {
-  console.log('[DealerHunt Worker] Running. Press Ctrl+C to stop.');
+  console.log(
+    "[DealerHunt Worker] Running (maintenance jobs). Press Ctrl+C to stop.",
+  );
 });

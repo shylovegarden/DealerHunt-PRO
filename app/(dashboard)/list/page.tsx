@@ -1,157 +1,252 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
-import { Panel } from '@/components/shared/Panel'
-import { Btn } from '@/components/shared/Btn'
-import { Tag } from '@/components/shared/Tag'
-import { Ico } from '@/components/shared/Ico'
-import { InventoryItem } from '@/lib/data/inventory-service'
+import { useState } from "react";
+import useSWR from "swr";
+import { fetcher } from "@/lib/swr-config";
+import { Btn } from "@/components/shared/Btn";
+import { Tag } from "@/components/shared/Tag";
+import { Ico } from "@/components/shared/Ico";
+import { ErrorState } from "@/components/shared/ErrorState";
+import { InventoryItem } from "@/lib/data/inventory-service";
+import { useDealerId } from "@/hooks/useDealerId";
 
 const PLATFORMS = [
-  { id: 'fb', name: 'Facebook Marketplace', connected: true },
-  { id: 'at', name: 'AutoTrader', connected: true },
-  { id: 'cg', name: 'CarGurus', connected: false },
-  { id: 'cars', name: 'Cars.com', connected: false },
-  { id: 'cl', name: 'Craigslist', connected: true },
-]
+  { id: "fb", name: "Facebook Marketplace", active: true },
+  { id: "at", name: "AutoTrader", active: true },
+  { id: "cg", name: "CarGurus", active: false },
+  { id: "cars", name: "Cars.com", active: false },
+  { id: "cl", name: "Craigslist", active: true },
+];
 
 export default function ListPage() {
-  const [inventory, setInventory] = useState<InventoryItem[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['fb', 'at', 'cl'])
-  const [selectedVehicles, setSelectedVehicles] = useState<string[]>([])
-  const [blasting, setBlasting] = useState(false)
-  const [done, setDone] = useState(false)
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([
+    "fb",
+    "at",
+    "cl",
+  ]);
+  const [selectedVehicles, setSelectedVehicles] = useState<string[]>([]);
+  const [blasting, setBlasting] = useState(false);
+  const [done, setDone] = useState(false);
 
-  const dealerId = process.env.NEXT_PUBLIC_DEMO_DEALER_ID || 'demo-dealer'
+  const { dealerId, loading: authLoading } = useDealerId();
 
-  useEffect(() => {
-    setLoading(true)
-    fetch(`/api/inventory?dealerId=${dealerId}&stage=listed&limit=100`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.error) {
-          setError(data.error)
-          setInventory([])
-        } else {
-          setInventory(data.items || [])
-        }
-      })
-      .catch((err) => {
-        setError(err.message)
-        setInventory([])
-      })
-      .finally(() => setLoading(false))
-  }, [])
+  const {
+    data,
+    error: swrError,
+    isLoading: isSwrLoading,
+    mutate,
+  } = useSWR(
+    dealerId
+      ? `/api/inventory?dealerId=${dealerId}&stage=listed&limit=100`
+      : null,
+    fetcher,
+    { refreshInterval: 60000 },
+  );
+
+  const loading = authLoading || isSwrLoading;
+  const error =
+    swrError?.message ||
+    data?.error ||
+    (!dealerId && !authLoading ? "Not authenticated" : null);
+  const inventory: InventoryItem[] = data?.items || [];
 
   const togglePlatform = (id: string) => {
-    setSelectedPlatforms((prev) => (prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]))
-  }
+    setSelectedPlatforms((prev) =>
+      prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id],
+    );
+  };
 
   const toggleVehicle = (id: string) => {
-    setSelectedVehicles((prev) => (prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id]))
-  }
+    setSelectedVehicles((prev) =>
+      prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id],
+    );
+  };
 
-  const handleBlast = () => {
-    setBlasting(true)
-    setDone(false)
-    setTimeout(() => {
-      setBlasting(false)
-      setDone(true)
-    }, 2000)
-  }
+  const handleBlast = async () => {
+    if (selectedVehicles.length === 0) return;
+    setBlasting(true);
+    setDone(false);
+    try {
+      const platformNames = selectedPlatforms.map((p) => {
+        const map: Record<string, string> = {
+          fb: "facebook",
+          at: "autotrader",
+          cl: "craigslist",
+          cars: "cars.com",
+          cg: "cargurus",
+        };
+        return map[p] || p;
+      });
+      await Promise.all(
+        selectedVehicles.map(async (id) => {
+          await fetch("/api/inventory", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              id,
+              stage: "listed",
+              listed_platforms: platformNames,
+            }),
+          });
+        }),
+      );
+    } finally {
+      setBlasting(false);
+      setDone(true);
+    }
+  };
 
   return (
-    <div className="space-y-4 max-w-3xl">
-      <Panel>
-        <h1 className="text-lg font-semibold text-[#FAFAFA] flex items-center gap-2">
-          <Ico name="list" className="text-[#F59E0B]" /> List Everywhere
-        </h1>
-        <p className="text-sm text-[#9898A8] mt-1">Syndicate inventory to marketplaces in one blast.</p>
-      </Panel>
+    <div className="space-y-6 max-w-3xl mx-auto animate-fadeUp">
+      <div className="glass-panel p-6 flex items-center gap-4">
+        <div
+          className="w-12 h-12 rounded-[var(--r3)] flex items-center justify-center text-white"
+          style={{ background: "var(--grad)" }}
+        >
+          <Ico name="list" size={24} />
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold text-[var(--t1)]">
+            Listing Manager
+          </h1>
+          <p className="text-sm text-[var(--t4)] mt-1">
+            Mark inventory as listed and track which marketplaces each vehicle
+            is posted on.
+          </p>
+        </div>
+      </div>
 
       {loading && (
-        <Panel className="text-center py-12">
-          <p className="text-[#9898A8]">Loading inventory...</p>
-        </Panel>
+        <div className="glass-panel text-center py-20 flex flex-col items-center animate-pulse">
+          <div
+            className="w-12 h-12 rounded-full opacity-20 animate-ping absolute"
+            style={{ background: "var(--coral)" }}
+          ></div>
+          <Ico
+            name="refresh"
+            className="animate-spin mb-4 relative z-10 text-[var(--coral)]"
+            size={32}
+          />
+          <p className="text-[var(--t4)] font-medium">Loading listings...</p>
+        </div>
       )}
 
       {error && !loading && (
-        <Panel className="text-center py-12 border border-[rgba(239,68,68,.20)] bg-[rgba(239,68,68,.10)]">
-          <p className="text-[#EF4444]">Error: {error}</p>
-        </Panel>
+        <ErrorState
+          title="Couldn't load listings"
+          message={error}
+          onRetry={() => mutate()}
+        />
       )}
 
       {!loading && !error && (
-        <Panel>
-          <h2 className="text-sm font-semibold text-[#D1D1DC] uppercase tracking-wider mb-3">1. Select Vehicles</h2>
+        <div className="glass-panel p-6 animate-popIn">
+          <h2 className="text-sm font-black text-[var(--t4)] uppercase tracking-widest mb-4">
+            1. Select Vehicles to List
+          </h2>
           {inventory.length === 0 ? (
-            <p className="text-sm text-[#9898A8]">No listed vehicles available. Add inventory in Fleet first.</p>
+            <p className="text-sm text-[var(--t3)] font-medium">
+              No listed vehicles available. Advance inventory stage to "listed"
+              in Fleet first.
+            </p>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {inventory.map((vehicle) => (
                 <button
                   key={vehicle.id}
                   onClick={() => toggleVehicle(vehicle.id)}
-                  className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all text-left ${
+                  className={`w-full flex items-center justify-between p-4 rounded-xl border-none transition-all text-left group ${
                     selectedVehicles.includes(vehicle.id)
-                      ? 'border-[rgba(245,158,11,.22)] bg-[rgba(245,158,11,.10)]'
-                      : 'border-[rgba(255,255,255,.06)] hover:border-[rgba(255,255,255,.10)]'
+                      ? ""
+                      : "hover:-translate-y-0.5"
                   }`}
+                  style={
+                    selectedVehicles.includes(vehicle.id)
+                      ? { background: "var(--blo)" }
+                      : { background: "var(--s2)" }
+                  }
                 >
-                  <span className="text-sm text-[#FAFAFA]">
+                  <span className="text-sm font-bold text-[var(--t1)] group-hover:text-[var(--blue)] transition-colors">
                     {vehicle.year} {vehicle.make} {vehicle.model}
                   </span>
-                  <span className="text-sm font-mono text-[#9898A8]">${(vehicle.listPrice || vehicle.totalCost).toLocaleString()}</span>
+                  <span className="text-sm font-bold text-[var(--blue)]">
+                    ${(vehicle.listPrice || vehicle.totalCost).toLocaleString()}
+                  </span>
                 </button>
               ))}
             </div>
           )}
-        </Panel>
+        </div>
       )}
 
-      <Panel>
-        <h2 className="text-sm font-semibold text-[#D1D1DC] uppercase tracking-wider mb-3">2. Select Platforms</h2>
-        <div className="space-y-2">
+      <div
+        className="glass-panel p-6 animate-popIn"
+        style={{ animationDelay: "100ms" }}
+      >
+        <h2 className="text-sm font-black text-[var(--t4)] uppercase tracking-widest mb-4">
+          2. Select Platforms
+        </h2>
+        <div className="space-y-3">
           {PLATFORMS.map((platform) => (
             <button
               key={platform.id}
-              disabled={!platform.connected}
+              disabled={!platform.active}
               onClick={() => togglePlatform(platform.id)}
-              className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all text-left disabled:opacity-40 disabled:cursor-not-allowed ${
+              className={`w-full flex items-center justify-between p-4 rounded-xl border-none transition-all text-left disabled:opacity-40 disabled:cursor-not-allowed group ${
                 selectedPlatforms.includes(platform.id)
-                  ? 'border-[rgba(245,158,11,.22)] bg-[rgba(245,158,11,.10)]'
-                  : 'border-[rgba(255,255,255,.06)] hover:border-[rgba(255,255,255,.10)]'
+                  ? ""
+                  : "hover:-translate-y-0.5"
               }`}
+              style={
+                selectedPlatforms.includes(platform.id)
+                  ? { background: "var(--blo)" }
+                  : { background: "var(--s2)" }
+              }
             >
-              <span className="text-sm text-[#FAFAFA]">{platform.name}</span>
-              {platform.connected ? (
-                <Tag color={selectedPlatforms.includes(platform.id) ? 'amber' : 'green'}>
-                  {selectedPlatforms.includes(platform.id) ? 'Selected' : 'Connected'}
-                </Tag>
+              <span className="text-sm font-bold text-[var(--t1)]">
+                {platform.name}
+              </span>
+              {platform.active ? (
+                selectedPlatforms.includes(platform.id) ? (
+                  <Tag color="blue" className="shadow-sm">
+                    Selected
+                  </Tag>
+                ) : null
               ) : (
-                <Tag color="red">Disconnected</Tag>
+                <Tag color="red">Unsupported</Tag>
               )}
             </button>
           ))}
         </div>
-      </Panel>
+      </div>
 
-      <Btn
-        loading={blasting}
-        disabled={selectedVehicles.length === 0 || selectedPlatforms.length === 0 || blasting}
-        className="w-full"
+      <button
+        disabled={
+          selectedVehicles.length === 0 ||
+          selectedPlatforms.length === 0 ||
+          blasting
+        }
+        className="w-full text-sm font-bold text-white py-4 rounded-xl border-none transition-all flex justify-center items-center gap-2 disabled:opacity-50 disabled:scale-100 disabled:cursor-not-allowed"
+        style={{ background: "var(--grad)" }}
         onClick={handleBlast}
       >
-        {done ? 'Blast Complete' : 'Blast Deals'}
-      </Btn>
+        {blasting && <Ico name="refresh" className="animate-spin" />}
+        {done ? "Listing Updated" : "Mark as Listed"}
+      </button>
 
       {done && (
-        <Panel className="text-center py-6">
-          <p className="text-[#10B981] font-semibold">Deals syndicated to {selectedPlatforms.length} platforms</p>
-        </Panel>
+        <div
+          className="glass-panel text-center py-6 animate-popIn"
+          style={{ background: "var(--glo)" }}
+        >
+          <p className="text-[var(--green)] font-bold flex justify-center items-center gap-2">
+            <Ico name="check" /> Tagged {selectedVehicles.length}{" "}
+            {selectedVehicles.length === 1 ? "vehicle" : "vehicles"} as listed
+            on {selectedPlatforms.length}{" "}
+            {selectedPlatforms.length === 1 ? "platform" : "platforms"}.
+          </p>
+        </div>
       )}
     </div>
-  )
+  );
 }

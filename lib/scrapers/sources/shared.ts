@@ -1,24 +1,30 @@
-import { Deal } from '@/types'
-import { upsertDeals } from '../pipeline'
-import { DealScoringService } from '../tools/deal-scoring'
+import { Deal } from "@/types";
+import { upsertDeals } from "../pipeline";
 
 function parseTitle(title: string): Partial<Deal> {
-  const m = title.match(/^(\d{4})\s+(\w+)\s+(.+)/)
-  if (!m) return {}
+  const m = title.match(/^(\d{4})\s+(\w+)\s+(.+)/);
+  if (!m) return {};
   return {
     year: parseInt(m[1], 10),
     make: m[2],
-    model: m[3].split(' ').slice(0, 2).join(' '),
-  }
+    model: m[3].split(" ").slice(0, 2).join(" "),
+  };
 }
 
-async function getMarketValue(vin?: string, year?: number, make?: string, model?: string): Promise<number | undefined> {
+async function getMarketValue(
+  vin?: string,
+  year?: number,
+  make?: string,
+  model?: string,
+): Promise<number | undefined> {
   if (vin && vin.length === 17) {
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/value/${vin}`)
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/value/${vin}`,
+      );
       if (res.ok) {
-        const data = await res.json()
-        if (data.marketValue) return data.marketValue
+        const data = await res.json();
+        if (data.marketValue) return data.marketValue;
       }
     } catch {}
   }
@@ -27,26 +33,30 @@ async function getMarketValue(vin?: string, year?: number, make?: string, model?
     try {
       const res = await fetch(
         `https://marketcheck-prod.apigee.net/v2/search/car/active?api_key=${process.env.MARKETCHECK_API_KEY}&year=${year}&make=${make}&model=${model}&rows=10`,
-      )
-      if (!res.ok) return undefined
-      const data = await res.json()
-      const prices = (data.listings || data.deals || []).map((l: any) => l.price).filter((p: number) => p > 0)
-      if (!prices.length) return undefined
-      return Math.round(prices.reduce((a: number, b: number) => a + b, 0) / prices.length)
+      );
+      if (!res.ok) return undefined;
+      const data = await res.json();
+      const prices = (data.listings || data.deals || [])
+        .map((l: any) => l.price)
+        .filter((p: number) => p > 0);
+      if (!prices.length) return undefined;
+      return Math.round(
+        prices.reduce((a: number, b: number) => a + b, 0) / prices.length,
+      );
     } catch {}
   }
 
-  return undefined
+  return undefined;
 }
 
 export async function enrichAndStore(raw: any) {
   try {
-    const parsed = raw.title ? parseTitle(raw.title) : {}
-    const year = raw.year || parsed.year
-    const make = raw.make || parsed.make
-    const model = raw.model || parsed.model
+    const parsed = raw.title ? parseTitle(raw.title) : {};
+    const year = raw.year || parsed.year;
+    const make = raw.make || parsed.make;
+    const model = raw.model || parsed.model;
 
-    const marketValue = await getMarketValue(raw.vin, year, make, model)
+    const marketValue = await getMarketValue(raw.vin, year, make, model);
 
     const deal: Partial<Deal> = {
       source: raw.source,
@@ -59,7 +69,7 @@ export async function enrichAndStore(raw: any) {
       trim: raw.trim,
       vin: raw.vin,
       mileage: raw.odometer,
-      condition: raw.title_type || raw.condition || 'unknown',
+      condition: raw.title_type || raw.condition || "unknown",
       ask_price: raw.asking_price || raw.current_bid || raw.price || 0,
       buy_now_price: raw.current_bid,
       mmr_value: marketValue,
@@ -77,13 +87,11 @@ export async function enrichAndStore(raw: any) {
       repair_estimate: raw.repair_estimate,
       is_arbitrage_opportunity: raw.is_arbitrage_opportunity,
       scraped_at: new Date().toISOString(),
-    }
+    };
 
-    const scorer = new DealScoringService()
-    const scored = scorer.scoreDeal(deal)
-
-    await upsertDeals([{ ...deal, ...scored }])
+    // Scoring/analysis happens authoritatively in upsertDeals (lib/scoring/deal-analyzer).
+    await upsertDeals([deal]);
   } catch (e) {
-    console.error('[Enrich] Error:', e)
+    console.error("[Enrich] Error:", e);
   }
 }
