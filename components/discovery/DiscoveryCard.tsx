@@ -4,6 +4,7 @@ import React, { memo, useState } from "react";
 import Link from "next/link";
 import { DealGradeBadge } from "./DealGradeBadge";
 import type { DiscoveryDeal } from "./types";
+import { liteDealIQ, IQ_TIER_COLOR } from "@/lib/intelligence/lite-iq";
 
 const TITLE_STYLES: Record<
   string,
@@ -121,6 +122,31 @@ export const DiscoveryCard = memo(function DiscoveryCard({
             </div>
           </div>
         )}
+
+        {/* Deal IQ chip — floating bottom-left (zero-cost, from card fields) */}
+        {(() => {
+          const iq = liteDealIQ({
+            askPrice: deal.askPrice,
+            sellEstimate: deal.sellEstimate,
+            trueNetProfit: deal.trueNetProfit,
+            distressed: (deal as any).distressed,
+          });
+          if (!iq) return null;
+          return (
+            <span
+              className="absolute left-2.5 bottom-2.5 inline-flex items-center rounded-full px-2 py-1 text-[10px] font-black text-white"
+              style={{
+                background: "rgba(20,10,20,.72)",
+                backdropFilter: "blur(8px)",
+              }}
+              title={`Deal IQ ${iq.score}/100 (${iq.tier})`}
+            >
+              <span style={{ color: IQ_TIER_COLOR[iq.tier] }}>
+                IQ&nbsp;{iq.score}
+              </span>
+            </span>
+          );
+        })()}
 
         {/* Multi-source chip — floating top-right (the Kayak signal) */}
         {multi && (
