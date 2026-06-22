@@ -80,6 +80,7 @@ export async function POST(req: NextRequest) {
     ...(body.budget_max !== undefined && { budget_max: body.budget_max }),
     ...(body.budget_min !== undefined && { budget_min: body.budget_min }),
     ...(body.home_zip !== undefined && { home_zip: body.home_zip }),
+    ...(body.onboarded !== undefined && { onboarded: body.onboarded }),
     updated_at: new Date().toISOString(),
   };
 

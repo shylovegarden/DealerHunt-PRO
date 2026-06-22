@@ -18,6 +18,7 @@ import { MaxBidWidget } from "@/components/deal/MaxBidWidget";
 import { PriceSparkline } from "@/components/deal/PriceSparkline";
 import { SimilarDeals } from "@/components/deal/SimilarDeals";
 import { MarketTiming } from "@/components/deal/MarketTiming";
+import { AIBrief } from "@/components/deal/AIBrief";
 import useDealerDefaults from "@/hooks/useDealerDefaults";
 
 // Fetcher function for SWR
@@ -652,6 +653,9 @@ export default function DealPage({
           </CardContent>
         </Card>
       </div>
+
+      {/* AI BRIEF — on-demand plain-English verdict rationale + risks */}
+      <AIBrief dealId={id} />
 
       {/* SIMILAR DEALS — semantic (pgvector) with attribute fallback */}
       <SimilarDeals dealId={id} />

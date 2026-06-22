@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { US_STATES } from "@/lib/utils/titleRules";
 
@@ -30,30 +30,53 @@ export default function OnboardingPage() {
   const [budgetMax, setBudgetMax] = useState("");
   const [makes, setMakes] = useState<string[]>([]);
 
+  // If the dealer already finished onboarding, don't show the wizard again.
+  useEffect(() => {
+    let active = true;
+    fetch("/api/profile")
+      .then((r) => r.json())
+      .then((d) => {
+        if (active && d?.profile?.onboarded) router.replace("/discover");
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [router]);
+
   const toggleMake = (m: string) =>
     setMakes((cur) =>
       cur.includes(m) ? cur.filter((x) => x !== m) : [...cur, m],
     );
 
-  async function finish() {
-    setSaving(true);
+  async function persist(extra: Record<string, unknown>) {
     try {
       await fetch("/api/profile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          home_state: homeState || undefined,
-          state: homeState || undefined,
-          target_profit: targetProfit ? Number(targetProfit) : undefined,
-          budget_max: budgetMax ? Number(budgetMax) : undefined,
-          preferred_makes: makes.length ? makes : undefined,
-        }),
+        body: JSON.stringify({ onboarded: true, ...extra }),
       });
     } catch {
       // non-fatal — defaults still work
-    } finally {
-      router.push("/discover");
     }
+  }
+
+  async function finish() {
+    setSaving(true);
+    await persist({
+      home_state: homeState || undefined,
+      state: homeState || undefined,
+      target_profit: targetProfit ? Number(targetProfit) : undefined,
+      budget_max: budgetMax ? Number(budgetMax) : undefined,
+      preferred_makes: makes.length ? makes : undefined,
+    });
+    router.push("/discover");
+  }
+
+  // Even on skip, record that we offered onboarding so it doesn't nag every login.
+  function skip() {
+    persist({});
+    router.push("/discover");
   }
 
   const inputClass =
@@ -169,7 +192,7 @@ export default function OnboardingPage() {
 
         <div className="flex items-center justify-between">
           <button
-            onClick={() => router.push("/discover")}
+            onClick={skip}
             className="text-sm font-semibold text-[var(--t4)] hover:text-[var(--t2)]"
           >
             Skip for now
