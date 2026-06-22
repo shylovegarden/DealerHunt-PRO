@@ -7,6 +7,7 @@ import { QualityController } from "./tools/quality-control";
 import { normalizeDeals } from "./tools/deal-normalizer";
 import { analyzeDeal } from "@/lib/scoring/deal-analyzer";
 import { loadMarketIndex } from "@/lib/scoring/market-value";
+import { detectAvailability } from "@/lib/discovery/categorize";
 import { sendAlertMatchEmail } from "@/lib/notifications/email";
 import { sendAlertMatchSMS } from "@/lib/notifications/sms";
 
@@ -68,6 +69,10 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
         mileage: deal.mileage,
         condition: deal.condition,
         damage_type: deal.damage_type,
+        availability_status: detectAvailability(
+          deal.title,
+          (deal as any).description,
+        ),
         location_city: deal.location_city,
         location_state: deal.location_state,
         location_zip: deal.location_zip,

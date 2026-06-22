@@ -101,6 +101,8 @@ export async function GET(req: NextRequest) {
   const maxPrice = parseInt(searchParams.get("maxPrice") || "0");
   const minMileage = parseInt(searchParams.get("minMileage") || "0");
   const maxMileage = parseInt(searchParams.get("maxMileage") || "0");
+  const availability = searchParams.get("availability") || "";
+  const madeInUsa = searchParams.get("madeInUsa") === "1";
   const page = parseInt(searchParams.get("page") || "0");
   const pageSize = 20;
 
@@ -108,6 +110,17 @@ export async function GET(req: NextRequest) {
 
   if (make) {
     query = query.ilike("make", make);
+  }
+
+  if (availability) {
+    query = query.eq("availability_status", availability);
+  }
+
+  if (madeInUsa) {
+    // NHTSA returns assembly country like "UNITED STATES (USA)".
+    query = query.or(
+      "assembly_country.ilike.%united states%,assembly_country.ilike.%usa%",
+    );
   }
 
   if (q) {

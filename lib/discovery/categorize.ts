@@ -104,6 +104,22 @@ export function isDistressed(
   return distressedWords || grade === "great";
 }
 
+// Availability (Visor "On Lot / In Transit / Online only"), from listing text — a dealer needs to
+// know if they can inspect the car or are buying it sight-unseen.
+export function detectAvailability(
+  title?: string | null,
+  description?: string | null,
+): string {
+  const t = `${title || ""} ${description || ""}`.toLowerCase();
+  if (/\bin[\s-]?transit\b|en route|arriving soon|on its way/.test(t))
+    return "in_transit";
+  if (/in production|being built|factory order|build to order/.test(t))
+    return "in_production";
+  if (/online[\s-]?only|virtual|no physical|delivery only/.test(t))
+    return "online_only";
+  return "on_lot";
+}
+
 /** Auction urgency / heat from time remaining (Booking-style scarcity). */
 export type Heat = "hot" | "warm" | "live" | "none";
 export function auctionHeat(
