@@ -99,8 +99,27 @@ export async function POST(req: Request) {
     } as any;
 
     const count = await upsertDeals([deal]);
+
+    // Return the analyzed deal so callers (browser extension) can show the verdict instantly.
+    let analyzed: any = null;
+    try {
+      const { createServerComponentClient } = await import("@/lib/supabase");
+      const sb = createServerComponentClient();
+      const { data: row } = await sb
+        .from("deals")
+        .select(
+          "id, deal_verdict, true_net_profit, recommended_max_bid, sell_estimate, ask_price, year, make, model",
+        )
+        .eq("source", source)
+        .eq("source_deal_id", deal.source_deal_id)
+        .maybeSingle();
+      analyzed = row;
+    } catch {
+      /* best-effort */
+    }
+
     return NextResponse.json(
-      { success: true, ingested: count },
+      { success: true, ingested: count, deal: analyzed },
       { headers: CORS },
     );
   } catch (error: any) {

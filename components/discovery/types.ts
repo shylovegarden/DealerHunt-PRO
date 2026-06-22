@@ -36,6 +36,7 @@ export interface DiscoveryDeal {
   gradeLabel: string;
   alsoOn: AlsoOn[];
   listingCount: number;
+  firstSeenAt?: string;
 }
 
 export interface DiscoveryRail {

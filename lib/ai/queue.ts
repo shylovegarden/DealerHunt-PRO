@@ -192,6 +192,69 @@ aiValuationQueue.process(async (job) => {
   }
 
   console.log(`[AI Valuation] Successfully upserted deal into database.`);
+
+  // If this AI job was started from a "save from URL" fallback, link the saved car
+  // placeholder to the real deal and populate its snapshot.
+  if (savedCarId) {
+    try {
+      const { data: dealRow } = await supabase
+        .from("deals")
+        .select("id")
+        .eq("source", source)
+        .eq("source_deal_id", sourceDealId)
+        .maybeSingle();
+
+      if (dealRow?.id) {
+        const snapshot = {
+          vin: dealData.vin || null,
+          year: dealData.year || null,
+          make: dealData.make,
+          model: dealData.model,
+          trim: dealData.trim || null,
+          odometer: dealData.mileage || null,
+          askingPrice: dealData.ask_price,
+          marketValue: valuation.estimatedWholesalePrice,
+          estimatedProfit: trueNetProfit,
+          profitScore,
+          images: dealData.images || [],
+          locationCity: dealData.location_city || null,
+          locationState: dealData.location_state || null,
+          source,
+          sourceUrl,
+          aiRationale: valuation.rationale,
+          scrapedAt: new Date().toISOString(),
+        };
+
+        const { error: savedError } = await supabase
+          .from("saved_cars")
+          .update({
+            deal_id: dealRow.id,
+            snapshot,
+            price_at_save: dealData.ask_price,
+            last_price_seen: dealData.ask_price,
+            market_value_at_save: valuation.estimatedWholesalePrice,
+            profit_at_save: trueNetProfit,
+            status: "active",
+            last_checked: new Date().toISOString(),
+          })
+          .eq("id", savedCarId);
+
+        if (savedError) {
+          console.warn(
+            `[AI Valuation] Failed to update saved car ${savedCarId}:`,
+            savedError.message,
+          );
+        } else {
+          console.log(
+            `[AI Valuation] Linked saved car ${savedCarId} to deal ${dealRow.id}`,
+          );
+        }
+      }
+    } catch (err: any) {
+      console.warn(`[AI Valuation] Saved-car update failed:`, err.message);
+    }
+  }
+
   return { dealData, valuation };
 });
 

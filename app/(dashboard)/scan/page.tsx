@@ -423,10 +423,24 @@ export default function ScanPage() {
   const [titleType, setTitleType] = useState("all");
   const [minProfit, setMinProfit] = useState("any");
   const [state, setState] = useState("all");
+  const [make, setMake] = useState("all");
   const [maxPrice, setMaxPrice] = useState("any");
   const [minYear, setMinYear] = useState("any");
   const [maxMileage, setMaxMileage] = useState("any");
   const [sort, setSort] = useState("profit");
+
+  // Dynamic facets — only offer makes that have live inventory (in the selected state).
+  const { data: facets } = useSWR(
+    `/api/scan/facets${state !== "all" ? `?state=${state}` : ""}`,
+    fetcher,
+    { revalidateOnFocus: false },
+  );
+  const makeOptions = useMemo(() => {
+    const opts = [{ value: "all", label: "Make: All" }];
+    for (const m of facets?.makes ?? [])
+      opts.push({ value: m.make, label: `${m.make} (${m.count})` });
+    return opts;
+  }, [facets]);
 
   // Build SWR key from filters
   const swrKey = useMemo(() => {
@@ -436,6 +450,7 @@ export default function ScanPage() {
     if (sourceFilter !== "all") params.set("source", sourceFilter);
     if (titleType !== "all") params.set("titleType", titleType);
     if (state !== "all") params.set("state", state);
+    if (make !== "all") params.set("make", make);
     if (minProfit !== "any")
       params.set("minProfit", minProfit.replace("k", "000"));
     if (maxPrice !== "any")
@@ -451,6 +466,7 @@ export default function ScanPage() {
     sourceFilter,
     titleType,
     state,
+    make,
     minProfit,
     maxPrice,
     minYear,
@@ -852,6 +868,12 @@ export default function ScanPage() {
             value={state}
             onChange={setState}
             options={stateOptions}
+          />
+          <FilterSelect
+            label="Make"
+            value={make}
+            onChange={setMake}
+            options={makeOptions}
           />
           <FilterSelect
             label="Sort"

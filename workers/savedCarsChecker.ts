@@ -116,6 +116,7 @@ export async function checkSavedCars() {
   }
 
   console.log("[SAVED-CHECKER] Saved cars check complete.");
+  return saves?.length ?? 0;
 }
 
 async function checkUrlAlive(url: string): Promise<boolean> {
