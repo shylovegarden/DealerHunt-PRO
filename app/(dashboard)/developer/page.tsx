@@ -136,6 +136,32 @@ export default function DeveloperPage() {
 # Returns GO deals with estimated_net_profit + recommended_max_bid.
 # Filters: state, make, minProfit, verdict (go|hold|all), limit (≤200).`}</pre>
       </div>
+
+      {/* MCP */}
+      <div className="glass-panel p-5">
+        <div className="flex items-center gap-2 mb-2">
+          <Ico name="bot" size={14} className="text-[var(--amber)]" />
+          <p className="text-[10px] uppercase tracking-widest text-[var(--t4)] font-bold">
+            AI / MCP server
+          </p>
+        </div>
+        <p className="text-sm text-[var(--t3)] mb-3">
+          Connect Claude, Cursor, or any MCP client and ask the market in plain
+          English — “find GO deals on F-150s in Texas under a $15k max bid.” The
+          server returns profit verdicts, not just listings.
+        </p>
+        <pre className="text-xs text-[var(--t2)] overflow-x-auto bg-[var(--s0)] rounded-[var(--r2)] p-3 whitespace-pre-wrap">{`# Add to your MCP client config (HTTP transport):
+{
+  "mcpServers": {
+    "dealerhunt": {
+      "url": "https://your-app.vercel.app/api/mcp",
+      "headers": { "x-api-key": "dhp_your_key" }
+    }
+  }
+}
+
+# Tools: search_deals, market_pulse`}</pre>
+      </div>
     </div>
   );
 }
