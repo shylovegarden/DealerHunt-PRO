@@ -10,6 +10,8 @@ import { loadMarketIndex } from "@/lib/scoring/market-value";
 import { detectAvailability } from "@/lib/discovery/categorize";
 import { sendAlertMatchEmail } from "@/lib/notifications/email";
 import { sendAlertMatchSMS } from "@/lib/notifications/sms";
+import { resolvePlaces } from "@/lib/geo/geocode";
+import { withinMiles } from "@/lib/geo/distance";
 
 function getSupabase() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
@@ -115,6 +117,36 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
 
   if (rows.length === 0) return 0;
 
+  // Geocode each deal's location (cached + free) so the map and saved-search radius matching work.
+  // Best-effort: any failure leaves lat/lng null and the upsert proceeds unchanged. A DB trigger
+  // derives the PostGIS `location` column from lat/lng.
+  try {
+    const coords = await resolvePlaces(
+      getSupabase(),
+      rows.map((r) => ({
+        zip: r.location_zip,
+        city: r.location_city,
+        state: r.location_state,
+      })),
+    );
+    if (coords.size > 0) {
+      for (const r of rows as any[]) {
+        const key = r.location_zip
+          ? `zip:${String(r.location_zip).match(/\b(\d{5})\b/)?.[1] || ""}`
+          : r.location_city && r.location_state
+            ? `cs:${String(r.location_city).trim().toLowerCase().replace(/\s+/g, " ")}|${String(r.location_state).trim().toLowerCase()}`
+            : "";
+        const c = key ? coords.get(key) : undefined;
+        if (c) {
+          r.lat = c.lat;
+          r.lng = c.lng;
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("[upsertDeals] geocoding skipped:", (e as Error).message);
+  }
+
   const { data: upsertedRows, error } = await getSupabase()
     .from("deals")
     .upsert(rows, {
@@ -122,7 +154,7 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
       ignoreDuplicates: false,
     })
     .select(
-      "id, source, ask_price, updated_at, vin, make, model, year, true_net_profit, deal_verdict",
+      "id, source, ask_price, updated_at, vin, make, model, year, true_net_profit, deal_verdict, lat, lng",
     );
 
   if (error) {
@@ -207,6 +239,23 @@ async function matchUserSearches(deals: any[]): Promise<void> {
 
     if (error || !searches || searches.length === 0) return;
 
+    // Home coordinates per user — needed for any search that uses max_distance_miles. One query.
+    const homeByUser = new Map<string, { lat: number; lng: number }>();
+    const needsRadius = searches.some(
+      (s: any) => s.max_distance_miles && s.max_distance_miles > 0,
+    );
+    if (needsRadius) {
+      const userIds = Array.from(new Set(searches.map((s: any) => s.user_id)));
+      const { data: profiles } = await supabase
+        .from("user_profiles")
+        .select("id, home_lat, home_lng")
+        .in("id", userIds);
+      for (const p of profiles || []) {
+        if (p.home_lat != null && p.home_lng != null)
+          homeByUser.set(p.id, { lat: p.home_lat, lng: p.home_lng });
+      }
+    }
+
     // A match is keyed by (user_id, deal_id) — the inbox unique constraint.
     // We also remember which search produced it so we can honor that search's notify flags.
     type MatchItem = {
@@ -252,8 +301,23 @@ async function matchUserSearches(deals: any[]): Promise<void> {
         // Verdict gate: only notify on engine-verdict GO deals when the search opts in.
         if (search.require_go && deal.deal_verdict !== "go") matched = false;
 
-        // TODO: location distance matching via search.max_distance_miles — deferred until a geocoded
-        // home location is stored (only home_state/home_zip exist today).
+        // Radius gate: if the search sets a max distance and we know the dealer's home + the deal's
+        // coords, require the deal to fall within range. If either side lacks coordinates we DON'T
+        // gate on distance (avoid silently hiding deals we just couldn't place).
+        if (search.max_distance_miles && search.max_distance_miles > 0) {
+          const home = homeByUser.get(search.user_id);
+          if (home && deal.lat != null && deal.lng != null) {
+            if (
+              !withinMiles(
+                home,
+                { lat: deal.lat, lng: deal.lng },
+                Number(search.max_distance_miles),
+              )
+            ) {
+              matched = false;
+            }
+          }
+        }
 
         if (matched) {
           matches.push({

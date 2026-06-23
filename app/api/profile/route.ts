@@ -6,6 +6,7 @@ import {
   createServerComponentClient,
 } from "@/lib/supabase";
 import { getServerUser } from "@/lib/server-supabase";
+import { geocodePlace } from "@/lib/geo/geocode";
 
 export async function GET() {
   const supabase = createServerComponentClient();
@@ -83,6 +84,28 @@ export async function POST(req: NextRequest) {
     ...(body.onboarded !== undefined && { onboarded: body.onboarded }),
     updated_at: new Date().toISOString(),
   };
+
+  // Geocode the dealer's home when their location changes, so saved-search radius matching and
+  // "deals near me" work. Best-effort — a lookup failure just leaves home coords unchanged.
+  if (
+    body.home_zip !== undefined ||
+    body.home_state !== undefined ||
+    body.city !== undefined
+  ) {
+    try {
+      const coords = await geocodePlace(supabase, {
+        zip: body.home_zip,
+        city: body.city,
+        state: body.state ?? body.home_state,
+      });
+      if (coords) {
+        (updates as any).home_lat = coords.lat;
+        (updates as any).home_lng = coords.lng;
+      }
+    } catch {
+      /* non-fatal */
+    }
+  }
 
   const { data: profile, error } = await supabase
     .from("user_profiles")
