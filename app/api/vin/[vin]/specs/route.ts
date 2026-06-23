@@ -72,12 +72,13 @@ export async function GET(
     recalls_at:
       recalls != null ? new Date().toISOString() : (cached?.recalls_at ?? null),
   };
-  sb.from("vin_decodes")
-    .upsert(row, { onConflict: "vin" })
-    .then(
-      () => {},
-      () => {},
-    );
+  // Await the cache write so it actually persists — a fire-and-forget promise gets dropped when the
+  // handler returns, so every call would otherwise re-hit NHTSA.
+  try {
+    await sb.from("vin_decodes").upsert(row, { onConflict: "vin" });
+  } catch {
+    /* non-fatal */
+  }
 
   return NextResponse.json({ vin, ...toResponse(row), cached: false });
 }
