@@ -36,7 +36,9 @@ function mapCraigslistTitle(status?: string): string | undefined {
   return undefined; // lien/missing/etc → leave as-is
 }
 
-async function enrichCraigslistDetail(url: string): Promise<Partial<Deal>> {
+export async function enrichCraigslistDetail(
+  url: string,
+): Promise<Partial<Deal>> {
   try {
     const axios = (await import("axios")).default;
     const cheerio = await import("cheerio");
