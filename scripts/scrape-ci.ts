@@ -153,6 +153,45 @@ async function canonicalizeNew(limit: number): Promise<void> {
   if (n) console.log(`🏷️  canonicalized ${n} deals from VIN`);
 }
 
+// Permanently host top GO deals' photos in Supabase Storage (instant, no hotlink/proxy, no expiry).
+async function cacheGoPhotos(limit: number): Promise<void> {
+  const { createClient } = await import("@supabase/supabase-js");
+  const { cacheVehiclePhotos } = await import("../lib/images/cache");
+  const sb = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  );
+  const { data } = await sb
+    .from("deals")
+    .select("id, images")
+    .eq("active", true)
+    .eq("deal_verdict", "go")
+    .or("images_cached.is.null,images_cached.eq.false")
+    .not("images", "is", null)
+    .neq("images", "{}")
+    .order("profit_score", { ascending: false, nullsFirst: false })
+    .limit(limit);
+  let n = 0;
+  for (const d of data || []) {
+    const urls = (Array.isArray(d.images) ? d.images : []).filter((u: string) =>
+      /^https?:\/\//.test(u),
+    );
+    if (!urls.length) {
+      await sb.from("deals").update({ images_cached: true }).eq("id", d.id);
+      continue;
+    }
+    const hosted = await cacheVehiclePhotos(sb, d.id, urls, 5);
+    if (hosted.length) {
+      await sb
+        .from("deals")
+        .update({ images: hosted, images_cached: true })
+        .eq("id", d.id);
+      n++;
+    }
+  }
+  if (n) console.log(`📦 hosted ${n} GO deals' photos in storage`);
+}
+
 async function main() {
   const sources = resolveSources();
 
@@ -229,6 +268,11 @@ async function main() {
       await canonicalizeNew(parseInt(process.env.CANON_MAX || "40", 10));
     } catch (e) {
       console.warn("canonicalize skipped:", (e as Error).message);
+    }
+    try {
+      await cacheGoPhotos(parseInt(process.env.CACHE_PHOTOS_MAX || "12", 10));
+    } catch (e) {
+      console.warn("photo hosting skipped:", (e as Error).message);
     }
   }
 

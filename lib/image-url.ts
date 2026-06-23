@@ -5,7 +5,9 @@ export function proxiedImage(url?: string | null): string {
   if (
     url.startsWith("/") ||
     url.startsWith("data:") ||
-    url.includes("/api/image/proxy")
+    url.includes("/api/image/proxy") ||
+    // Already permanently hosted by us in Supabase Storage — serve directly, no proxy.
+    url.includes("/storage/v1/object/public/vehicle-photos/")
   )
     return url;
   if (!/^https?:\/\//.test(url)) return url;
