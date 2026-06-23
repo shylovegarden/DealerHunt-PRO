@@ -81,6 +81,9 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
         location_city: cleanCity(deal.location_city),
         location_state: deal.location_state,
         location_zip: deal.location_zip,
+        // Listing photos (the `images` text[] column exists). Without this every scraped/ingested
+        // deal showed a placeholder card.
+        images: Array.isArray(deal.images) ? deal.images.slice(0, 12) : [],
         // Generated/non-existent columns commented out to prevent PGRST204 errors
         // description: deal.description,
         // seller: deal.seller,
