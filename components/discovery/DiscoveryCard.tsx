@@ -242,6 +242,16 @@ export const DiscoveryCard = memo(function DiscoveryCard({
           </span>
         )}
 
+        {/* Contextual reason (distance, win-pattern) when a rail provides one */}
+        {deal.winReason && (
+          <span
+            className="w-fit inline-flex items-center gap-1 rounded-[var(--r1)] px-2 py-0.5 text-[10px] font-semibold"
+            style={{ background: "var(--amber-lo)", color: "var(--amber-d)" }}
+          >
+            {deal.winReason}
+          </span>
+        )}
+
         {/* Price + max bid hint */}
         <div className="mt-auto flex items-end justify-between gap-2 pt-1">
           <div>

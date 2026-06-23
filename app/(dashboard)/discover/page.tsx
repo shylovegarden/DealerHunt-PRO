@@ -176,6 +176,11 @@ export default function DiscoverPage() {
         title="📉 Underpriced vs peers"
         subtitle="Statistical outliers priced well under their cluster"
       />
+      <IntelRail
+        endpoint="/api/deals/near"
+        title="📍 Near you"
+        subtitle="Closest GO deals to your home base — set your ZIP in Settings"
+      />
 
       {/* Body */}
       {isLoading ? (

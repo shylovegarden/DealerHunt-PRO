@@ -37,6 +37,9 @@ export interface DiscoveryDeal {
   alsoOn: AlsoOn[];
   listingCount: number;
   firstSeenAt?: string;
+  /** Optional context line shown on the card (e.g. "32 mi from you", win-pattern reason). */
+  winReason?: string;
+  distanceMiles?: number;
 }
 
 export interface DiscoveryRail {
