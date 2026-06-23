@@ -166,8 +166,10 @@ export function analyzeDeal(deal: Partial<Deal>): DealAnalysis {
     deal.mileage,
     deal.trim,
   );
+  // Tight upper bound: over-valuing (fake GO deals that lose money) is worse than under-valuing, so
+  // reject any comp/market value above 1.9× the trim-aware baseline and fall back to the baseline.
   const sane = (v: number) =>
-    baseline <= 0 ? v > 0 : v >= baseline * 0.4 && v <= baseline * 2.2;
+    baseline <= 0 ? v > 0 : v >= baseline * 0.4 && v <= baseline * 1.9;
 
   let sellEstimate: number;
   let sellBasis: "comps" | "market" | "baseline";

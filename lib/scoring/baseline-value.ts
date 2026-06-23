@@ -22,7 +22,7 @@ const BASE_NEW: Record<Segment, number> = {
   midsize_suv: 34000,
   compact_suv: 26000,
   sports: 34000,
-  luxury: 45000,
+  luxury: 40000,
   minivan: 33000,
   sedan: 24000,
 };
