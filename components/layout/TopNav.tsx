@@ -22,12 +22,14 @@ import {
   FileCheck,
   Code2,
   Sparkles,
+  MapPin,
 } from "lucide-react";
 
 const NAV_ITEMS = [
   { name: "Discover", href: "/discover", icon: Compass },
   { name: "Find", href: "/find", icon: Map },
   { name: "Scan", href: "/scan", icon: Search },
+  { name: "Map", href: "/map", icon: MapPin },
   { name: "Bulk", href: "/bulk", icon: Layers },
   { name: "Saved", href: "/saved", icon: Bookmark },
   { name: "Alerts", href: "/searches", icon: Bell },

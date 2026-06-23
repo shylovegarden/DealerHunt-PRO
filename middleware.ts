@@ -9,6 +9,7 @@ const protectedRoutes = [
   "/scan",
   "/discover",
   "/find",
+  "/map",
   "/bulk",
   "/saved",
   "/move",
