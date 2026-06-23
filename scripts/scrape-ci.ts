@@ -80,6 +80,76 @@ async function enrichGoBacklog(limit: number): Promise<void> {
   if (n) console.log(`🖼️  topped up ${n} GO deals with real photos/VIN`);
 }
 
+// Decode + canonicalize active deals whose VINs haven't been decoded yet — cleans make/model and
+// adds the real trim from NHTSA (VIN = ground truth). Bounded per cycle; converges over time.
+async function canonicalizeNew(limit: number): Promise<void> {
+  const { createClient } = await import("@supabase/supabase-js");
+  const { decodeVin } = await import("../lib/vehicle/nhtsa");
+  const { isValidVin } = await import("../lib/vehicle/vin");
+  const { titleCaseMake, canonicalModel } =
+    await import("../lib/vehicle/canonical");
+  const sb = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  );
+  const { data: deals } = await sb
+    .from("deals")
+    .select("id, vin, make, model, trim")
+    .eq("active", true)
+    .not("vin", "is", null)
+    .neq("vin", "")
+    .order("profit_score", { ascending: false, nullsFirst: false })
+    .limit(400);
+  if (!deals?.length) return;
+
+  const vins = Array.from(new Set(deals.map((d) => d.vin)));
+  const { data: existing } = await sb
+    .from("vin_decodes")
+    .select("vin")
+    .in("vin", vins);
+  const done = new Set((existing || []).map((d) => d.vin));
+
+  let n = 0;
+  for (const d of deals) {
+    if (n >= limit) break;
+    if (!d.vin || done.has(d.vin) || !isValidVin(d.vin)) continue;
+    const dec = await decodeVin(d.vin);
+    if (dec?.make && dec.model) {
+      try {
+        await sb.from("vin_decodes").upsert(
+          {
+            vin: d.vin,
+            make: dec.make,
+            model: dec.model,
+            trim: dec.trim,
+            body_class: dec.bodyClass,
+            drive_type: dec.driveType,
+            fuel_type: dec.fuelType,
+            cylinders: dec.cylinders,
+            displacement_l: dec.displacementL,
+            plant_country: dec.plantCountry,
+            made_in_usa: dec.madeInUsa,
+          },
+          { onConflict: "vin" },
+        );
+      } catch {
+        /* ignore */
+      }
+      const make = titleCaseMake(dec.make);
+      const model = canonicalModel(dec.model);
+      const patch: any = {};
+      if (make && make !== d.make) patch.make = make;
+      if (model && model !== d.model) patch.model = model;
+      if (dec.trim && !d.trim) patch.trim = dec.trim;
+      if (Object.keys(patch).length)
+        await sb.from("deals").update(patch).eq("id", d.id);
+      n++;
+    }
+    await new Promise((r) => setTimeout(r, 150));
+  }
+  if (n) console.log(`🏷️  canonicalized ${n} deals from VIN`);
+}
+
 async function main() {
   const sources = resolveSources();
 
@@ -151,6 +221,11 @@ async function main() {
       await enrichGoBacklog(parseInt(process.env.GO_ENRICH_MAX || "30", 10));
     } catch (e) {
       console.warn("GO photo top-up skipped:", (e as Error).message);
+    }
+    try {
+      await canonicalizeNew(parseInt(process.env.CANON_MAX || "40", 10));
+    } catch (e) {
+      console.warn("canonicalize skipped:", (e as Error).message);
     }
   }
 
