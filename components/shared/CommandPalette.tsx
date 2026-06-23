@@ -19,67 +19,142 @@ export function CommandPalette() {
   const [selected, setSelected] = useState(0);
   const router = useRouter();
 
-  const commands: Command[] = useMemo(
-    () => [
+  const commands: Command[] = useMemo(() => {
+    const dest: {
+      id: string;
+      label: string;
+      icon: string;
+      href: string;
+      keywords?: string[];
+    }[] = [
       {
-        id: "find",
-        label: "Find Deals",
+        id: "today",
+        label: "Today",
+        icon: "scan",
+        href: "/today",
+        keywords: ["home", "dashboard", "pulse"],
+      },
+      {
+        id: "discover",
+        label: "Discover",
         icon: "search",
-        action: () => router.push("/find"),
-        keywords: ["arbitrage", "deals"],
+        href: "/discover",
+        keywords: ["deals", "feed", "flash"],
       },
       {
         id: "scan",
         label: "Scan Market",
         icon: "scan",
-        action: () => router.push("/scan"),
-        keywords: ["search", "market"],
+        href: "/scan",
+        keywords: ["search", "grid", "filter"],
+      },
+      {
+        id: "map",
+        label: "Deal Map",
+        icon: "map",
+        href: "/map",
+        keywords: ["location", "near", "geo"],
+      },
+      {
+        id: "insights",
+        label: "Intel & ROI",
+        icon: "trending-up",
+        href: "/insights",
+        keywords: ["intelligence", "outcomes", "calibration", "roi"],
+      },
+      {
+        id: "status",
+        label: "System Status",
+        icon: "bot",
+        href: "/status",
+        keywords: ["health", "freshness", "pipeline"],
       },
       {
         id: "saved",
         label: "Saved Vehicles",
         icon: "car",
-        action: () => router.push("/saved"),
+        href: "/saved",
         keywords: ["watchlist", "bookmarks"],
+      },
+      {
+        id: "alerts",
+        label: "Alerts",
+        icon: "bell",
+        href: "/alerts",
+        keywords: ["notifications", "matches"],
+      },
+      {
+        id: "bulk",
+        label: "Bulk Sourcing",
+        icon: "fleet",
+        href: "/bulk",
+        keywords: ["multi", "wholesale"],
+      },
+      {
+        id: "compare",
+        label: "Compare",
+        icon: "filter",
+        href: "/compare",
+        keywords: ["versus", "leaderboard"],
+      },
+      {
+        id: "check",
+        label: "Deal Check",
+        icon: "calculator",
+        href: "/deal-check",
+        keywords: ["analyze", "fees"],
       },
       {
         id: "fleet",
         label: "Fleet Management",
         icon: "fleet",
-        action: () => router.push("/fleet"),
+        href: "/fleet",
         keywords: ["inventory"],
       },
       {
         id: "finance",
         label: "Finance Calculator",
         icon: "finance",
-        action: () => router.push("/finance"),
+        href: "/finance",
         keywords: ["floor plan", "lender"],
       },
       {
         id: "parts",
         label: "Parts Teardown",
         icon: "parts",
-        action: () => router.push("/parts"),
+        href: "/parts",
         keywords: ["salvage", "repair"],
       },
       {
         id: "move",
         label: "Transport Quotes",
         icon: "move",
-        action: () => router.push("/move"),
+        href: "/move",
         keywords: ["shipping", "logistics"],
+      },
+      {
+        id: "developer",
+        label: "Developer API",
+        icon: "bot",
+        href: "/developer",
+        keywords: ["mcp", "api", "keys"],
       },
       {
         id: "settings",
         label: "Settings",
         icon: "settings",
-        action: () => router.push("/settings"),
+        href: "/settings",
         keywords: ["preferences", "profile"],
       },
-    ],
-    [router],
-  );
+    ];
+    return dest.map((d) => ({
+      id: d.id,
+      label: d.label,
+      icon: d.icon,
+      keywords: d.keywords,
+      action: () => router.push(d.href),
+    }));
+  }, [router]);
 
   const filteredCommands = useMemo(() => {
     if (!search) return commands;
