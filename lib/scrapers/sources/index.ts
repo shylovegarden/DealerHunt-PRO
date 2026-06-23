@@ -14,6 +14,7 @@ import {
 } from "../engine";
 import { upsertDeals } from "../pipeline";
 import { CRAIGSLIST_SITES, US_STATES } from "@/lib/geo";
+import { isValidVin, extractVin, normalizeVin } from "@/lib/vehicle/vin";
 import pLimit from "p-limit";
 
 // ── Detail-page enrichment ───────────────────────────────────────────────────
@@ -51,15 +52,15 @@ async function enrichCraigslistDetail(url: string): Promise<Partial<Deal>> {
     const attr = (cls: string) =>
       $(`.attr.${cls} .valu, .attr.${cls} a`).first().text().trim();
 
-    // VIN — dedicated attr, else scan the attribute group text for a 17-char VIN.
-    let vin = attr("auto_vin");
-    if (!vin || vin.length !== 17) {
-      const m = $(".attrgroup")
-        .text()
-        .match(/\b([A-HJ-NPR-Z0-9]{17})\b/);
-      if (m) vin = m[1];
-    }
-    if (vin && vin.length === 17) out.vin = vin.toUpperCase();
+    // VIN — dedicated attr (validated), else scan the attribute group AND the posting body for a
+    // checksum-valid VIN. Check-digit validation rejects the random 17-char strings that the old
+    // length-only test let through.
+    const vinAttr = attr("auto_vin");
+    const vin =
+      (isValidVin(vinAttr) && normalizeVin(vinAttr)) ||
+      extractVin($(".attrgroup").text()) ||
+      extractVin($("#postingbody").text());
+    if (vin) out.vin = vin;
 
     // Odometer / true mileage.
     const odo = attr("auto_miles") || attr("odometer");

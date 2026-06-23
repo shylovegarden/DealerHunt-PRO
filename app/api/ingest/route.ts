@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
 import { upsertDeals } from "@/lib/scrapers/pipeline";
+import { isValidVin, extractVin, normalizeVin } from "@/lib/vehicle/vin";
 
 // Valid deal_source enum values (DB). Anything else is coerced to a safe default.
 const VALID_SOURCES = new Set([
@@ -81,6 +82,15 @@ export async function POST(req: Request) {
 
     // Sold-detection: a "sold" listing is a real transaction price, not active inventory. Capture it
     // into sold_listings (powers the sold-comps feature) instead of the active deals table.
+    // VIN: trust a provided VIN only if it passes the check digit; otherwise try to recover one
+    // from the title/description/url text the extension sent. null when nothing valid is found.
+    const vin =
+      (isValidVin(String(data.vin || "")) && normalizeVin(String(data.vin))) ||
+      extractVin(
+        `${data.vin || ""} ${data.title || ""} ${data.description || ""} ${data.url || ""}`,
+      ) ||
+      null;
+
     const soldText =
       `${data.title || ""} ${data.url || ""} ${data.status || ""}`.toLowerCase();
     const isSold =
@@ -92,7 +102,7 @@ export async function POST(req: Request) {
         await createServerComponentClient()
           .from("sold_listings")
           .insert({
-            vin: data.vin && String(data.vin).length === 17 ? data.vin : null,
+            vin,
             year: data.year ?? null,
             make: data.make ?? null,
             model: data.model ?? null,
@@ -121,7 +131,7 @@ export async function POST(req: Request) {
       year: data.year,
       make: data.make,
       model: data.model,
-      vin: data.vin && String(data.vin).length === 17 ? data.vin : undefined,
+      vin: vin ?? undefined,
       ask_price: rawPrice,
       condition: coerceCondition(data.title_type || data.condition),
       damage_type: data.damage_type,
