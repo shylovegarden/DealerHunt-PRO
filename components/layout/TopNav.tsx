@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
@@ -26,38 +26,94 @@ import {
   MapPin,
   Activity as ActivityIcon,
   Home as HomeIcon,
+  List as ListIcon,
+  FileText,
+  ChevronDown,
 } from "lucide-react";
 
-const NAV_ITEMS = [
+// Clean primary nav — the core demo path. Everything else lives under "More".
+const PRIMARY = [
   { name: "Today", href: "/today", icon: HomeIcon },
   { name: "Discover", href: "/discover", icon: Compass },
-  { name: "Find", href: "/find", icon: Map },
   { name: "Scan", href: "/scan", icon: Search },
   { name: "Map", href: "/map", icon: MapPin },
-  { name: "Bulk", href: "/bulk", icon: Layers },
-  { name: "Saved", href: "/saved", icon: Bookmark },
-  { name: "Alerts", href: "/searches", icon: Bell },
-  { name: "Move", href: "/move", icon: Truck },
-  { name: "Fleet", href: "/fleet", icon: Clock },
-  { name: "Recon", href: "/recon", icon: Activity },
-  { name: "Finance", href: "/finance", icon: Wallet },
-  { name: "Parts", href: "/parts", icon: Wrench },
-  { name: "Compare", href: "/compare", icon: GitCompare },
-  { name: "Check", href: "/deal-check", icon: FileCheck },
   { name: "Intel", href: "/insights", icon: TrendingUp },
-  { name: "API", href: "/developer", icon: Code2 },
-  { name: "Status", href: "/status", icon: ActivityIcon },
-  { name: "Upgrade", href: "/upgrade", icon: Sparkles },
 ];
+
+const MORE_GROUPS = [
+  {
+    group: "Source & analyze",
+    items: [
+      { name: "Find", href: "/find", icon: Map },
+      { name: "Bulk sourcing", href: "/bulk", icon: Layers },
+      { name: "Compare", href: "/compare", icon: GitCompare },
+      { name: "Deal Check", href: "/deal-check", icon: FileCheck },
+    ],
+  },
+  {
+    group: "Manage pipeline",
+    items: [
+      { name: "Fleet", href: "/fleet", icon: Clock },
+      { name: "Recon", href: "/recon", icon: Activity },
+      { name: "Finance", href: "/finance", icon: Wallet },
+      { name: "Transport", href: "/move", icon: Truck },
+      { name: "Parts", href: "/parts", icon: Wrench },
+      { name: "List", href: "/list", icon: ListIcon },
+    ],
+  },
+  {
+    group: "System",
+    items: [
+      { name: "System status", href: "/status", icon: ActivityIcon },
+      { name: "Developer API", href: "/developer", icon: Code2 },
+      { name: "Changelog", href: "/changelog", icon: FileText },
+      { name: "Upgrade", href: "/upgrade", icon: Sparkles },
+    ],
+  },
+];
+
+const MORE_HREFS = MORE_GROUPS.flatMap((g) => g.items.map((i) => i.href));
+
+function IconBtn({
+  href,
+  title,
+  children,
+  badge,
+}: {
+  href: string;
+  title: string;
+  children: React.ReactNode;
+  badge?: number;
+}) {
+  return (
+    <Link
+      href={href}
+      title={title}
+      className="relative flex h-9 w-9 items-center justify-center rounded-xl transition-colors text-[var(--t3)] hover:text-[var(--t1)]"
+      style={{ background: "var(--s0)", boxShadow: "var(--shadow2)" }}
+    >
+      {children}
+      {badge != null && badge > 0 && (
+        <span
+          className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full text-[10px] font-bold text-white"
+          style={{ background: "var(--amber)", lineHeight: 1 }}
+        >
+          {badge > 99 ? "99+" : badge}
+        </span>
+      )}
+    </Link>
+  );
+}
 
 export function TopNav() {
   const pathname = usePathname();
   const [alertCount, setAlertCount] = useState(0);
   const [scrolled, setScrolled] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancelled = false;
-
     async function fetchAlerts() {
       try {
         const res = await fetch("/api/alerts/unread", { cache: "no-store" });
@@ -65,10 +121,9 @@ export function TopNav() {
         const data = await res.json();
         if (!cancelled) setAlertCount(data.count ?? 0);
       } catch {
-        // silent
+        /* silent */
       }
     }
-
     fetchAlerts();
     const interval = setInterval(fetchAlerts, 120_000);
     return () => {
@@ -82,6 +137,24 @@ export function TopNav() {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  // Close the More menu on navigation or outside click.
+  useEffect(() => setMoreOpen(false), [pathname]);
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      if (moreRef.current && !moreRef.current.contains(e.target as Node))
+        setMoreOpen(false);
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, []);
+
+  const moreActive = MORE_HREFS.includes(pathname);
+
+  const tabStyle = (active: boolean): React.CSSProperties =>
+    active
+      ? { background: "var(--grad)", color: "#fff" }
+      : { color: "var(--t4)" };
 
   return (
     <header
@@ -97,7 +170,7 @@ export function TopNav() {
     >
       {/* LEFT: Logo */}
       <div className="flex items-center gap-3 flex-shrink-0">
-        <Link href="/scan" className="flex items-center gap-2.5 group">
+        <Link href="/today" className="flex items-center gap-2.5 group">
           <div
             className="w-8 h-8 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105"
             style={{ background: "var(--grad)" }}
@@ -110,36 +183,27 @@ export function TopNav() {
         </Link>
       </div>
 
-      {/* CENTER: Navigation (Desktop Only) */}
+      {/* CENTER: Primary nav + More (desktop) */}
       <nav className="hidden md:flex items-center gap-0.5 absolute left-1/2 -translate-x-1/2">
-        {NAV_ITEMS.map((item) => {
-          const isActive =
+        {PRIMARY.map((item) => {
+          const active =
             pathname === item.href ||
-            (item.href === "/scan" && pathname === "/");
+            (item.href === "/today" && pathname === "/");
           return (
             <Link
               key={item.name}
               href={item.href}
               className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[13px] font-semibold transition-all"
-              style={
-                isActive
-                  ? {
-                      background: "var(--grad)",
-                      color: "#fff",
-                    }
-                  : {
-                      color: "var(--t4)",
-                    }
-              }
+              style={tabStyle(active)}
               onMouseEnter={(e) => {
-                if (!isActive) {
+                if (!active) {
                   (e.currentTarget as HTMLElement).style.background =
                     "var(--s2)";
                   (e.currentTarget as HTMLElement).style.color = "var(--t1)";
                 }
               }}
               onMouseLeave={(e) => {
-                if (!isActive) {
+                if (!active) {
                   (e.currentTarget as HTMLElement).style.background =
                     "transparent";
                   (e.currentTarget as HTMLElement).style.color = "var(--t4)";
@@ -148,66 +212,102 @@ export function TopNav() {
             >
               <item.icon
                 className="h-3.5 w-3.5"
-                strokeWidth={isActive ? 2.5 : 2}
+                strokeWidth={active ? 2.5 : 2}
               />
               {item.name}
             </Link>
           );
         })}
+
+        {/* More dropdown */}
+        <div className="relative" ref={moreRef}>
+          <button
+            onClick={() => setMoreOpen((o) => !o)}
+            className="flex items-center gap-1 px-3.5 py-2 rounded-full text-[13px] font-semibold transition-all"
+            style={tabStyle(moreActive)}
+            onMouseEnter={(e) => {
+              if (!moreActive) {
+                (e.currentTarget as HTMLElement).style.background = "var(--s2)";
+                (e.currentTarget as HTMLElement).style.color = "var(--t1)";
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!moreActive) {
+                (e.currentTarget as HTMLElement).style.background =
+                  "transparent";
+                (e.currentTarget as HTMLElement).style.color = "var(--t4)";
+              }
+            }}
+          >
+            More
+            <ChevronDown
+              className="h-3 w-3 transition-transform"
+              style={{ transform: moreOpen ? "rotate(180deg)" : "none" }}
+            />
+          </button>
+
+          {moreOpen && (
+            <div
+              className="absolute right-0 mt-2 w-60 p-2 rounded-[var(--r3)] z-50"
+              style={{
+                background: "var(--s0)",
+                border: "1px solid var(--b1)",
+                boxShadow: "var(--shadow)",
+              }}
+            >
+              {MORE_GROUPS.map((g) => (
+                <div key={g.group} className="mb-1.5 last:mb-0">
+                  <p className="px-2 py-1 text-[10px] uppercase tracking-wider font-bold text-[var(--t5)]">
+                    {g.group}
+                  </p>
+                  {g.items.map((item) => {
+                    const active = pathname === item.href;
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        className="flex items-center gap-2.5 px-2 py-1.5 rounded-[var(--r2)] text-[13px] font-medium transition-colors"
+                        style={{
+                          color: active ? "var(--amber)" : "var(--t2)",
+                          background: active
+                            ? "var(--amber-lo)"
+                            : "transparent",
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!active)
+                            (e.currentTarget as HTMLElement).style.background =
+                              "var(--s2)";
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!active)
+                            (e.currentTarget as HTMLElement).style.background =
+                              "transparent";
+                        }}
+                      >
+                        <item.icon className="h-4 w-4 text-[var(--t4)]" />
+                        {item.name}
+                      </Link>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </nav>
 
       {/* RIGHT: Actions */}
       <div className="flex items-center gap-2 flex-shrink-0">
-        {/* Theme (light/dark/system) */}
         <ThemeToggle />
-
-        {/* Alerts bell */}
-        <Link
-          href="/alerts"
-          className="relative flex h-9 w-9 items-center justify-center rounded-xl transition-colors"
-          style={{
-            background: "var(--s0)",
-            boxShadow: "var(--shadow2)",
-            color: "var(--t3)",
-          }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLElement).style.color = "var(--t1)";
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLElement).style.color = "var(--t3)";
-          }}
-          title="Alerts"
-        >
+        <IconBtn href="/saved" title="Saved">
+          <Bookmark style={{ width: 17, height: 17 }} />
+        </IconBtn>
+        <IconBtn href="/alerts" title="Alerts" badge={alertCount}>
           <Bell style={{ width: 17, height: 17 }} />
-          {alertCount > 0 && (
-            <span
-              className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full text-[10px] font-bold text-white"
-              style={{ background: "var(--amber)", lineHeight: 1 }}
-            >
-              {alertCount > 99 ? "99+" : alertCount}
-            </span>
-          )}
-        </Link>
-
-        {/* Settings */}
-        <Link
-          href="/settings"
-          className="flex h-9 w-9 items-center justify-center rounded-xl transition-colors"
-          style={{
-            background: "var(--s0)",
-            boxShadow: "var(--shadow2)",
-            color: "var(--t3)",
-          }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLElement).style.color = "var(--t1)";
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLElement).style.color = "var(--t3)";
-          }}
-          title="Settings"
-        >
+        </IconBtn>
+        <IconBtn href="/settings" title="Settings">
           <Settings style={{ width: 17, height: 17 }} />
-        </Link>
+        </IconBtn>
       </div>
     </header>
   );
