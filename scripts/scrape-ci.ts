@@ -16,8 +16,9 @@
  */
 import * as dotenv from "dotenv";
 import path from "path";
-import { runScrapers } from "../lib/scrapers/runner";
 
+// Load env BEFORE importing the scraper — the Craigslist module resolves its city list at import,
+// so adaptive selection (below) must set CL_CITIES first. Hence runScrapers is imported dynamically.
 dotenv.config({ path: path.resolve(process.cwd(), ".env.local") });
 
 // $0-friendly defaults: no dealer login, no paid proxy. Copart uses FlareSolverr (free).
@@ -57,9 +58,32 @@ async function main() {
     );
   }
 
+  // Adaptive scheduling: scrape the stalest cities first (unless CL_CITIES is explicitly pinned).
+  if (
+    process.env.CL_ADAPTIVE === "1" &&
+    sources.includes("craigslist") &&
+    !process.env.CL_CITIES
+  ) {
+    try {
+      const { selectStaleCities } = await import("../lib/scrapers/adaptive");
+      const count = parseInt(process.env.CL_ADAPTIVE_COUNT || "14", 10);
+      const cities = await selectStaleCities(count);
+      if (cities.length) {
+        process.env.CL_CITIES = cities.join(",");
+        console.log(
+          `🧭 adaptive: ${cities.length} stalest cities → ${cities.slice(0, 6).join(", ")}…`,
+        );
+      }
+    } catch (e) {
+      console.warn("adaptive selection failed; using default rotation:", e);
+    }
+  }
+
   console.log(`🚀 scrape:ci starting — sources: ${sources.join(", ")}`);
   const startedAt = Date.now();
 
+  // Dynamic import so the adaptive CL_CITIES above is in place before the scraper resolves cities.
+  const { runScrapers } = await import("../lib/scrapers/runner");
   const results = await runScrapers({
     orchestrator: "concurrent",
     sourceIds: sources,

@@ -11,14 +11,10 @@ set -euo pipefail
 cd "$(cd "$(dirname "$0")/.." && pwd)"
 export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 
-SHARDS="${CL_SHARDS:-8}"
-STATE="${TMPDIR:-/tmp}/dhp-scrape-shard"
-SHARD="$(cat "$STATE" 2>/dev/null || echo 0)"
-NEXT="$(( (SHARD + 1) % SHARDS ))"
-echo "$NEXT" > "$STATE"
-
+# Adaptive scheduling: each run scrapes the stalest cities first (self-optimizing coverage). The
+# scraper picks them from deal freshness — no shard bookkeeping needed.
 LOG="${TMPDIR:-/tmp}/dhp-scrape.log"
-echo "[$(date '+%F %T')] start shard ${SHARD}/${SHARDS}" >> "$LOG"
-SCRAPE_SOURCES=craigslist CL_SHARDS="$SHARDS" CL_SHARD="$SHARD" \
+echo "[$(date '+%F %T')] start (adaptive)" >> "$LOG"
+SCRAPE_SOURCES=craigslist CL_ADAPTIVE=1 CL_ADAPTIVE_COUNT="${CL_ADAPTIVE_COUNT:-14}" \
   npm run scrape:ci >> "$LOG" 2>&1
 echo "[$(date '+%F %T')] done" >> "$LOG"
