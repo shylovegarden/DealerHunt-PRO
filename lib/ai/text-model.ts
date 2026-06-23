@@ -18,7 +18,8 @@ export function getTextModel() {
     const { openai } = require("@ai-sdk/openai");
     return openai("gpt-4o-mini");
   }
-  return google("models/gemini-1.5-flash");
+  // Gemini free tier — current model (1.5-flash is retired). Used when only the Google key is set.
+  return google("gemini-2.0-flash");
 }
 
 export function activeProvider(): "openai" | "google" | "none" {

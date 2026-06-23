@@ -1,4 +1,4 @@
-import { createGoogleGenerativeAI } from '@ai-sdk/google';
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
 
 // Create a configured Google provider
 export const google = createGoogleGenerativeAI({
@@ -6,5 +6,5 @@ export const google = createGoogleGenerativeAI({
 });
 
 // We can export configured models here for reuse
-export const defaultModel = google('models/gemini-1.5-flash');
-export const structuredModel = google('models/gemini-1.5-pro'); // Better for complex JSON schema extraction
+export const defaultModel = google("gemini-2.0-flash");
+export const structuredModel = google("gemini-2.0-flash"); // current free-tier flash; handles JSON schema extraction
