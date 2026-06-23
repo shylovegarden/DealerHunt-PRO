@@ -7,7 +7,7 @@
 // Dealer/marketing/finance tokens that never appear in a real city name (word-bounded so "Lincoln"
 // isn't caught by "inc", etc.).
 const JUNK_WORDS =
-  /\b(approv\w*|habla|espanol|español|blowout|financ\w*|warranty|guarantee\w*|wholesale|llc|inc|corp|motors?|dealers?|auto|autos|sales|dealership|credit|special|certified|inventory|showroom|clearance|outlet)\b/i;
+  /\b(approv\w*|habla|espanol|español|blowout|financ\w*|warranty|guarantee\w*|wholesale|llc|inc|corp|motors?|dealers?|auto|autos|sales|dealership|credit|special|certified|inventory|showroom|clearance|outlet|sellers?|private|marketplace|listing|autotrader|craigslist)\b/i;
 
 export function cleanCity(raw: string | null | undefined): string | null {
   if (!raw) return null;

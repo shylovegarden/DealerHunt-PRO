@@ -41,6 +41,8 @@ describe("cleanCity", () => {
       "City Motor Miami LLC",
       "AML AUTO SALES",
       "Bob's Certified Dealership",
+      "Autotrader Private Seller",
+      "Private Seller",
     ]) {
       expect(cleanCity(j)).toBeNull();
     }
