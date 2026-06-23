@@ -136,6 +136,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
               sellEstimate: deal.sellEstimate,
               trueNetProfit: deal.trueNetProfit,
               distressed: (deal as any).distressed,
+              dealVerdict: (deal as any).dealVerdict ?? (deal as any).verdict,
             });
             if (!iq) return null;
             return (
