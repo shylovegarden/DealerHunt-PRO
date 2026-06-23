@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import NextImage from "next/image";
 import { Ico } from "./Ico";
 import { cn } from "@/lib/utils";
+import { proxiedImage } from "@/lib/image-url";
 
 interface ImageGalleryProps {
   images?: string[];
@@ -11,9 +12,11 @@ interface ImageGalleryProps {
 }
 
 export function ImageGallery({
-  images = [],
+  images: rawImages = [],
   title = "Vehicle Image",
 }: ImageGalleryProps) {
+  // Route every photo through the proxy so hotlink-protected sources load.
+  const images = (rawImages || []).map(proxiedImage).filter(Boolean);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const [imageLoaded, setImageLoaded] = useState<Record<number, boolean>>({});

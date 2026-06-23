@@ -6,6 +6,7 @@ import { DealGradeBadge } from "./DealGradeBadge";
 import type { DiscoveryDeal } from "./types";
 import { liteDealIQ, IQ_TIER_COLOR } from "@/lib/intelligence/lite-iq";
 import { daysOnMarket, domTier } from "@/lib/intelligence/days-on-market";
+import { proxiedImage } from "@/lib/image-url";
 
 const TITLE_STYLES: Record<
   string,
@@ -60,7 +61,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
   deal: DiscoveryDeal;
 }) {
   const [imgFailed, setImgFailed] = useState(false);
-  const img = deal.images?.[0];
+  const img = proxiedImage(deal.images?.[0]);
   const showImg = img && !imgFailed;
   const title =
     deal.title ||
