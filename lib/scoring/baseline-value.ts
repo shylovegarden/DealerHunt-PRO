@@ -156,16 +156,32 @@ export function classifySegment(make: string, model: string): Segment {
   return "sedan";
 }
 
-/** Realistic resale value from age + mileage, no external data. */
+// Trim tier → a multiplier on the segment baseline, so a Shelby/Raptor isn't valued like a base V6,
+// and a work truck isn't valued like a loaded one. Coarse but trim-aware; pure.
+const PERF =
+  /\b(shelby|gt500|gt350|raptor|hellcat|redeye|trackhawk|srt|scat ?pack|trd ?pro|rubicon|denali|platinum|king ranch|high country|limited|laramie|type ?r|type ?s|amg|sahara|z71|zr2)\b/i;
+const BASE_TRIM =
+  /\b(base|work ?truck|tradesman|fleet|ls|se|sv|standard|value)\b/i;
+
+export function trimTierMultiplier(trim?: string | null): number {
+  const t = (trim || "").toLowerCase();
+  if (!t) return 1;
+  if (PERF.test(t)) return 1.25;
+  if (BASE_TRIM.test(t)) return 0.88;
+  return 1;
+}
+
+/** Realistic resale value from age + mileage (+ trim tier), no external data. */
 export function estimateBaselineValue(
   year: number | null | undefined,
   make: string | null | undefined,
   model: string | null | undefined,
   mileage?: number | null,
+  trim?: string | null,
 ): number {
   if (!year || year < 1950) return 0;
   const seg = classifySegment(make || "", model || "");
-  let value = BASE_NEW[seg];
+  let value = BASE_NEW[seg] * trimTierMultiplier(trim);
 
   const nowYear = 2026;
   const age = Math.max(0, Math.min(25, nowYear - year));

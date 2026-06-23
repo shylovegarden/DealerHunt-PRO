@@ -157,13 +157,14 @@ export function analyzeDeal(deal: Partial<Deal>): DealAnalysis {
   const hasMarket = typeof deal.mmr_value === "number" && deal.mmr_value > 0;
   const aggregate = lookupMarketAggregate(deal.make, deal.model, deal.year);
 
-  // Free offline baseline (segment depreciation). Doubles as a SANITY GATE so a single outlier comp
-  // (e.g. a $42k Shelby setting the "Mustang" median) can't produce a wild resale value.
+  // Free offline baseline (segment depreciation + trim tier). Doubles as a SANITY GATE so a single
+  // outlier comp (e.g. a $42k Shelby setting the "Mustang" median) can't produce a wild resale value.
   const baseline = estimateBaselineValue(
     deal.year,
     deal.make,
     deal.model,
     deal.mileage,
+    deal.trim,
   );
   const sane = (v: number) =>
     baseline <= 0 ? v > 0 : v >= baseline * 0.4 && v <= baseline * 2.2;
@@ -171,7 +172,18 @@ export function analyzeDeal(deal: Partial<Deal>): DealAnalysis {
   let sellEstimate: number;
   let sellBasis: "comps" | "market" | "baseline";
   if (comps?.retail && sane(comps.retail)) {
-    sellEstimate = comps.retail;
+    // Confidence-blend: deep buckets trust the comps; thin/mixed-trim buckets get pulled toward the
+    // trim-aware baseline so one premium-trim listing can't over-value a base unit.
+    const w =
+      comps.confidence === "high"
+        ? 1
+        : comps.confidence === "medium"
+          ? 0.7
+          : 0.45;
+    sellEstimate =
+      baseline > 0
+        ? Math.round(comps.retail * w + baseline * (1 - w))
+        : comps.retail;
     sellBasis = "comps";
   } else if (hasMarket && sane(deal.mmr_value as number)) {
     sellEstimate = deal.mmr_value as number;

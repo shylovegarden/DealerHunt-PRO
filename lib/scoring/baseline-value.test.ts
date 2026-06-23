@@ -1,5 +1,32 @@
 import { describe, it, expect } from "vitest";
-import { estimateBaselineValue, classifySegment } from "./baseline-value";
+import {
+  estimateBaselineValue,
+  classifySegment,
+  trimTierMultiplier,
+} from "./baseline-value";
+
+describe("trimTierMultiplier", () => {
+  it("bumps performance/premium trims, docks base trims", () => {
+    expect(trimTierMultiplier("Shelby GT500")).toBeGreaterThan(1);
+    expect(trimTierMultiplier("Raptor")).toBeGreaterThan(1);
+    expect(trimTierMultiplier("Denali")).toBeGreaterThan(1);
+    expect(trimTierMultiplier("Work Truck")).toBeLessThan(1);
+    expect(trimTierMultiplier("LS")).toBeLessThan(1);
+    expect(trimTierMultiplier("GT")).toBe(1);
+    expect(trimTierMultiplier(null)).toBe(1);
+  });
+  it("makes a Shelby worth more than a base Mustang", () => {
+    const shelby = estimateBaselineValue(
+      2018,
+      "Ford",
+      "Mustang",
+      40000,
+      "Shelby GT500",
+    );
+    const base = estimateBaselineValue(2018, "Ford", "Mustang", 40000, "Base");
+    expect(shelby).toBeGreaterThan(base);
+  });
+});
 
 describe("classifySegment", () => {
   it("classifies common models", () => {

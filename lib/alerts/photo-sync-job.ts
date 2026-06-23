@@ -46,7 +46,7 @@ export async function runPhotoStorageSync() {
       const permanentUrl = await syncDealPhotos(supabase, deal as any);
 
       if (permanentUrl) {
-        const newImages = [permanentUrl, ...deal.images.slice(1)];
+        const newImages = [permanentUrl, ...deal.images];
 
         const { error: updateError } = await supabase
           .from("deals")

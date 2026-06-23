@@ -30,7 +30,13 @@ export function liteDealIQ(
     trueNetProfit: profit != null ? Number(profit) : null,
     distress: !!input.distressed,
   });
-  return { score: iq.score, tier: iq.tier };
+
+  const clampedScore = Math.min(100, Math.max(0, iq.score));
+
+  // Display nothing if score < 20 (means data is too thin to trust)
+  if (clampedScore < 20) return null;
+
+  return { score: clampedScore, tier: iq.tier };
 }
 
 export const IQ_TIER_COLOR: Record<string, string> = {

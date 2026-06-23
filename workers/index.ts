@@ -5,6 +5,7 @@ import { updateMarketTrends } from "../lib/scoring/market-intelligence";
 import { checkSavedCars } from "../workers/savedCarsChecker";
 import { scanForFlashDeals } from "../lib/alerts/flash-deal-scanner";
 import { runPhotoStorageSync } from "../lib/alerts/photo-sync-job";
+import { runPhotoStorageCleanup } from "../lib/alerts/photo-cleanup-job";
 
 // Optional self-hosted worker for the recurring maintenance jobs that aren't a good fit for
 // serverless: alert delivery, price-drop tracking, and nightly market-trend aggregation.
@@ -64,6 +65,11 @@ async function scheduleJobs() {
       {},
       { repeat: { pattern: "*/15 * * * *" }, attempts: 2 },
     );
+    await maintenanceQueue.add(
+      "photo-storage-cleanup",
+      {},
+      { repeat: { pattern: "0 3 * * *" }, attempts: 2 },
+    );
     console.log("[Queue] Maintenance jobs scheduled");
   } catch (err) {
     console.error("[Queue] Failed to schedule jobs. Is Redis running?", err);
@@ -75,6 +81,12 @@ const worker = new Worker(
   async (job) => {
     console.log(`[Worker] Processing job: ${job.name}`);
     switch (job.name) {
+      case "photo-storage-sync":
+        await runPhotoStorageSync();
+        break;
+      case "photo-storage-cleanup":
+        await runPhotoStorageCleanup();
+        break;
       case "alert-check":
         await checkAlerts();
         return;
