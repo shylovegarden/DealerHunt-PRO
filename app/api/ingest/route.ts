@@ -79,6 +79,38 @@ export async function POST(req: Request) {
       ? data.source.toLowerCase()
       : "independent_dealer";
 
+    // Sold-detection: a "sold" listing is a real transaction price, not active inventory. Capture it
+    // into sold_listings (powers the sold-comps feature) instead of the active deals table.
+    const soldText =
+      `${data.title || ""} ${data.url || ""} ${data.status || ""}`.toLowerCase();
+    const isSold =
+      data.sold === true ||
+      /\bsold\b|\/sold\/|sale-pending|no longer available/.test(soldText);
+    if (isSold && rawPrice > 0) {
+      try {
+        const { createServerComponentClient } = await import("@/lib/supabase");
+        await createServerComponentClient()
+          .from("sold_listings")
+          .insert({
+            vin: data.vin && String(data.vin).length === 17 ? data.vin : null,
+            year: data.year ?? null,
+            make: data.make ?? null,
+            model: data.model ?? null,
+            mileage: data.mileage ?? null,
+            sold_price: rawPrice,
+            sold_at: new Date().toISOString(),
+            source,
+            location_state: data.location_state ?? null,
+          });
+      } catch (e) {
+        console.warn("[ingest] sold capture failed:", e);
+      }
+      return NextResponse.json(
+        { success: true, sold: true },
+        { headers: CORS },
+      );
+    }
+
     // Build a clean Partial<Deal> and run it through the real pipeline (normalize → analyze →
     // valid-column upsert + dedupe + saved-search match). No invalid columns/enums.
     const deal = {

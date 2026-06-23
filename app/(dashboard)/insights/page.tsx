@@ -5,6 +5,7 @@ import useSWR from "swr";
 import { Ico } from "@/components/shared/Ico";
 import { Mono } from "@/components/shared/Mono";
 import { MarketPulse } from "@/components/insights/MarketPulse";
+import { SourceROI } from "@/components/insights/SourceROI";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 const money = (v: any) =>
@@ -184,6 +185,9 @@ export default function InsightsPage() {
           )}
         </div>
       )}
+
+      {/* Source / channel ROI — where THIS dealer actually makes money (hides until logged) */}
+      {!loadFailed && !(outLoading && !outData) && <SourceROI />}
 
       {/* Log form */}
       {open && (

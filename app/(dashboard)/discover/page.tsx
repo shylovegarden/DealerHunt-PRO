@@ -10,6 +10,8 @@ import { DiscoveryCard } from "@/components/discovery/DiscoveryCard";
 import { FlashRail } from "@/components/discovery/FlashRail";
 import { IntelRail } from "@/components/discovery/IntelRail";
 import { MarketSummary } from "@/components/discovery/MarketSummary";
+import { DealTicker } from "@/components/home/DealTicker";
+import { MarketPulse } from "@/components/home/MarketPulse";
 import type {
   DiscoverResponse,
   DiscoveryRail,
@@ -151,8 +153,14 @@ export default function DiscoverPage() {
         </a>
       )}
 
+      {/* Live ticker (Visor marquee) */}
+      <DealTicker />
+
       {/* Market summary — at-a-glance intelligence (hides when empty) */}
       <MarketSummary />
+
+      {/* What the market's doing — top GO make/models */}
+      <MarketPulse />
 
       {/* Flash deals — pinned urgency rail (self-fetching, hides when empty) */}
       <FlashRail state={state || undefined} />

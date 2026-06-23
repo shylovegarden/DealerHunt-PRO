@@ -21,6 +21,7 @@ import { MarketTiming } from "@/components/deal/MarketTiming";
 import { AIBrief } from "@/components/deal/AIBrief";
 import { DealIQCard } from "@/components/deal/DealIQCard";
 import { MarketContext } from "@/components/deal/MarketContext";
+import { PriceTimeline } from "@/components/deal/PriceTimeline";
 import useDealerDefaults from "@/hooks/useDealerDefaults";
 
 // Fetcher function for SWR
@@ -661,6 +662,9 @@ export default function DealPage({
 
       {/* MARKET CONTEXT — days-on-market, depreciation, time-travel, cross-source prices */}
       <MarketContext dealId={id} />
+
+      {/* PRICE TIMELINE — drops + motivated-seller signal */}
+      <PriceTimeline dealId={id} />
 
       {/* AI BRIEF — on-demand plain-English verdict rationale + risks */}
       <AIBrief dealId={id} />
