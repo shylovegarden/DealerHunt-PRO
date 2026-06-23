@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import useSWR from "swr";
 import { Sparkles } from "lucide-react";
+import { motion } from "framer-motion";
 import { SelectField } from "@/components/shared/Field";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { US_STATES } from "@/lib/utils/titleRules";
@@ -25,7 +26,13 @@ const fetcher = (url: string) =>
 
 function Rail({ rail }: { rail: DiscoveryRail }) {
   return (
-    <section className="space-y-3">
+    <motion.section
+      initial={{ opacity: 0, y: 20 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-40px" }}
+      transition={{ duration: 0.4, ease: "easeOut" }}
+      className="space-y-3"
+    >
       <div className="px-1">
         <h2 className="text-lg font-bold leading-tight text-[var(--t1)]">
           {rail.title}
@@ -34,7 +41,7 @@ function Rail({ rail }: { rail: DiscoveryRail }) {
           <p className="mt-0.5 text-xs text-[var(--t4)]">{rail.subtitle}</p>
         )}
       </div>
-      <div
+      <motion.div
         className="scrollbar-hide -mx-4 flex gap-3 overflow-x-auto px-4 pb-1 md:-mx-6 md:px-6"
         style={{
           scrollSnapType: "x mandatory",
@@ -44,8 +51,8 @@ function Rail({ rail }: { rail: DiscoveryRail }) {
         {rail.deals.map((deal) => (
           <DiscoveryCard key={`${rail.key}-${deal.id}`} deal={deal} />
         ))}
-      </div>
-    </section>
+      </motion.div>
+    </motion.section>
   );
 }
 
@@ -98,10 +105,13 @@ export default function DiscoverPage() {
     <div className="space-y-6 pb-24 md:pb-8">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="flex items-center gap-2.5 text-xl font-bold text-[var(--t1)] md:text-2xl">
-            <span
-              className="flex h-9 w-9 items-center justify-center rounded-xl text-white"
+        <div className="relative">
+          <div className="absolute -inset-4 bg-[var(--amber-lo)] blur-[32px] rounded-full opacity-50 pointer-events-none" />
+          <h1 className="relative flex items-center gap-2.5 text-xl font-bold text-[var(--t1)] md:text-2xl">
+            <motion.span
+              animate={{ rotate: [0, 5, -5, 0] }}
+              transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
+              className="flex h-9 w-9 items-center justify-center rounded-xl text-white shadow-lg"
               style={{ background: "var(--grad)" }}
             >
               <Sparkles
@@ -109,7 +119,7 @@ export default function DiscoverPage() {
                 strokeWidth={2.5}
                 style={{ width: 18, height: 18 }}
               />
-            </span>
+            </motion.span>
             Discover
           </h1>
           <p className="mt-1.5 min-h-[18px] text-xs text-[var(--t4)] md:text-sm">

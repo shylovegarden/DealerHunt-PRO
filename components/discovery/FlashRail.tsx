@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import useSWR from "swr";
+import { motion } from "framer-motion";
 import { DiscoveryCard } from "./DiscoveryCard";
 import type { DiscoveryDeal } from "./types";
 
@@ -73,7 +74,13 @@ export function FlashRail({ state }: { state?: string }) {
   if (error || !data || data.deals.length === 0) return null;
 
   return (
-    <section className="space-y-3">
+    <motion.section
+      initial={{ opacity: 0, y: 20 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-40px" }}
+      transition={{ duration: 0.4, ease: "easeOut" }}
+      className="space-y-3"
+    >
       <div className="px-1">
         <h2 className="text-lg font-bold leading-tight text-[var(--t1)]">
           🔥 Flash Deals
@@ -82,7 +89,7 @@ export function FlashRail({ state }: { state?: string }) {
           New to market &amp; 10%+ below resale — moving fast
         </p>
       </div>
-      <div
+      <motion.div
         className="scrollbar-hide -mx-4 flex gap-3 overflow-x-auto px-4 pb-1 md:-mx-6 md:px-6"
         style={{
           scrollSnapType: "x mandatory",
@@ -99,7 +106,7 @@ export function FlashRail({ state }: { state?: string }) {
             <DiscoveryCard deal={deal} />
           </div>
         ))}
-      </div>
-    </section>
+      </motion.div>
+    </motion.section>
   );
 }

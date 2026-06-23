@@ -2,6 +2,7 @@
 
 import React from "react";
 import useSWR from "swr";
+import { motion } from "framer-motion";
 import { DiscoveryCard } from "./DiscoveryCard";
 
 const fetcher = (url: string) =>
@@ -32,7 +33,13 @@ export function IntelRail({
   if (error || deals.length === 0) return null;
 
   return (
-    <section className="space-y-3">
+    <motion.section
+      initial={{ opacity: 0, y: 20 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-40px" }}
+      transition={{ duration: 0.4, ease: "easeOut" }}
+      className="space-y-3"
+    >
       <div className="px-1">
         <h2 className="text-lg font-bold leading-tight text-[var(--t1)]">
           {title}
@@ -41,7 +48,7 @@ export function IntelRail({
           <p className="mt-0.5 text-xs text-[var(--t4)]">{subtitle}</p>
         )}
       </div>
-      <div
+      <motion.div
         className="scrollbar-hide -mx-4 flex gap-3 overflow-x-auto px-4 pb-1 md:-mx-6 md:px-6"
         style={{
           scrollSnapType: "x mandatory",
@@ -51,7 +58,7 @@ export function IntelRail({
         {deals.map((deal) => (
           <DiscoveryCard key={`${endpoint}-${deal.id}`} deal={deal} />
         ))}
-      </div>
-    </section>
+      </motion.div>
+    </motion.section>
   );
 }

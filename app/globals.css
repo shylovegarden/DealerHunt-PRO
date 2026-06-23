@@ -90,11 +90,11 @@
    ─────────────────────────────────────────────────────────────────────────── */
 [data-theme="dark"] {
   /* Surfaces — deep warm charcoal; cards (s0) sit above the page (s1) */
-  --s0: #1a1620;
-  --s1: #110e16;
-  --s2: #221d29;
-  --s3: #2a2533;
-  --s4: #332d3d;
+  --s0: rgba(26, 22, 32, 0.7); /* Translucent for glass */
+  --s1: #0b090f; /* Deep obsidian background */
+  --s2: rgba(34, 29, 41, 0.6);
+  --s3: rgba(42, 37, 51, 0.6);
+  --s4: rgba(51, 45, 61, 0.6);
   --s5: #4a4356;
   --s6: #8a7f93;
 
@@ -110,19 +110,19 @@
   --b2: #322b3c;
   --b3: #443c50;
 
-  /* Accent glows — a touch more alpha so they read on dark */
-  --amber-lo: rgba(242, 91, 154, 0.16);
-  --amber-bd: rgba(242, 91, 154, 0.32);
-  --clo: rgba(255, 56, 92, 0.16);
-  --cbd: rgba(255, 56, 92, 0.3);
-  --glo: rgba(63, 174, 142, 0.18);
-  --gbd: rgba(63, 174, 142, 0.34);
-  --rlo: rgba(239, 91, 107, 0.16);
-  --rbd: rgba(239, 91, 107, 0.3);
-  --blo: rgba(91, 155, 239, 0.18);
-  --bbd: rgba(91, 155, 239, 0.32);
-  --olo: rgba(255, 122, 77, 0.16);
-  --plo: rgba(155, 107, 255, 0.16);
+  /* Accent glows — higher intensity for neon effect on dark */
+  --amber-lo: rgba(242, 91, 154, 0.2);
+  --amber-bd: rgba(242, 91, 154, 0.5);
+  --clo: rgba(255, 56, 92, 0.2);
+  --cbd: rgba(255, 56, 92, 0.5);
+  --glo: rgba(63, 174, 142, 0.25);
+  --gbd: rgba(63, 174, 142, 0.55);
+  --rlo: rgba(239, 91, 107, 0.2);
+  --rbd: rgba(239, 91, 107, 0.5);
+  --blo: rgba(91, 155, 239, 0.2);
+  --bbd: rgba(91, 155, 239, 0.5);
+  --olo: rgba(255, 122, 77, 0.2);
+  --plo: rgba(155, 107, 255, 0.2);
 
   /* Shadows — deeper on dark */
   --shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
@@ -442,13 +442,23 @@ input[type="number"] {
   /* Clean native card — no glass, solid surface */
   .glass-panel {
     background: var(--s0);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid var(--b1);
     border-radius: var(--r4);
-    box-shadow: var(--shadow2);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.05),
+      var(--shadow2);
     padding: 16px;
-    transition: box-shadow var(--base) var(--ease-out);
+    transition:
+      box-shadow var(--base) var(--ease-out),
+      border-color var(--base) var(--ease-out);
   }
   .glass-panel:hover {
-    box-shadow: var(--shadow);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.1),
+      var(--shadow);
+    border-color: var(--b2);
   }
 
   /* Shimmer skeleton loader */
