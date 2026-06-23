@@ -3,6 +3,7 @@
 import React, { useEffect } from "react";
 import useSWR from "swr";
 import { useRouter } from "next/navigation";
+import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { useDealStore } from "@/lib/store/dealStore";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -357,7 +358,13 @@ export default function DealPage({
         })()}
 
       {/* MAX BID ENGINE + PRICE HISTORY (Name-your-price / price-trend) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <motion.div
+        variants={{
+          hidden: { opacity: 0, y: 20 },
+          visible: { opacity: 1, y: 0 },
+        }}
+        className="grid grid-cols-1 lg:grid-cols-3 gap-4"
+      >
         <div className="lg:col-span-2">
           <MaxBidWidget
             sellEstimate={dealData?.deal?.sellEstimate}
@@ -369,16 +376,29 @@ export default function DealPage({
           />
         </div>
         <PriceSparkline dealId={id} />
-      </div>
+      </motion.div>
 
       {/* MARKET TIMING — buy-now/wait + real days-to-sell */}
-      <MarketTiming
-        make={dealData?.deal?.make ?? store.make}
-        model={dealData?.deal?.model ?? store.model}
-      />
+      <motion.div
+        variants={{
+          hidden: { opacity: 0, y: 20 },
+          visible: { opacity: 1, y: 0 },
+        }}
+      >
+        <MarketTiming
+          make={dealData?.deal?.make ?? store.make}
+          model={dealData?.deal?.model ?? store.model}
+        />
+      </motion.div>
 
       {/* TOP READOUT (The 60-Second Decision) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <motion.div
+        variants={{
+          hidden: { opacity: 0, y: 20 },
+          visible: { opacity: 1, y: 0 },
+        }}
+        className="grid grid-cols-1 lg:grid-cols-3 gap-4"
+      >
         <Card
           className="col-span-1 lg:col-span-2 border-none bg-[var(--s0)]"
           style={{ boxShadow: "var(--shadow2)" }}
@@ -511,7 +531,7 @@ export default function DealPage({
             Based on ROI, Margin, Demand, Mileage, and Title Risk.
           </p>
         </Card>
-      </div>
+      </motion.div>
 
       {/* MIDDLE SECTION (The Interactive Ledger — secondary) */}
       <div className="pt-2">

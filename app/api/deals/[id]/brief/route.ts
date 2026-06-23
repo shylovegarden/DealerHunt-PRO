@@ -6,6 +6,7 @@ import { generateText } from "ai";
 import { createServerComponentClient } from "@/lib/supabase";
 import {
   getTextModel,
+  getPremiumTextModel,
   hasTextModel,
   activeProvider,
 } from "@/lib/ai/text-model";
@@ -68,6 +69,12 @@ export async function GET(
   }
 
   const costs = d.deal_analysis?.costs || {};
+  // Assuming $30/day floor plan/holding cost as a default baseline
+  const floorRate = 30;
+  // Fallback days to sell to 45 if not present
+  const estimatedDaysToSell = 45;
+  const breakEvenDay = Math.floor((d.true_net_profit || 0) / floorRate);
+
   const facts = [
     `Vehicle: ${[d.year, d.make, d.model, d.trim].filter(Boolean).join(" ")}`,
     `Title/condition: ${d.condition || "unknown"}${d.damage_type ? `, ${d.damage_type} damage` : ""}`,
@@ -78,24 +85,30 @@ export async function GET(
     `Estimated net profit: ${fmt(d.true_net_profit)}`,
     `Recommended max bid: ${fmt(d.recommended_max_bid)}`,
     `Estimated costs — transport ${fmt(costs.transport)}, recon/repair ${fmt(costs.repair)}, selling ${fmt(costs.selling)}`,
+    `Cash Flow Velocity metrics — Holding cost is ~$${floorRate}/day. Break-even happens at Day ${breakEvenDay}.`,
     `Location: ${d.location_state || "n/a"} · Source: ${d.source || "n/a"}`,
   ]
     .filter(Boolean)
     .join("\n");
 
-  const prompt = `You are an expert used-car dealer's analyst. Using ONLY the figures below (do not invent specs, history, or numbers), write a tight brief for a dealer deciding whether to buy this vehicle to flip.
+  const prompt = `You are a ruthless Chief Financial Officer for a used-car dealership. Using ONLY the figures below (do not invent specs, history, or numbers), write a tight brief deciding whether to buy this vehicle to flip.
 
 ${facts}
 
 Respond in 3 short parts, plain text, no markdown headers:
-1) One sentence on why the engine reached its verdict.
+1) One sentence on why the engine reached its verdict, specifically focusing on cash flow velocity and whether holding costs will eat the margin.
 2) "Risks:" then 2-3 short bullet-style risks specific to this title/damage/price/location.
 3) "Verify:" then 2-3 concrete things to check before bidding.
-Keep it under 110 words. Be direct and practical.`;
+Keep it under 110 words. Be direct, financial, and practical.`;
+
+  // TRIAGE ROUTING: Only use the expensive premium model for "GO" deals.
+  // Use the cheap/fast model for HOLD or PASS to save API costs.
+  const isPremiumDeal = (d.deal_verdict || "").toUpperCase() === "GO";
+  const modelToUse = isPremiumDeal ? getPremiumTextModel() : getTextModel();
 
   try {
     const { text } = await generateText({
-      model: getTextModel(),
+      model: modelToUse,
       prompt,
       temperature: 0.4,
     });

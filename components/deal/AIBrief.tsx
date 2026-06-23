@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import useSWR from "swr";
+import { motion, AnimatePresence } from "framer-motion";
 import { Ico } from "@/components/shared/Ico";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -36,8 +37,15 @@ export function AIBrief({ dealId }: { dealId: string }) {
   const brief: string | null = data?.brief ?? null;
 
   return (
-    <div className="glass-panel p-5 mt-4">
-      <div className="flex items-center justify-between mb-2">
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="glass-panel p-5 mt-4 relative overflow-hidden"
+    >
+      {/* Subtle animated gradient background for the intelligence feel */}
+      <div className="absolute -inset-2 bg-gradient-to-br from-[var(--amber-lo)] to-transparent opacity-20 blur-2xl pointer-events-none" />
+
+      <div className="relative flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <Ico name="bot" size={15} className="text-[var(--t4)]" />
           <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--t4)] font-bold">
@@ -55,26 +63,49 @@ export function AIBrief({ dealId }: { dealId: string }) {
         )}
       </div>
 
-      {brief ? (
-        <p className="text-sm text-[var(--t2)] whitespace-pre-line leading-relaxed">
-          {brief}
-        </p>
-      ) : (
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-sm text-[var(--t4)]">
-            Get a plain-English read on the verdict, the real risks, and what to
-            verify before bidding.
-          </p>
-          <button
-            onClick={generate}
-            disabled={generating}
-            className="shrink-0 px-4 py-2 rounded-[var(--r3)] font-bold text-sm text-white disabled:opacity-50"
-            style={{ background: "var(--grad)" }}
+      <AnimatePresence mode="wait">
+        {brief ? (
+          <motion.div
+            key="brief-content"
+            initial={{ opacity: 0, filter: "blur(4px)" }}
+            animate={{ opacity: 1, filter: "blur(0px)" }}
+            transition={{ duration: 0.5, staggerChildren: 0.1 }}
+            className="text-sm text-[var(--t2)] whitespace-pre-line leading-relaxed"
           >
-            {generating ? "Analyzing…" : "Generate"}
-          </button>
-        </div>
-      )}
-    </div>
+            {brief.split("\n\n").map((para, idx) => (
+              <motion.p
+                key={idx}
+                initial={{ opacity: 0, y: 5 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: idx * 0.1 }}
+                className="mb-3 last:mb-0"
+              >
+                {para}
+              </motion.p>
+            ))}
+          </motion.div>
+        ) : (
+          <motion.div
+            key="brief-empty"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="flex items-center justify-between gap-3 relative"
+          >
+            <p className="text-sm text-[var(--t4)]">
+              Get a plain-English read on the verdict, the real risks, and what
+              to verify before bidding.
+            </p>
+            <button
+              onClick={generate}
+              disabled={generating}
+              className="shrink-0 px-4 py-2 rounded-[var(--r3)] font-bold text-sm text-white disabled:opacity-50"
+              style={{ background: "var(--grad)" }}
+            >
+              {generating ? "Analyzing…" : "Generate"}
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
   );
 }

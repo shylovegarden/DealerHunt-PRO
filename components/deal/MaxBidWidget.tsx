@@ -83,10 +83,18 @@ export function MaxBidWidget({
 
   return (
     <Card
-      className="border-none overflow-hidden"
-      style={{ background: "var(--s0)", boxShadow: "var(--shadow)" }}
+      className="border-none overflow-hidden glass-panel relative"
+      style={{
+        background: "rgba(20,10,20,0.6)",
+        backdropFilter: "blur(24px)",
+        boxShadow: "var(--shadow)",
+      }}
     >
-      <div className="h-1 w-full" style={{ background: "var(--grad)" }} />
+      <div className="absolute inset-0 bg-gradient-to-br from-[var(--amber-lo)] to-transparent opacity-10 pointer-events-none" />
+      <div
+        className="h-1 w-full relative z-10"
+        style={{ background: "var(--grad)" }}
+      />
       <CardContent className="p-6 md:p-7">
         <div className="flex items-center gap-2 mb-1">
           <Ico name="calculator" size={15} className="text-[var(--t4)]" />
@@ -146,20 +154,28 @@ export function MaxBidWidget({
 
             {/* Max bid readout */}
             <div
-              className="rounded-[var(--r3)] p-5"
-              style={{ background: "var(--s1)" }}
+              className="relative rounded-[var(--r3)] p-5 overflow-hidden"
+              style={{ background: "var(--s0)" }}
             >
-              <p className="text-[10px] uppercase tracking-widest text-[var(--t4)] font-bold mb-1">
+              <div className="absolute -inset-4 bg-[var(--green)] blur-[40px] opacity-10 pointer-events-none" />
+              <p className="relative z-10 text-[10px] uppercase tracking-widest text-[var(--t4)] font-bold mb-1">
                 Your max bid
               </p>
               <Mono
-                className="text-4xl md:text-5xl font-black text-[var(--t1)] leading-none"
-                style={{ fontFamily: "var(--fm)" }}
+                className="relative z-10 text-4xl md:text-5xl font-black text-transparent bg-clip-text leading-none"
+                style={{
+                  fontFamily: "var(--fm)",
+                  backgroundImage:
+                    "linear-gradient(to right, var(--green), #86efac)",
+                }}
               >
                 {fmt(result.maxBid)}
               </Mono>
-              <p className="text-xs text-[var(--t3)] font-semibold mt-2">
-                to net {fmt(targetProfit)} profit · {result.impliedRoi}% ROI
+              <p className="relative z-10 text-xs text-[var(--t3)] font-semibold mt-2">
+                to net {fmt(targetProfit)} profit ·{" "}
+                <span className="text-[var(--green)] font-bold">
+                  {result.impliedRoi}% ROI
+                </span>
               </p>
             </div>
 
@@ -168,8 +184,12 @@ export function MaxBidWidget({
               <div className="mt-4">
                 {headroom >= 0 ? (
                   <div
-                    className="flex items-center gap-2 text-sm font-bold px-3.5 py-2.5 rounded-[var(--r2)]"
-                    style={{ background: "var(--glo)", color: "var(--green)" }}
+                    className="flex items-center gap-2 text-sm font-bold px-3.5 py-2.5 rounded-[var(--r2)] shadow-sm"
+                    style={{
+                      background: "rgba(34, 197, 94, 0.15)",
+                      color: "var(--green)",
+                      border: "1px solid rgba(34, 197, 94, 0.3)",
+                    }}
                   >
                     <Ico name="check-circle" size={16} />
                     {fmt(headroom)} of headroom — ask ({fmt(ask)}) is below your
