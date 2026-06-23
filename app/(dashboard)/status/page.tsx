@@ -60,6 +60,7 @@ export default function StatusPage() {
   });
   const f = data?.freshness;
   const q = data?.quality;
+  const l = data?.learning;
   const sources: any[] = data?.sources ?? [];
   const runs: any[] = data?.recentRuns ?? [];
 
@@ -116,6 +117,55 @@ export default function StatusPage() {
             <Bar label="Geocoded (mappable)" pct={q?.geocodedPct ?? 0} />
             <Bar label="Has city" pct={q?.cityPct ?? 0} />
             <Bar label="Has VIN" pct={q?.vinPct ?? 0} />
+          </div>
+
+          {/* Closed-loop learning */}
+          <div className="glass-panel p-5">
+            <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--t4)] font-bold mb-2">
+              Learning loop
+            </p>
+            {l?.outcomesLogged > 0 ? (
+              <>
+                <p className="text-sm text-[var(--t2)] mb-3">
+                  Learning from{" "}
+                  <Mono
+                    style={{ fontFamily: "var(--fm)" }}
+                    className="font-bold text-[var(--t1)]"
+                  >
+                    {l.outcomesLogged}
+                  </Mono>{" "}
+                  logged outcome{l.outcomesLogged === 1 ? "" : "s"} — the
+                  pipeline now prioritizes the makes you actually profit on.
+                </p>
+                {l.prioritizedMakes?.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {l.prioritizedMakes.map((m: string) => (
+                      <span
+                        key={m}
+                        className="rounded-full px-2.5 py-1 text-xs font-bold capitalize"
+                        style={{
+                          background: "var(--glo)",
+                          color: "var(--green)",
+                        }}
+                      >
+                        {m}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-[var(--t4)]">
+                    No profitable make yet — log a winning sale to start the
+                    loop.
+                  </p>
+                )}
+              </>
+            ) : (
+              <p className="text-sm text-[var(--t4)]">
+                Log sold deals in Intel and the pipeline starts prioritizing the
+                segments you profit on — scraping, enrichment, and scoring all
+                bend toward your wins.
+              </p>
+            )}
           </div>
 
           {/* Source health */}

@@ -39,6 +39,19 @@ describe("enrichPriority", () => {
     expect(cheapForYear).toBeGreaterThan(pricedForYear);
   });
 
+  it("boosts makes the dealer has profited on (closed loop)", () => {
+    const base = enrichPriority({
+      year: now - 5,
+      ask_price: 12000,
+      make: "Subaru",
+    });
+    const learned = enrichPriority(
+      { year: now - 5, ask_price: 12000, make: "Subaru" },
+      new Set(["subaru"]),
+    );
+    expect(learned).toBeGreaterThan(base);
+  });
+
   it("gives popular makes a nudge, all else equal", () => {
     const popular = enrichPriority({
       year: now - 5,

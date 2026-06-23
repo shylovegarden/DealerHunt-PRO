@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
 import { createServerComponentClient } from "@/lib/supabase";
+import { loadProfitableMakes } from "@/lib/intelligence/profitable-segments";
 
 // GET /api/system/status — the app's self-awareness: data freshness, per-source health (with
 // self-heal flags), and data-quality coverage. Read-only; powers the status surface and lets the
@@ -66,7 +67,22 @@ export async function GET() {
     ? Math.round((Date.now() - new Date(newest).getTime()) / 3600_000)
     : null;
 
+  // Closed-loop learning: makes the dealer has profited on that the pipeline now prioritizes.
+  const [outcomesLogged, profitableMakes] = await Promise.all([
+    sb
+      .from("deal_outcomes")
+      .select("id", { count: "exact", head: true })
+      .then((r: any) => r.count ?? 0),
+    loadProfitableMakes()
+      .then((s) => Array.from(s))
+      .catch(() => [] as string[]),
+  ]);
+
   return NextResponse.json({
+    learning: {
+      outcomesLogged,
+      prioritizedMakes: profitableMakes,
+    },
     freshness: {
       activeDeals: active,
       newLast24h: new24,

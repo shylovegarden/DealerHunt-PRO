@@ -16,11 +16,16 @@ const POPULAR_MAKES = new Set([
   "dodge",
 ]);
 
-export function enrichPriority(deal: {
-  year?: number | null;
-  ask_price?: number | null;
-  make?: string | null;
-}): number {
+export function enrichPriority(
+  deal: {
+    year?: number | null;
+    ask_price?: number | null;
+    make?: string | null;
+  },
+  // Makes the dealer has actually profited on (lowercased) — closes the learning loop so the
+  // enrichment budget favors segments that make money. Empty/omitted → pure static heuristic.
+  profitableMakes?: Set<string>,
+): number {
   const year = Number(deal.year) || 0;
   const price = Number(deal.ask_price) || 0;
   if (!year || !price) return 0; // incomplete → lowest priority
@@ -41,5 +46,9 @@ export function enrichPriority(deal: {
   else if (price < expected * 0.8) score += 18;
 
   if (deal.make && POPULAR_MAKES.has(deal.make.toLowerCase())) score += 8;
+
+  // Learned signal: this make has actually made the dealer money → enrich it first.
+  if (deal.make && profitableMakes?.has(deal.make.toLowerCase())) score += 30;
+
   return score;
 }
