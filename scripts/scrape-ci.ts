@@ -40,6 +40,46 @@ function resolveSources(): string[] {
   return DEFAULT_SOURCES;
 }
 
+// Fetch real detail-page photos/VIN/mileage for active GO deals that still lack images.
+async function enrichGoBacklog(limit: number): Promise<void> {
+  const { createClient } = await import("@supabase/supabase-js");
+  const { enrichCraigslistDetail } =
+    await import("../lib/scrapers/sources/index");
+  const sb = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  );
+  const { data } = await sb
+    .from("deals")
+    .select("id, source_url, vin")
+    .eq("active", true)
+    .eq("deal_verdict", "go")
+    .in("source", ["craigslist", "craigslist_dealer"])
+    .not("source_url", "is", null)
+    .or("images.is.null,images.eq.{}")
+    .order("profit_score", { ascending: false, nullsFirst: false })
+    .limit(limit);
+  let n = 0;
+  for (const d of data || []) {
+    try {
+      const extra = await enrichCraigslistDetail(d.source_url as string);
+      const patch: any = {};
+      if (Array.isArray(extra.images) && extra.images.length)
+        patch.images = extra.images.slice(0, 12);
+      if (extra.vin && !d.vin) patch.vin = extra.vin;
+      if (extra.mileage) patch.mileage = extra.mileage;
+      if (Object.keys(patch).length) {
+        await sb.from("deals").update(patch).eq("id", d.id);
+        n++;
+      }
+    } catch {
+      /* skip */
+    }
+    await new Promise((r) => setTimeout(r, 400));
+  }
+  if (n) console.log(`🖼️  topped up ${n} GO deals with real photos/VIN`);
+}
+
 async function main() {
   const sources = resolveSources();
 
@@ -103,6 +143,16 @@ async function main() {
       );
     },
   });
+
+  // Self-sustaining photo coverage: top up GO deals that still lack images by fetching their real
+  // detail page. Keeps the surfaces the dealer sees fully illustrated, every cycle. Real data only.
+  if (sources.includes("craigslist")) {
+    try {
+      await enrichGoBacklog(parseInt(process.env.GO_ENRICH_MAX || "30", 10));
+    } catch (e) {
+      console.warn("GO photo top-up skipped:", (e as Error).message);
+    }
+  }
 
   const totalDeals = results.reduce((sum, r) => sum + (r.dealsFound || 0), 0);
   const succeeded = results.filter((r) => r.success).length;
