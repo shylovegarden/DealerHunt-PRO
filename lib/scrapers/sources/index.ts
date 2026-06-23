@@ -15,6 +15,7 @@ import {
 import { upsertDeals } from "../pipeline";
 import { CRAIGSLIST_SITES, US_STATES } from "@/lib/geo";
 import { isValidVin, extractVin, normalizeVin } from "@/lib/vehicle/vin";
+import { enrichPriority } from "@/lib/scrapers/enrich-priority";
 import pLimit from "p-limit";
 
 // ── Detail-page enrichment ───────────────────────────────────────────────────
@@ -88,9 +89,11 @@ async function enrichDeals(deals: Partial<Deal>[]): Promise<void> {
   if (process.env.CL_ENRICH === "false") return;
   const max = parseInt(process.env.CL_ENRICH_MAX || "60");
   const concurrency = parseInt(process.env.CL_ENRICH_CONCURRENCY || "4");
-  // Enrich listings that still lack a VIN, up to the cap.
+  // Enrich listings that still lack a VIN, highest deal-potential first, up to the cap — so the
+  // bounded detail-fetch budget lands on the likely-GO deals (auto-tuned, not first-come).
   const targets = deals
     .filter((d) => d.source_url && (!d.vin || d.vin.length !== 17))
+    .sort((a, b) => enrichPriority(b) - enrichPriority(a))
     .slice(0, max);
   if (!targets.length) return;
   const limit = pLimit(concurrency);
