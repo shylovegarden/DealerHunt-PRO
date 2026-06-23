@@ -12,6 +12,7 @@ const nextConfig = {
     'playwright-extra',
     'patchright',
     'puppeteer-extra-plugin-stealth',
+    'bull',
     'bullmq',
     'ioredis',
   ],
