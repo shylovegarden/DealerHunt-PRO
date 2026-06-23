@@ -55,10 +55,24 @@ async function authed(req: NextRequest): Promise<boolean> {
   const supabase = createServerComponentClient();
   const { data } = await supabase
     .from("api_keys")
-    .select("id, revoked")
+    .select("id, revoked, request_count")
     .eq("key_hash", hashApiKey(key))
     .maybeSingle();
-  return !!data && !data.revoked;
+  if (!data || data.revoked) return false;
+
+  // Best-effort usage tracking, same as the public REST API.
+  supabase
+    .from("api_keys")
+    .update({
+      request_count: (data.request_count || 0) + 1,
+      last_used_at: new Date().toISOString(),
+    })
+    .eq("id", data.id)
+    .then(
+      () => {},
+      () => {},
+    );
+  return true;
 }
 
 async function runTool(name: string, args: any): Promise<string> {
