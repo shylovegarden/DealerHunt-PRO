@@ -4,6 +4,7 @@ import { trackPriceChanges } from "../lib/alerts/price-tracker";
 import { updateMarketTrends } from "../lib/scoring/market-intelligence";
 import { checkSavedCars } from "../workers/savedCarsChecker";
 import { scanForFlashDeals } from "../lib/alerts/flash-deal-scanner";
+import { runPhotoStorageSync } from "../lib/alerts/photo-sync-job";
 
 // Optional self-hosted worker for the recurring maintenance jobs that aren't a good fit for
 // serverless: alert delivery, price-drop tracking, and nightly market-trend aggregation.
@@ -57,6 +58,11 @@ async function scheduleJobs() {
       "flash-deal-scan",
       {},
       { repeat: { pattern: "*/5 * * * *" }, attempts: 3 },
+    );
+    await maintenanceQueue.add(
+      "photo-storage-sync",
+      {},
+      { repeat: { pattern: "*/15 * * * *" }, attempts: 2 },
     );
     console.log("[Queue] Maintenance jobs scheduled");
   } catch (err) {
