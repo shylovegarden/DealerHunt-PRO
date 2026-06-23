@@ -1,9 +1,12 @@
 // Free, key-less geocoding with a persistent cache (geocode_cache table).
-//   - ZIP   → api.zippopotam.us/us/<zip>
-//   - city+state → US Census geocoder (onelineaddress)
+//   - ZIP        → api.zippopotam.us/us/<zip>
+//   - city+state → Nominatim (OpenStreetMap) place search
 // Every result is cached by place key, so repeat locations (the same metros show up constantly in
 // scraped inventory) cost one DB read, not a network call. Best-effort throughout: any failure
 // returns null and never blocks the scraper pipeline. No external account, no cost.
+//
+// Nominatim usage policy: a valid User-Agent and ≤1 req/sec. We send a UA and the backfill paces
+// live lookups; steady-state hits the cache, so the network burst is one-time.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -18,10 +21,19 @@ export interface PlaceInput {
   state?: string | null;
 }
 
-type FetchLike = (url: string) => Promise<{
+type FetchLike = (
+  url: string,
+  init?: { headers?: Record<string, string> },
+) => Promise<{
   ok: boolean;
   json: () => Promise<any>;
 }>;
+
+const NOMINATIM_UA = "DealerHuntPro/1.0 (vehicle deal geocoding)";
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 const ZIP_RE = /\b(\d{5})\b/;
 
@@ -51,13 +63,11 @@ export function parseZippopotam(body: any): LatLng | null {
   return validCoords(place.latitude, place.longitude);
 }
 
-/** Parse US Census onelineaddress geocoder response → coords. */
-export function parseCensus(body: any): LatLng | null {
-  const match = body?.result?.addressMatches?.[0];
-  const c = match?.coordinates;
-  if (!c) return null;
-  // Census returns { x: lng, y: lat }.
-  return validCoords(c.y, c.x);
+/** Parse a Nominatim (OpenStreetMap) search response → coords. */
+export function parseNominatim(body: any): LatLng | null {
+  const hit = Array.isArray(body) ? body[0] : null;
+  if (!hit) return null;
+  return validCoords(hit.lat, hit.lon);
 }
 
 async function geocodeOnline(
@@ -72,12 +82,14 @@ async function geocodeOnline(
       if (!res.ok) return null;
       return parseZippopotam(await res.json());
     }
-    const q = encodeURIComponent(`${p.city}, ${p.state}`);
+    const city = encodeURIComponent(String(p.city || ""));
+    const state = encodeURIComponent(String(p.state || ""));
     const res = await fetchImpl(
-      `https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=${q}&benchmark=Public_AR_Current&format=json`,
+      `https://nominatim.openstreetmap.org/search?city=${city}&state=${state}&country=US&format=json&limit=1`,
+      { headers: { "User-Agent": NOMINATIM_UA } },
     );
     if (!res.ok) return null;
-    return parseCensus(await res.json());
+    return parseNominatim(await res.json());
   } catch {
     return null;
   }
@@ -90,11 +102,12 @@ async function geocodeOnline(
 export async function resolvePlaces(
   supabase: SupabaseClient,
   places: PlaceInput[],
-  opts: { maxLookups?: number; fetchImpl?: FetchLike } = {},
+  opts: { maxLookups?: number; fetchImpl?: FetchLike; delayMs?: number } = {},
 ): Promise<Map<string, LatLng>> {
   const fetchImpl =
     opts.fetchImpl || (globalThis.fetch as unknown as FetchLike);
   const maxLookups = opts.maxLookups ?? 25;
+  const delayMs = opts.delayMs ?? 0;
   const out = new Map<string, LatLng>();
 
   // Unique, usable keys.
@@ -107,13 +120,19 @@ export async function resolvePlaces(
 
   const keys = Array.from(keyToPlace.keys());
 
-  // 1) Cache read.
+  // 1) Cache read. A row with source='failed' is a remembered miss — a place the geocoder couldn't
+  //    resolve — so we don't retry it on every pass (protects the hot path and lets backfill converge).
+  const failed = new Set<string>();
   try {
     const { data } = await supabase
       .from("geocode_cache")
-      .select("place_key, lat, lng")
+      .select("place_key, lat, lng, source")
       .in("place_key", keys);
     for (const row of data || []) {
+      if (row.source === "failed") {
+        failed.add(row.place_key);
+        continue;
+      }
       const c = validCoords(row.lat, row.lng);
       if (c) out.set(row.place_key, c);
     }
@@ -121,8 +140,8 @@ export async function resolvePlaces(
     // Cache table missing → fall through to live lookups.
   }
 
-  // 2) Live lookups for misses, bounded.
-  const misses = keys.filter((k) => !out.has(k));
+  // 2) Live lookups for misses (excluding remembered failures), bounded.
+  const misses = keys.filter((k) => !out.has(k) && !failed.has(k));
   const toFetch = misses.slice(0, maxLookups);
   const fresh: {
     place_key: string;
@@ -131,7 +150,9 @@ export async function resolvePlaces(
     source: string;
   }[] = [];
 
-  for (const k of toFetch) {
+  for (let i = 0; i < toFetch.length; i++) {
+    const k = toFetch[i];
+    if (delayMs > 0 && i > 0) await sleep(delayMs);
     const coords = await geocodeOnline(k, keyToPlace.get(k)!, fetchImpl);
     if (coords) {
       out.set(k, coords);
@@ -139,8 +160,11 @@ export async function resolvePlaces(
         place_key: k,
         lat: coords.lat,
         lng: coords.lng,
-        source: k.startsWith("zip:") ? "zippopotam" : "census",
+        source: k.startsWith("zip:") ? "zippopotam" : "nominatim",
       });
+    } else {
+      // Remember the miss so we don't hammer the geocoder with it again.
+      fresh.push({ place_key: k, lat: 0, lng: 0, source: "failed" });
     }
   }
 

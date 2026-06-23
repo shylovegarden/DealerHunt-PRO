@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import {
   placeKey,
   parseZippopotam,
-  parseCensus,
+  parseNominatim,
   resolvePlaces,
 } from "./geocode";
 
@@ -40,14 +40,15 @@ describe("parsers", () => {
     ).toBeNull();
     expect(parseZippopotam({})).toBeNull();
   });
-  it("parses census (x=lng, y=lat)", () => {
-    const body = {
-      result: { addressMatches: [{ coordinates: { x: -96.797, y: 32.7767 } }] },
-    };
-    expect(parseCensus(body)).toEqual({ lat: 32.7767, lng: -96.797 });
+  it("parses nominatim (lat/lon strings)", () => {
+    expect(parseNominatim([{ lat: "32.7767", lon: "-96.797" }])).toEqual({
+      lat: 32.7767,
+      lng: -96.797,
+    });
   });
-  it("census with no match → null", () => {
-    expect(parseCensus({ result: { addressMatches: [] } })).toBeNull();
+  it("nominatim with no match → null", () => {
+    expect(parseNominatim([])).toBeNull();
+    expect(parseNominatim({})).toBeNull();
   });
 });
 
@@ -111,6 +112,29 @@ describe("resolvePlaces", () => {
       fetchImpl,
     });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("skips remembered failures (negative cache) without a network call", async () => {
+    const capture = { upserts: [] as any[] };
+    const sb = fakeSupabase(
+      [{ place_key: "cs:nowhere|zz", lat: 0, lng: 0, source: "failed" }],
+      capture,
+    );
+    const fetchImpl = vi.fn();
+    const out = await resolvePlaces(sb, [{ city: "Nowhere", state: "ZZ" }], {
+      fetchImpl,
+    });
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(out.size).toBe(0);
+  });
+
+  it("records a 'failed' marker when a lookup resolves nothing", async () => {
+    const capture = { upserts: [] as any[] };
+    const sb = fakeSupabase([], capture);
+    const fetchImpl = vi.fn(async () => ({ ok: true, json: async () => [] }));
+    await resolvePlaces(sb, [{ city: "Ghost", state: "TX" }], { fetchImpl });
+    expect(capture.upserts).toHaveLength(1);
+    expect(capture.upserts[0].source).toBe("failed");
   });
 
   it("returns empty for unusable places", async () => {
