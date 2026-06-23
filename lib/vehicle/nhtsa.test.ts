@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { parseDecode, decodeVin, getRecallCount } from "./nhtsa";
+import { parseDecode, decodeVin, getRecallCount, parseSafety } from "./nhtsa";
 
 describe("parseDecode", () => {
   it("maps NHTSA fields and infers made-in-USA", () => {
@@ -60,6 +60,29 @@ describe("decodeVin", () => {
       json: async () => ({ Results: [{ Make: "", Model: "" }] }),
     }));
     expect(await decodeVin("1HGCM82633A004352", f as any)).toBeNull();
+  });
+});
+
+describe("parseSafety", () => {
+  it("maps star ratings", () => {
+    expect(
+      parseSafety({
+        OverallRating: "5",
+        OverallFrontCrashRating: "4",
+        OverallSideCrashRating: "5",
+        RolloverRating: "4",
+      }),
+    ).toEqual({ overall: 5, frontal: 4, side: 5, rollover: 4 });
+  });
+  it("nulls unrated/out-of-range", () => {
+    expect(
+      parseSafety({ OverallRating: "Not Rated", RolloverRating: "9" }),
+    ).toEqual({
+      overall: null,
+      frontal: null,
+      side: null,
+      rollover: null,
+    });
   });
 });
 

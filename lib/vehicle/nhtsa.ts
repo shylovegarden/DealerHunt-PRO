@@ -71,6 +71,56 @@ export async function decodeVin(
   }
 }
 
+export interface SafetyRating {
+  overall: number | null;
+  frontal: number | null;
+  side: number | null;
+  rollover: number | null;
+}
+
+function star(v: any): number | null {
+  const n = parseInt(v, 10);
+  return Number.isFinite(n) && n >= 1 && n <= 5 ? n : null;
+}
+
+/** Parse an NHTSA SafetyRatings VehicleId result into star ratings (1-5, null when not rated). */
+export function parseSafety(r: any): SafetyRating {
+  return {
+    overall: star(r?.OverallRating),
+    frontal: star(r?.OverallFrontCrashRating),
+    side: star(r?.OverallSideCrashRating),
+    rollover: star(r?.RolloverRating),
+  };
+}
+
+/** NHTSA crash-test star ratings for a make/model/year (2-step lookup). Null on failure/unrated. */
+export async function getSafetyRating(
+  make: string,
+  model: string,
+  year: number,
+  fetchImpl: FetchLike = globalThis.fetch as unknown as FetchLike,
+): Promise<SafetyRating | null> {
+  if (!make || !model || !year) return null;
+  try {
+    const res1 = await fetchImpl(
+      `https://api.nhtsa.gov/SafetyRatings/modelyear/${year}/make/${encodeURIComponent(make)}/model/${encodeURIComponent(model)}`,
+    );
+    if (!res1.ok) return null;
+    const id = (await res1.json())?.Results?.[0]?.VehicleId;
+    if (!id) return null;
+    const res2 = await fetchImpl(
+      `https://api.nhtsa.gov/SafetyRatings/VehicleId/${id}`,
+    );
+    if (!res2.ok) return null;
+    const r = (await res2.json())?.Results?.[0];
+    if (!r) return null;
+    const s = parseSafety(r);
+    return s.overall || s.frontal || s.side || s.rollover ? s : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Open recall count for a make/model/year via NHTSA Recalls. Returns null on failure. */
 export async function getRecallCount(
   make: string,

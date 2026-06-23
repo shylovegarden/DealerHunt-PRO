@@ -3,7 +3,12 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { isValidVin, normalizeVin } from "@/lib/vehicle/vin";
-import { decodeVin, getRecallCount } from "@/lib/vehicle/nhtsa";
+import {
+  decodeVin,
+  getRecallCount,
+  getSafetyRating,
+} from "@/lib/vehicle/nhtsa";
+import { getFuelEconomy } from "@/lib/vehicle/epa";
 
 // GET /api/vin/[vin]/specs — authoritative, FREE vehicle specs (NHTSA vPIC) + open recall count
 // (NHTSA Recalls), cached in vin_decodes. Decode is immutable per VIN; recalls refresh weekly.
@@ -37,12 +42,13 @@ export async function GET(
   const recallsFresh =
     cached?.recalls_at &&
     Date.now() - new Date(cached.recalls_at).getTime() < RECALLS_TTL_MS;
+  const hasExtras = cached?.extras_at != null;
 
-  if (cached && recallsFresh) {
+  if (cached && recallsFresh && hasExtras) {
     return NextResponse.json({ vin, ...toResponse(cached), cached: true });
   }
 
-  // Decode (use cache if present, else NHTSA) + refresh recalls.
+  // Decode (use cache if present, else NHTSA).
   const decoded = cached?.make ? toDecode(cached) : await decodeVin(vin);
   if (!decoded)
     return NextResponse.json(
@@ -50,12 +56,21 @@ export async function GET(
       { status: 404 },
     );
 
-  const recalls =
-    decoded.make && decoded.model && decoded.year
-      ? await getRecallCount(decoded.make, decoded.model, decoded.year)
-      : null;
+  const canQuery = !!(decoded.make && decoded.model && decoded.year);
+  // Fetch recalls + crash-test stars + EPA MPG in parallel (all free, no key).
+  const [recalls, safety, fuel] = canQuery
+    ? await Promise.all([
+        getRecallCount(decoded.make!, decoded.model!, decoded.year!),
+        cached?.safety_overall != null || cached?.extras_at
+          ? Promise.resolve(null)
+          : getSafetyRating(decoded.make!, decoded.model!, decoded.year!),
+        cached?.mpg_combined != null || cached?.extras_at
+          ? Promise.resolve(null)
+          : getFuelEconomy(decoded.make!, decoded.model!, decoded.year!),
+      ])
+    : [null, null, null];
 
-  const row = {
+  const row: any = {
     vin,
     year: decoded.year,
     make: decoded.make,
@@ -71,6 +86,14 @@ export async function GET(
     recalls_count: recalls,
     recalls_at:
       recalls != null ? new Date().toISOString() : (cached?.recalls_at ?? null),
+    mpg_city: fuel?.city ?? cached?.mpg_city ?? null,
+    mpg_highway: fuel?.highway ?? cached?.mpg_highway ?? null,
+    mpg_combined: fuel?.combined ?? cached?.mpg_combined ?? null,
+    safety_overall: safety?.overall ?? cached?.safety_overall ?? null,
+    safety_frontal: safety?.frontal ?? cached?.safety_frontal ?? null,
+    safety_side: safety?.side ?? cached?.safety_side ?? null,
+    safety_rollover: safety?.rollover ?? cached?.safety_rollover ?? null,
+    extras_at: new Date().toISOString(),
   };
   // Await the cache write so it actually persists — a fire-and-forget promise gets dropped when the
   // handler returns, so every call would otherwise re-hit NHTSA.
@@ -113,5 +136,18 @@ function toResponse(c: any) {
     plantCountry: c.plant_country,
     madeInUsa: c.made_in_usa,
     recalls: c.recalls_count,
+    mpg:
+      c.mpg_combined || c.mpg_city || c.mpg_highway
+        ? { city: c.mpg_city, highway: c.mpg_highway, combined: c.mpg_combined }
+        : null,
+    safety:
+      c.safety_overall || c.safety_frontal || c.safety_side || c.safety_rollover
+        ? {
+            overall: c.safety_overall,
+            frontal: c.safety_frontal,
+            side: c.safety_side,
+            rollover: c.safety_rollover,
+          }
+        : null,
   };
 }
