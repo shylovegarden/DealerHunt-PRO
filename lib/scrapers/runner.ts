@@ -25,6 +25,11 @@ import { scrapeAutoTrader } from "./sources/autotrader";
 import { scrapeOfferUp } from "./sources/offerup";
 import { ScraperRegistry } from "./tools/registry";
 import {
+  recordScrapeRuns,
+  getSkipSources,
+  type SourceRunResult,
+} from "./health";
+import {
   SequentialOrchestrator,
   ConcurrentOrchestrator,
   PriorityOrchestrator,
@@ -353,7 +358,47 @@ function buildOrchestratorOptions(
 // Main entry point: run the scraper with chosen orchestrator
 export async function runScrapers(options: RunScraperOptions = {}) {
   const registry = createScraperRegistry();
-  const baseOptions = buildOrchestratorOptions(options);
+
+  // Self-healing: drop sources whose last few runs all failed (they retry after a cooldown). Skipped
+  // only when running a batch — an explicit single-source request is always honored.
+  let sourceIds = options.sourceIds;
+  const collected: SourceRunResult[] = [];
+  if (!options.dryRun && (!sourceIds || sourceIds.length > 1)) {
+    const skip = await getSkipSources();
+    if (skip.size) {
+      const enabled = registry.getEnabled().map((s) => s.id);
+      const base = sourceIds && sourceIds.length ? sourceIds : enabled;
+      if (base.length) {
+        const kept = base.filter((id: string) => !skip.has(id));
+        if (kept.length && kept.length < base.length) {
+          sourceIds = kept;
+          console.log(
+            `[runScrapers] self-heal: skipping ${Array.from(skip).join(", ")} (recent failures)`,
+          );
+        }
+      }
+    }
+  }
+
+  // Capture each source's outcome for health recording (wraps any caller-provided callback).
+  const userOnComplete = options.onSourceComplete;
+  const wrapped: RunScraperOptions = {
+    ...options,
+    sourceIds,
+    onSourceComplete: (r) => {
+      collected.push({
+        source: r.source,
+        ok: r.success,
+        dealsFound: r.dealsFound ?? 0,
+        durationMs: r.duration,
+        error: r.error ? String(r.error) : undefined,
+      });
+      userOnComplete?.(r);
+    },
+  };
+
+  const baseOptions = buildOrchestratorOptions(wrapped);
+  options = wrapped;
   const orchestratorType = options.orchestrator || "concurrent";
 
   let orchestrator;
@@ -391,7 +436,10 @@ export async function runScrapers(options: RunScraperOptions = {}) {
       throw new Error(`Unknown orchestrator type: ${orchestratorType}`);
   }
 
-  return orchestrator.run(options.sourceIds);
+  const result = await orchestrator.run(options.sourceIds);
+  // Persist per-source health (awaited so it lands before a short-lived CI process exits).
+  await recordScrapeRuns(collected);
+  return result;
 }
 
 // Backward-compatible DailyRefreshManager

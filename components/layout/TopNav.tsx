@@ -24,6 +24,7 @@ import {
   Code2,
   Sparkles,
   MapPin,
+  Activity as ActivityIcon,
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -43,6 +44,7 @@ const NAV_ITEMS = [
   { name: "Check", href: "/deal-check", icon: FileCheck },
   { name: "Intel", href: "/insights", icon: TrendingUp },
   { name: "API", href: "/developer", icon: Code2 },
+  { name: "Status", href: "/status", icon: ActivityIcon },
   { name: "Upgrade", href: "/upgrade", icon: Sparkles },
 ];
 
