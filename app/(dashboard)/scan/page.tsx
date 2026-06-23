@@ -11,6 +11,7 @@ import { useViewTransition } from "@/hooks/useViewTransition";
 import useSWR from "swr";
 import { Mono } from "@/components/shared/Mono";
 import { Ico } from "@/components/shared/Ico";
+import { useRecentSearches } from "@/components/shared/useRecentSearches";
 import { DealCard, DealCardSkeleton } from "@/components/shared/DealCard";
 import { ErrorState as SharedErrorState } from "@/components/shared/ErrorState";
 import { ALL_VEHICLE_SOURCES } from "@/lib/utils/sources";
@@ -416,7 +417,21 @@ export default function ScanPage() {
   // Search
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
+  const [searchFocused, setSearchFocused] = useState(false);
+  const { recents, addRecent, removeRecent, clearRecents } =
+    useRecentSearches();
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Commit a query to history + apply it immediately (used by Enter and recent chips).
+  const commitSearch = useCallback(
+    (val: string) => {
+      const q = val.trim();
+      setSearchInput(q);
+      setSearch(q);
+      addRecent(q);
+    },
+    [addRecent],
+  );
 
   // Filters
   const [sourceFilter, setSourceFilter] = useState("all");
@@ -733,11 +748,18 @@ export default function ScanPage() {
             placeholder='Search make, model, city… e.g. "F-150 Dallas" or "Tesla salvage"'
             value={searchInput}
             onChange={(e) => handleSearchInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && searchInput.trim())
+                commitSearch(searchInput);
+            }}
             onFocus={(e) => {
               e.currentTarget.style.borderColor = "var(--amber)";
+              setSearchFocused(true);
             }}
             onBlur={(e) => {
               e.currentTarget.style.borderColor = "var(--b1)";
+              // Delay so a recent-chip mousedown registers before the row hides.
+              setTimeout(() => setSearchFocused(false), 120);
             }}
           />
           {searchInput && (
@@ -762,9 +784,74 @@ export default function ScanPage() {
               </svg>
             </button>
           )}
+
+          {/* Recent searches — Visor-style chips under the bar, shown when empty + focused */}
+          {searchFocused && !searchInput && recents.length > 0 && (
+            <div
+              className="absolute left-0 right-0 top-full mt-2 z-30 glass-panel p-2"
+              style={{ boxShadow: "var(--shadow)" }}
+            >
+              <div className="flex items-center justify-between px-2 pb-1.5">
+                <span className="text-[10px] uppercase tracking-wider font-bold text-[var(--t4)]">
+                  Recent
+                </span>
+                <button
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    clearRecents();
+                  }}
+                  className="text-[10px] text-[var(--t4)] hover:text-[var(--red)]"
+                >
+                  Clear
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {recents.map((r) => (
+                  <span
+                    key={r}
+                    className="inline-flex items-center gap-1.5 rounded-full pl-3 pr-1.5 py-1.5 text-xs font-medium"
+                    style={{ background: "var(--s2)", color: "var(--t2)" }}
+                  >
+                    <button
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        commitSearch(r);
+                      }}
+                      className="hover:text-[var(--amber)] transition-colors"
+                    >
+                      {r}
+                    </button>
+                    <button
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        removeRecent(r);
+                      }}
+                      aria-label={`Remove ${r}`}
+                      className="text-[var(--t4)] hover:text-[var(--red)] transition-colors"
+                    >
+                      <svg
+                        width="10"
+                        height="10"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                      >
+                        <path d="M18 6 6 18M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
         <button
-          onClick={() => mutate()}
+          onClick={() => {
+            if (searchInput.trim()) addRecent(searchInput);
+            mutate();
+          }}
           disabled={loading}
           className="w-full sm:w-auto flex items-center justify-center gap-2 font-bold text-white rounded-xl py-3.5 px-7 transition-all disabled:opacity-50 border-none"
           style={{ background: "var(--grad)" }}
