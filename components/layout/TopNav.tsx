@@ -25,9 +25,11 @@ import {
   Sparkles,
   MapPin,
   Activity as ActivityIcon,
+  Home as HomeIcon,
 } from "lucide-react";
 
 const NAV_ITEMS = [
+  { name: "Today", href: "/today", icon: HomeIcon },
   { name: "Discover", href: "/discover", icon: Compass },
   { name: "Find", href: "/find", icon: Map },
   { name: "Scan", href: "/scan", icon: Search },

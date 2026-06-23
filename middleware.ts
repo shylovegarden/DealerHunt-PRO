@@ -6,6 +6,7 @@ import { NextResponse, type NextRequest } from "next/server";
 // auth check and redirects logged-in users to /find.
 const protectedRoutes = [
   // Dashboard pages — all live behind auth; '/' (landing), '/login', '/register' stay public.
+  "/today",
   "/scan",
   "/discover",
   "/find",
