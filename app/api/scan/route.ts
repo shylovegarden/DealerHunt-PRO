@@ -99,6 +99,8 @@ export async function GET(req: NextRequest) {
   const minYear = parseInt(searchParams.get("minYear") || "0");
   const maxYear = parseInt(searchParams.get("maxYear") || "0");
   const maxPrice = parseInt(searchParams.get("maxPrice") || "0");
+  const minPrice = parseInt(searchParams.get("minPrice") || "0");
+  const verdict = searchParams.get("verdict") || "";
   const minMileage = parseInt(searchParams.get("minMileage") || "0");
   const maxMileage = parseInt(searchParams.get("maxMileage") || "0");
   const availability = searchParams.get("availability") || "";
@@ -129,9 +131,11 @@ export async function GET(req: NextRequest) {
     );
   }
 
+  if (verdict && verdict !== "all") query = query.eq("deal_verdict", verdict);
   if (minYear > 0) query = query.gte("year", minYear);
   if (maxYear > 0) query = query.lte("year", maxYear);
   if (maxPrice > 0) query = query.lte("ask_price", maxPrice);
+  if (minPrice > 0) query = query.gte("ask_price", minPrice);
   // Mileage may be null on some rows; range filters naturally exclude nulls, which is acceptable
   // for an explicit mileage search.
   if (minMileage > 0) query = query.gte("mileage", minMileage);

@@ -408,6 +408,24 @@ function FilterSelect({
   );
 }
 
+/** A small labeled cluster of filters (what / where / kind / from), for the advanced panel. */
+function FilterGroup({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="text-[9px] uppercase tracking-wider font-bold text-[var(--t5)] shrink-0">
+        {label}
+      </span>
+      <div className="flex flex-wrap items-center gap-1.5">{children}</div>
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 let _toastId = 0;
@@ -488,6 +506,48 @@ export default function ScanPage() {
   const [availability, setAvailability] = useState("all");
   const [madeInUsa, setMadeInUsa] = useState(false);
   const [sort, setSort] = useState("profit");
+  // New: verdict (GO-only), price floor, year ceiling, and an advanced-filters disclosure.
+  const [verdict, setVerdict] = useState("all");
+  const [minPrice, setMinPrice] = useState("any");
+  const [maxYear, setMaxYear] = useState("any");
+  const [showMore, setShowMore] = useState(false);
+
+  // How many advanced filters are active (shown on the "More filters" button).
+  const advancedCount = useMemo(() => {
+    let c = 0;
+    if (sourceFilter !== "all") c++;
+    if (minPrice !== "any") c++;
+    if (minProfit !== "any") c++;
+    if (minYear !== "any") c++;
+    if (maxYear !== "any") c++;
+    if (maxMileage !== "any") c++;
+    if (titleType !== "all") c++;
+    if (availability !== "all") c++;
+    if (madeInUsa) c++;
+    return c;
+  }, [
+    sourceFilter,
+    minPrice,
+    minProfit,
+    minYear,
+    maxYear,
+    maxMileage,
+    titleType,
+    availability,
+    madeInUsa,
+  ]);
+
+  const resetFilters = useCallback(() => {
+    setSourceFilter("all");
+    setMinPrice("any");
+    setMinProfit("any");
+    setMinYear("any");
+    setMaxYear("any");
+    setMaxMileage("any");
+    setTitleType("all");
+    setAvailability("all");
+    setMadeInUsa(false);
+  }, []);
 
   // Dynamic facets — only offer makes that have live inventory (in the selected state).
   const { data: facets } = useSWR(
@@ -515,10 +575,14 @@ export default function ScanPage() {
       params.set("minProfit", minProfit.replace("k", "000"));
     if (maxPrice !== "any")
       params.set("maxPrice", maxPrice.replace("k", "000"));
+    if (minPrice !== "any")
+      params.set("minPrice", minPrice.replace("k", "000"));
     if (minYear !== "any") params.set("minYear", minYear);
+    if (maxYear !== "any") params.set("maxYear", maxYear);
     if (maxMileage !== "any")
       params.set("maxMileage", maxMileage.replace("k", "000"));
     if (availability !== "all") params.set("availability", availability);
+    if (verdict !== "all") params.set("verdict", verdict);
     if (madeInUsa) params.set("madeInUsa", "1");
     return `/api/scan?${params.toString()}`;
   }, [
@@ -531,9 +595,12 @@ export default function ScanPage() {
     make,
     minProfit,
     maxPrice,
+    minPrice,
     minYear,
+    maxYear,
     maxMileage,
     availability,
+    verdict,
     madeInUsa,
     sort,
   ]);
@@ -925,42 +992,35 @@ export default function ScanPage() {
         lastScan={lastScan}
       />
 
-      {/* ── Filter bar ── */}
-      <div className="glass-panel px-4 py-3 flex flex-wrap items-center gap-3">
-        <span className="text-xs text-[var(--t4)] font-semibold uppercase tracking-wider flex items-center gap-1.5 shrink-0">
-          <Ico name="filter" size={13} />
-          Filters
-        </span>
-
-        <div className="flex flex-wrap gap-2 flex-1">
+      {/* ── Filter bar: primary row + grouped advanced panel ── */}
+      <div className="glass-panel px-4 py-3 space-y-3">
+        {/* PRIMARY: the dealer's most-used controls, always visible */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* GO-only — the #1 filter */}
+          <button
+            type="button"
+            onClick={() => setVerdict((v) => (v === "go" ? "all" : "go"))}
+            className="px-3 py-1.5 rounded-[var(--r2)] text-xs font-bold border transition-colors shrink-0"
+            style={{
+              background: verdict === "go" ? "var(--glo)" : "var(--s0)",
+              color: verdict === "go" ? "var(--green)" : "var(--t3)",
+              borderColor: verdict === "go" ? "var(--gbd)" : "var(--b2)",
+            }}
+            title="Only show deals the engine rates GO"
+          >
+            ✓ GO only
+          </button>
           <FilterSelect
-            label="Source"
-            value={sourceFilter}
-            onChange={setSourceFilter}
-            options={sourceOptions}
+            label="Make"
+            value={make}
+            onChange={setMake}
+            options={makeOptions}
           />
           <FilterSelect
-            label="Title Type"
-            value={titleType}
-            onChange={setTitleType}
-            options={[
-              { value: "all", label: "Title: All" },
-              { value: "clean", label: "Clean Title" },
-              { value: "salvage", label: "Salvage Title" },
-              { value: "rebuilt", label: "Rebuilt Title" },
-            ]}
-          />
-          <FilterSelect
-            label="Min Profit"
-            value={minProfit}
-            onChange={setMinProfit}
-            options={[
-              { value: "any", label: "Profit: Any" },
-              { value: "1k", label: "Min $1,000" },
-              { value: "2k", label: "Min $2,000" },
-              { value: "3k", label: "Min $3,000" },
-              { value: "5k", label: "Min $5,000" },
-            ]}
+            label="State"
+            value={state}
+            onChange={setState}
+            options={stateOptions}
           />
           <FilterSelect
             label="Max Price"
@@ -976,66 +1036,6 @@ export default function ScanPage() {
             ]}
           />
           <FilterSelect
-            label="Year From"
-            value={minYear}
-            onChange={setMinYear}
-            options={[
-              { value: "any", label: "Year: Any" },
-              { value: "2000", label: "2000 +" },
-              { value: "2010", label: "2010 +" },
-              { value: "2015", label: "2015 +" },
-              { value: "2018", label: "2018 +" },
-              { value: "2021", label: "2021 +" },
-            ]}
-          />
-          <FilterSelect
-            label="Max Miles"
-            value={maxMileage}
-            onChange={setMaxMileage}
-            options={[
-              { value: "any", label: "Miles: Any" },
-              { value: "50k", label: "Under 50k" },
-              { value: "100k", label: "Under 100k" },
-              { value: "150k", label: "Under 150k" },
-            ]}
-          />
-          <FilterSelect
-            label="State"
-            value={state}
-            onChange={setState}
-            options={stateOptions}
-          />
-          <FilterSelect
-            label="Make"
-            value={make}
-            onChange={setMake}
-            options={makeOptions}
-          />
-          <FilterSelect
-            label="Availability"
-            value={availability}
-            onChange={setAvailability}
-            options={[
-              { value: "all", label: "Availability: All" },
-              { value: "on_lot", label: "On lot" },
-              { value: "in_transit", label: "In transit" },
-              { value: "online_only", label: "Online only" },
-            ]}
-          />
-          <button
-            type="button"
-            onClick={() => setMadeInUsa((v) => !v)}
-            className="px-3 py-1.5 rounded-[var(--r2)] text-xs font-bold border transition-colors shrink-0"
-            style={{
-              background: madeInUsa ? "var(--amber-lo)" : "var(--s0)",
-              color: madeInUsa ? "var(--amber-d)" : "var(--t3)",
-              borderColor: madeInUsa ? "var(--amber-bd)" : "var(--b2)",
-            }}
-            title="Filter to vehicles assembled in the USA (VIN-decoded)"
-          >
-            🇺🇸 Made in USA
-          </button>
-          <FilterSelect
             label="Sort"
             value={sort}
             onChange={setSort}
@@ -1045,42 +1045,185 @@ export default function ScanPage() {
               { value: "price", label: "Sort: Price ↑" },
             ]}
           />
+          <button
+            type="button"
+            onClick={() => setShowMore((s) => !s)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--r2)] text-xs font-bold border transition-colors shrink-0"
+            style={{
+              background: advancedCount > 0 ? "var(--amber-lo)" : "var(--s0)",
+              color: advancedCount > 0 ? "var(--amber-d)" : "var(--t3)",
+              borderColor: advancedCount > 0 ? "var(--amber-bd)" : "var(--b2)",
+            }}
+          >
+            <Ico name="filter" size={12} />
+            More filters{advancedCount > 0 ? ` (${advancedCount})` : ""}
+            <span className="text-[10px]">{showMore ? "▲" : "▼"}</span>
+          </button>
+
+          {/* Results count + density */}
+          {!loading && (
+            <div className="ml-auto flex items-center gap-3 shrink-0">
+              <span className="text-xs text-[var(--t3)] font-mono">
+                {filteredResults.length} result
+                {filteredResults.length !== 1 ? "s" : ""}
+              </span>
+              <div
+                className="flex items-center gap-0.5 p-0.5 rounded-[var(--r2)]"
+                style={{ background: "var(--s2)" }}
+                title="Display density"
+              >
+                {(
+                  [
+                    { key: "comfortable", Icon: LayoutGrid },
+                    { key: "compact", Icon: Rows3 },
+                  ] as const
+                ).map((opt) => (
+                  <button
+                    key={opt.key}
+                    onClick={() => changeDensity(opt.key)}
+                    aria-label={`${opt.key} view`}
+                    className="flex items-center justify-center h-6 w-6 rounded-[var(--r1)] transition-colors"
+                    style={{
+                      background:
+                        density === opt.key ? "var(--s0)" : "transparent",
+                      color: density === opt.key ? "var(--t1)" : "var(--t4)",
+                      boxShadow:
+                        density === opt.key ? "var(--shadow2)" : "none",
+                    }}
+                  >
+                    <opt.Icon size={13} />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Results count + density toggle (Display) */}
-        {!loading && (
-          <div className="ml-auto flex items-center gap-3 shrink-0">
-            <span className="text-xs text-[var(--t3)] font-mono">
-              {filteredResults.length} result
-              {filteredResults.length !== 1 ? "s" : ""}
-            </span>
-            <div
-              className="flex items-center gap-0.5 p-0.5 rounded-[var(--r2)]"
-              style={{ background: "var(--s2)" }}
-              title="Display density"
-            >
-              {(
-                [
-                  { key: "comfortable", Icon: LayoutGrid },
-                  { key: "compact", Icon: Rows3 },
-                ] as const
-              ).map((opt) => (
-                <button
-                  key={opt.key}
-                  onClick={() => changeDensity(opt.key)}
-                  aria-label={`${opt.key} view`}
-                  className="flex items-center justify-center h-6 w-6 rounded-[var(--r1)] transition-colors"
-                  style={{
-                    background:
-                      density === opt.key ? "var(--s0)" : "transparent",
-                    color: density === opt.key ? "var(--t1)" : "var(--t4)",
-                    boxShadow: density === opt.key ? "var(--shadow2)" : "none",
-                  }}
-                >
-                  <opt.Icon size={13} />
-                </button>
-              ))}
-            </div>
+        {/* ADVANCED: grouped by what / where / kind / from — intuitive */}
+        {showMore && (
+          <div className="pt-3 border-t border-[var(--b1)] flex flex-wrap items-center gap-x-2 gap-y-2.5">
+            <FilterGroup label="From">
+              <FilterSelect
+                label="Source"
+                value={sourceFilter}
+                onChange={setSourceFilter}
+                options={sourceOptions}
+              />
+            </FilterGroup>
+
+            <FilterGroup label="Price & profit">
+              <FilterSelect
+                label="Min Price"
+                value={minPrice}
+                onChange={setMinPrice}
+                options={[
+                  { value: "any", label: "Min: Any" },
+                  { value: "2k", label: "Over $2,000" },
+                  { value: "5k", label: "Over $5,000" },
+                  { value: "10k", label: "Over $10,000" },
+                  { value: "20k", label: "Over $20,000" },
+                ]}
+              />
+              <FilterSelect
+                label="Min Profit"
+                value={minProfit}
+                onChange={setMinProfit}
+                options={[
+                  { value: "any", label: "Profit: Any" },
+                  { value: "1k", label: "Min $1,000" },
+                  { value: "2k", label: "Min $2,000" },
+                  { value: "3k", label: "Min $3,000" },
+                  { value: "5k", label: "Min $5,000" },
+                ]}
+              />
+            </FilterGroup>
+
+            <FilterGroup label="Year">
+              <FilterSelect
+                label="From"
+                value={minYear}
+                onChange={setMinYear}
+                options={[
+                  { value: "any", label: "From: Any" },
+                  { value: "2000", label: "2000 +" },
+                  { value: "2010", label: "2010 +" },
+                  { value: "2015", label: "2015 +" },
+                  { value: "2018", label: "2018 +" },
+                  { value: "2021", label: "2021 +" },
+                ]}
+              />
+              <FilterSelect
+                label="To"
+                value={maxYear}
+                onChange={setMaxYear}
+                options={[
+                  { value: "any", label: "To: Any" },
+                  { value: "2024", label: "to 2024" },
+                  { value: "2020", label: "to 2020" },
+                  { value: "2015", label: "to 2015" },
+                  { value: "2010", label: "to 2010" },
+                ]}
+              />
+            </FilterGroup>
+
+            <FilterGroup label="Condition">
+              <FilterSelect
+                label="Max Miles"
+                value={maxMileage}
+                onChange={setMaxMileage}
+                options={[
+                  { value: "any", label: "Miles: Any" },
+                  { value: "50k", label: "Under 50k" },
+                  { value: "100k", label: "Under 100k" },
+                  { value: "150k", label: "Under 150k" },
+                ]}
+              />
+              <FilterSelect
+                label="Title Type"
+                value={titleType}
+                onChange={setTitleType}
+                options={[
+                  { value: "all", label: "Title: All" },
+                  { value: "clean", label: "Clean Title" },
+                  { value: "salvage", label: "Salvage Title" },
+                  { value: "rebuilt", label: "Rebuilt Title" },
+                ]}
+              />
+              <FilterSelect
+                label="Availability"
+                value={availability}
+                onChange={setAvailability}
+                options={[
+                  { value: "all", label: "Availability: All" },
+                  { value: "on_lot", label: "On lot" },
+                  { value: "in_transit", label: "In transit" },
+                  { value: "online_only", label: "Online only" },
+                ]}
+              />
+              <button
+                type="button"
+                onClick={() => setMadeInUsa((v) => !v)}
+                className="px-3 py-1.5 rounded-[var(--r2)] text-xs font-bold border transition-colors shrink-0"
+                style={{
+                  background: madeInUsa ? "var(--amber-lo)" : "var(--s0)",
+                  color: madeInUsa ? "var(--amber-d)" : "var(--t3)",
+                  borderColor: madeInUsa ? "var(--amber-bd)" : "var(--b2)",
+                }}
+                title="Filter to vehicles assembled in the USA (VIN-decoded)"
+              >
+                🇺🇸 USA
+              </button>
+            </FilterGroup>
+
+            {advancedCount > 0 && (
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="ml-auto text-xs font-semibold text-[var(--t4)] hover:text-[var(--red)] transition-colors shrink-0"
+              >
+                Reset all
+              </button>
+            )}
           </div>
         )}
       </div>
