@@ -3,6 +3,7 @@ import { checkAlerts } from "../lib/alerts/alert-engine";
 import { trackPriceChanges } from "../lib/alerts/price-tracker";
 import { updateMarketTrends } from "../lib/scoring/market-intelligence";
 import { checkSavedCars } from "../workers/savedCarsChecker";
+import { scanForFlashDeals } from "../lib/alerts/flash-deal-scanner";
 
 // Optional self-hosted worker for the recurring maintenance jobs that aren't a good fit for
 // serverless: alert delivery, price-drop tracking, and nightly market-trend aggregation.
@@ -52,6 +53,11 @@ async function scheduleJobs() {
       {},
       { repeat: { pattern: "*/5 * * * *" }, attempts: 2 },
     );
+    await maintenanceQueue.add(
+      "flash-deal-scan",
+      {},
+      { repeat: { pattern: "*/5 * * * *" }, attempts: 3 },
+    );
     console.log("[Queue] Maintenance jobs scheduled");
   } catch (err) {
     console.error("[Queue] Failed to schedule jobs. Is Redis running?", err);
@@ -79,6 +85,13 @@ const worker = new Worker(
       case "saved-car-check": {
         const savedCarCount = await checkSavedCars();
         console.log(`[Worker] Checked ${savedCarCount} saved cars`);
+        return;
+      }
+      case "flash-deal-scan": {
+        const flashDealsFound = await scanForFlashDeals();
+        console.log(
+          `[Worker] Found and alerted ${flashDealsFound} flash deals`,
+        );
         return;
       }
       default:

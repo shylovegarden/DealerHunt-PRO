@@ -29,11 +29,13 @@ import {
   List as ListIcon,
   FileText,
   ChevronDown,
+  Zap,
 } from "lucide-react";
 
 // Clean primary nav — the core demo path. Everything else lives under "More".
 const PRIMARY = [
   { name: "Today", href: "/today", icon: HomeIcon },
+  { name: "Flash Deals", href: "/flash-deals", icon: Zap },
   { name: "Discover", href: "/discover", icon: Compass },
   { name: "Scan", href: "/scan", icon: Search },
   { name: "Map", href: "/map", icon: MapPin },

@@ -13,6 +13,7 @@ import { Deal } from "@/types";
 import { calculateProfit, type ProfitResult } from "./profit-calculator";
 import { milesBetweenStates, transportCostForMiles } from "@/lib/geo";
 import { lookupMarketValue, lookupMarketAggregate } from "./market-value";
+import { estimateBaselineValue } from "./baseline-value";
 
 // Home base used for transport-distance math (where you recondition/sell). Override via env.
 const HOME_BASE_STATE = process.env.HOME_BASE_STATE || "TX";
@@ -137,7 +138,7 @@ function estimateSellValue(
 
 export interface DealAnalysis extends ProfitResult {
   sellEstimate: number;
-  sellBasis: "comps" | "market" | "markup";
+  sellBasis: "comps" | "market" | "baseline";
   recommendedMaxBid: number;
   miles: number | null;
 }
@@ -154,25 +155,37 @@ export function analyzeDeal(deal: Partial<Deal>): DealAnalysis {
   //  4. a source/condition markup on ask (fallback)
   const comps = lookupMarketValue(deal.make, deal.model, deal.year);
   const hasMarket = typeof deal.mmr_value === "number" && deal.mmr_value > 0;
-  const aggregate =
-    comps?.retail || hasMarket
-      ? null
-      : lookupMarketAggregate(deal.make, deal.model, deal.year);
+  const aggregate = lookupMarketAggregate(deal.make, deal.model, deal.year);
+
+  // Free offline baseline (segment depreciation). Doubles as a SANITY GATE so a single outlier comp
+  // (e.g. a $42k Shelby setting the "Mustang" median) can't produce a wild resale value.
+  const baseline = estimateBaselineValue(
+    deal.year,
+    deal.make,
+    deal.model,
+    deal.mileage,
+  );
+  const sane = (v: number) =>
+    baseline <= 0 ? v > 0 : v >= baseline * 0.4 && v <= baseline * 2.2;
+
   let sellEstimate: number;
-  let sellBasis: "comps" | "market" | "markup";
-  if (comps?.retail) {
+  let sellBasis: "comps" | "market" | "baseline";
+  if (comps?.retail && sane(comps.retail)) {
     sellEstimate = comps.retail;
     sellBasis = "comps";
-  } else if (hasMarket) {
+  } else if (hasMarket && sane(deal.mmr_value as number)) {
     sellEstimate = deal.mmr_value as number;
     sellBasis = "market";
-  } else if (aggregate && aggregate.value > 0) {
-    // Accumulated nightly history — treated as a market value (avg of mmr), same tier as #2.
+  } else if (aggregate && aggregate.value > 0 && sane(aggregate.value)) {
     sellEstimate = aggregate.value;
     sellBasis = "market";
+  } else if (baseline > 0) {
+    // No trustworthy comp → realistic depreciation estimate (not a circular markup on ask).
+    sellEstimate = baseline;
+    sellBasis = "baseline";
   } else {
     sellEstimate = estimateSellValue(askPrice, deal.source, deal.condition);
-    sellBasis = "markup";
+    sellBasis = "baseline";
   }
 
   // TRANSPORT: listing state → home base. When location is missing (miles null), don't
@@ -215,8 +228,8 @@ export function analyzeDeal(deal: Partial<Deal>): DealAnalysis {
     transportCost,
     salePrice: sellEstimate,
     sellingFee,
-    // Feed a trusted market value into the risk model (comps or attached market value, not the markup guess).
-    mmrValue: sellBasis === "markup" ? undefined : sellEstimate,
+    // Feed only a real market value into the risk model (comps/market, not the baseline estimate).
+    mmrValue: sellBasis === "baseline" ? undefined : sellEstimate,
     make: deal.make || undefined,
     model: deal.model || undefined,
     marketDemandScore: signals.demand,
@@ -240,5 +253,15 @@ export function analyzeDeal(deal: Partial<Deal>): DealAnalysis {
     Math.round((maxAcquisition - fm.flatFee - fm.titleFee) / (1 + fm.feeRate)),
   );
 
-  return { ...result, sellEstimate, sellBasis, recommendedMaxBid, miles };
+  // Clamp the score to a real 0–100 (the raw model could exceed 100 on strong deals).
+  const score = Math.max(0, Math.min(100, Math.round(result.score)));
+
+  return {
+    ...result,
+    score,
+    sellEstimate,
+    sellBasis,
+    recommendedMaxBid,
+    miles,
+  };
 }
