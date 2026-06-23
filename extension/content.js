@@ -66,10 +66,42 @@
     return m ? m[0] : "";
   }
 
+  // ISO-3779 check digit so we only ever send a real VIN (not a 17-char order/ref number).
+  function vinValid(raw) {
+    const vin = (raw || "").toUpperCase().replace(/[\s-]/g, "");
+    if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) return false;
+    const tr = { A:1,B:2,C:3,D:4,E:5,F:6,G:7,H:8,J:1,K:2,L:3,M:4,N:5,P:7,R:9,S:2,T:3,U:4,V:5,W:6,X:7,Y:8,Z:9,
+      "0":0,"1":1,"2":2,"3":3,"4":4,"5":5,"6":6,"7":7,"8":8,"9":9 };
+    const w = [8,7,6,5,4,3,2,10,0,9,8,7,6,5,4,3,2];
+    let sum = 0;
+    for (let i = 0; i < 17; i++) sum += tr[vin[i]] * w[i];
+    const r = sum % 11;
+    return vin[8] === (r === 10 ? "X" : String(r));
+  }
+
   function findVin() {
+    // Prefer a labeled VIN, else the first checksum-valid 17-char token on the page.
     const text = document.body.innerText;
-    const m = text.match(/\b([A-HJ-NPR-Z0-9]{17})\b/);
-    return m ? m[1] : undefined;
+    const labeled = text.match(/VIN[:#\s]*([A-HJ-NPR-Z0-9]{17})/i);
+    if (labeled && vinValid(labeled[1])) return labeled[1].toUpperCase();
+    const re = /\b[A-HJ-NPR-Z0-9]{17}\b/g;
+    let m;
+    while ((m = re.exec(text.toUpperCase())) !== null) {
+      if (vinValid(m[0])) return m[0];
+    }
+    return undefined;
+  }
+
+  // US state from JSON-LD address or a "City, ST" pattern in the page.
+  function findLocation() {
+    const out = {};
+    const text = document.body.innerText;
+    const m = text.match(/([A-Z][a-zA-Z.\- ]+),\s*([A-Z]{2})\b(?:\s+\d{5})?/);
+    if (m) {
+      out.location_city = m[1].trim().slice(0, 60);
+      out.location_state = m[2];
+    }
+    return out;
   }
 
   function findMileage() {
@@ -98,6 +130,11 @@
     const ld = jsonLd();
     const title = ld.title || og("og:title") || document.querySelector("h1")?.innerText?.trim() || document.title;
     const ymm = parseYMM(title);
+    const loc = findLocation();
+    // Validate a JSON-LD VIN before trusting it; fall back to a page scan.
+    const vin = (ld.vin && vinValid(ld.vin) ? ld.vin.toUpperCase() : undefined) || findVin();
+    // Bounded description so the server can recover a VIN/details we missed.
+    const description = (og("og:description") || "").slice(0, 1500) || undefined;
     return {
       url: window.location.href.split("?")[0],
       source: sourceFor(window.location.hostname),
@@ -106,8 +143,11 @@
       year: ld.year || ymm.year,
       make: ld.make || ymm.make,
       model: ld.model || ymm.model,
-      vin: ld.vin || findVin(),
+      vin,
       mileage: ld.mileage || findMileage(),
+      location_city: loc.location_city,
+      location_state: loc.location_state,
+      description,
       image_url: ld.image_url || og("og:image") || undefined,
     };
   }
