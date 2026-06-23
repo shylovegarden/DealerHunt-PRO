@@ -12,6 +12,7 @@ import useSWR from "swr";
 import { Mono } from "@/components/shared/Mono";
 import { Ico } from "@/components/shared/Ico";
 import { useRecentSearches } from "@/components/shared/useRecentSearches";
+import { LayoutGrid, Rows3 } from "lucide-react";
 import { DealCard, DealCardSkeleton } from "@/components/shared/DealCard";
 import { ErrorState as SharedErrorState } from "@/components/shared/ErrorState";
 import { ALL_VEHICLE_SOURCES } from "@/lib/utils/sources";
@@ -418,8 +419,29 @@ export default function ScanPage() {
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
+  const [density, setDensity] = useState<"comfortable" | "compact">(
+    "comfortable",
+  );
   const { recents, addRecent, removeRecent, clearRecents } =
     useRecentSearches();
+
+  // Persisted display density (Visor "compact view" — see more listings at once).
+  useEffect(() => {
+    const d = localStorage.getItem("dhp_density");
+    if (d === "compact" || d === "comfortable") setDensity(d);
+  }, []);
+  const changeDensity = useCallback((d: "comfortable" | "compact") => {
+    setDensity(d);
+    try {
+      localStorage.setItem("dhp_density", d);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  const gridClass =
+    density === "compact"
+      ? "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5"
+      : "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4";
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Commit a query to history + apply it immediately (used by Enter and recent chips).
@@ -1004,12 +1026,41 @@ export default function ScanPage() {
           />
         </div>
 
-        {/* Results count */}
+        {/* Results count + density toggle (Display) */}
         {!loading && (
-          <span className="text-xs text-[var(--t3)] ml-auto shrink-0 font-mono">
-            {filteredResults.length} result
-            {filteredResults.length !== 1 ? "s" : ""}
-          </span>
+          <div className="ml-auto flex items-center gap-3 shrink-0">
+            <span className="text-xs text-[var(--t3)] font-mono">
+              {filteredResults.length} result
+              {filteredResults.length !== 1 ? "s" : ""}
+            </span>
+            <div
+              className="flex items-center gap-0.5 p-0.5 rounded-[var(--r2)]"
+              style={{ background: "var(--s2)" }}
+              title="Display density"
+            >
+              {(
+                [
+                  { key: "comfortable", Icon: LayoutGrid },
+                  { key: "compact", Icon: Rows3 },
+                ] as const
+              ).map((opt) => (
+                <button
+                  key={opt.key}
+                  onClick={() => changeDensity(opt.key)}
+                  aria-label={`${opt.key} view`}
+                  className="flex items-center justify-center h-6 w-6 rounded-[var(--r1)] transition-colors"
+                  style={{
+                    background:
+                      density === opt.key ? "var(--s0)" : "transparent",
+                    color: density === opt.key ? "var(--t1)" : "var(--t4)",
+                    boxShadow: density === opt.key ? "var(--shadow2)" : "none",
+                  }}
+                >
+                  <opt.Icon size={13} />
+                </button>
+              ))}
+            </div>
+          </div>
         )}
       </div>
 
@@ -1031,7 +1082,7 @@ export default function ScanPage() {
       )}
 
       {!loading && !error && filteredResults.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className={gridClass}>
           {filteredResults.map((car: ScanResult, idx: number) => (
             <div
               key={car.id}
