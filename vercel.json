@@ -3,20 +3,7 @@
   "buildCommand": "next build",
   "outputDirectory": ".next",
   "regions": ["iad1"],
-  "crons": [
-    {
-      "path": "/api/alerts/process",
-      "schedule": "*/5 * * * *"
-    },
-    {
-      "path": "/api/orchestrator/run",
-      "schedule": "0 */6 * * *"
-    },
-    {
-      "path": "/api/embeddings/backfill",
-      "schedule": "15 */2 * * *"
-    }
-  ],
+
   "headers": [
     {
       "source": "/api/ingest",
