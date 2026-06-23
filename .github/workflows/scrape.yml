@@ -1,0 +1,65 @@
+name: Scrape vehicle sources
+
+# $0 scraping engine: runs the orchestrator on GitHub Actions (free minutes, full
+# Chromium) instead of Vercel serverless. FlareSolverr runs as an ephemeral service
+# container to bypass Cloudflare on gated sources (Copart) — no paid proxies/APIs.
+
+on:
+  workflow_dispatch:
+    inputs:
+      sources:
+        description: 'Comma-separated source ids (blank = curated default set)'
+        required: false
+        default: ''
+  schedule:
+    # Staggered to spread free-minute usage. Times are UTC.
+    - cron: '0 */6 * * *'   # every 6h — full default set
+
+concurrency:
+  group: scrape
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      flaresolverr:
+        image: ghcr.io/flaresolverr/flaresolverr:latest
+        ports:
+          - 8191:8191
+
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      FLARESOLVERR_URL: http://localhost:8191/v1
+      GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      SCRAPE_SOURCES: ${{ github.event.inputs.sources }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Wait for FlareSolverr
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8191/ >/dev/null; then echo "FlareSolverr up"; exit 0; fi
+            sleep 2
+          done
+          echo "FlareSolverr did not become ready (continuing — direct sources still run)"
+
+      - name: Run scrapers
+        run: npm run scrape:ci

@@ -1,0 +1,39 @@
+name: Scrape (near real-time, rotating)
+
+# $0 near-real-time ingestion. Every 30 min it scrapes a rotating 1/8 slice of the country
+# from Craigslist (static HTML — no browser/proxy, ~1-2 min/run), cycling the full nation
+# every ~4 hours. New deals hit Supabase and the scan page updates live via Supabase Realtime.
+#
+# Minutes budget: GitHub Actions is UNLIMITED on public repos. On a private repo the free tier
+# is ~2,000 min/month — at ~2 min/run every 30 min (~2,880/mo) you'd exceed it, so either make
+# the repo public, raise the cron interval to hourly, or self-host the worker. The full
+# multi-source sweep stays in scrape.yml (every 6h).
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '7,37 * * * *' # every 30 min, offset off the hour (GitHub throttles on-the-hour)
+
+concurrency:
+  group: scrape-realtime
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SCRAPE_SOURCES: craigslist
+      CL_SHARDS: '8'
+      CL_SHARD: ${{ github.run_number }} # rotates the slice each run
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run scrape:ci
