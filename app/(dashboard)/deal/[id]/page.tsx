@@ -22,6 +22,7 @@ import { AIBrief } from "@/components/deal/AIBrief";
 import { DealIQCard } from "@/components/deal/DealIQCard";
 import { MarketContext } from "@/components/deal/MarketContext";
 import { PriceTimeline } from "@/components/deal/PriceTimeline";
+import { VehicleSpecs } from "@/components/deal/VehicleSpecs";
 import useDealerDefaults from "@/hooks/useDealerDefaults";
 
 // Fetcher function for SWR
@@ -662,6 +663,9 @@ export default function DealPage({
 
       {/* MARKET CONTEXT — days-on-market, depreciation, time-travel, cross-source prices */}
       <MarketContext dealId={id} />
+
+      {/* VEHICLE SPECS + RECALLS — authoritative free NHTSA data (when VIN known) */}
+      <VehicleSpecs vin={store.vin} />
 
       {/* PRICE TIMELINE — drops + motivated-seller signal */}
       <PriceTimeline dealId={id} />
