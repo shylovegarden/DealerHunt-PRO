@@ -150,20 +150,23 @@ export interface DealAnalysis extends ProfitResult {
 const BAIT_RE =
   /\b(we ?finance|financiamos|buy here pay here|bhph|lease ?(take ?over|takeover|transfer|assumption)|take ?over (the )?lease|down ?payment|\$\d+\s*down|per month|a month|\/mo\b|\bo\.?a\.?c\.?\b|on approved credit|no credit|bad credit)\b/i;
 
-// A listing's price is implausible (not a real purchase price) when the title is financing/lease
-// bait, OR — for a non-salvage car — the ask is under ~8% of its resale baseline (no clean running
-// car sells that low; it's a teaser/deposit/scam). Salvage/parts can be legitimately cheap, so the
-// ratio test exempts them, but bait keywords flag regardless of condition.
+// A listing's price is implausible (not a real purchase price) when it sits too far below the
+// vehicle's resale baseline. A plain listing under ~8% of resale is a teaser/deposit/scam. Financing
+// /lease "bait" keywords (WE FINANCE, NO CREDIT, $/mo, lease takeover) by themselves don't prove
+// anything — a legit dealer can list a real $28k price *and* advertise financing — so a keyword only
+// RAISES suspicion: it lifts the threshold to ~40%, catching down-payment numbers ("$4k down on a
+// $25k King Ranch") while sparing full-price listings that merely mention financing. Salvage/parts
+// can be legitimately cheap, so they're exempt from the price test entirely.
 function isPriceImplausible(deal: Partial<Deal>, baseline: number): boolean {
   const ask = deal.ask_price || 0;
-  if (ask <= 0) return false; // unknown price is handled by the normal fallback path
-  if (BAIT_RE.test(deal.title || "")) return true;
+  if (ask <= 0 || baseline <= 0) return false; // no price / no baseline → handled elsewhere
   const salvageLike =
     /salvage|parts|rebuilt|repairable|flood|non[- ]?run|not running|mechanic special/.test(
       `${deal.condition || ""} ${deal.title || ""}`.toLowerCase(),
     );
-  if (!salvageLike && baseline > 0 && ask < baseline * 0.08) return true;
-  return false;
+  if (salvageLike) return false;
+  const threshold = BAIT_RE.test(deal.title || "") ? 0.4 : 0.08;
+  return ask < baseline * threshold;
 }
 
 /** Run the full decision model for one deal. */
@@ -293,17 +296,18 @@ export function analyzeDeal(deal: Partial<Deal>): DealAnalysis {
   // Clamp the score to a real 0–100 (the raw model could exceed 100 on strong deals).
   let score = Math.max(0, Math.min(100, Math.round(result.score)));
   let verdict = result.verdict;
-  let recommendations = result.recommendations;
+  let warnings = result.warnings;
 
   // Price-plausibility gate: financing/lease/payment bait isn't a real flip. Force it out of GO
-  // (so it can't reach the scan "GO only" filter or the flash-deals feed) and cap the score.
+  // (so it can't reach the scan "GO only" filter or the flash-deals feed), cap the score, and
+  // surface a red warning so the deal page reads it as a caution, not a positive recommendation.
   const priceImplausible = isPriceImplausible(deal, baseline);
   if (priceImplausible) {
     verdict = "pass";
     score = Math.min(score, 20);
-    recommendations = [
+    warnings = [
       "Listed price looks like a down payment / monthly / lease takeover — not a real sale price. Verify the actual buy price before bidding.",
-      ...recommendations,
+      ...warnings,
     ];
   }
 
@@ -311,7 +315,7 @@ export function analyzeDeal(deal: Partial<Deal>): DealAnalysis {
     ...result,
     score,
     verdict,
-    recommendations,
+    warnings,
     sellEstimate,
     sellBasis,
     recommendedMaxBid,
