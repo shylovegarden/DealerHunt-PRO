@@ -73,6 +73,19 @@ const MAKES = [
 // Match longer/multi-word makes first so "Land Rover" wins over a stray "Land".
 const MAKES_BY_LENGTH = [...MAKES].sort((a, b) => b.length - a.length);
 
+// Recognized real automotive makes (canonical + common aliases), lowercased, for validating a
+// scraped/decoded make elsewhere. A "make" not in here (e.g. "Biz" from "2024 Biz On Wheels") is a
+// junk/mis-parsed listing, not a valuation-grade vehicle — callers should refuse to score it.
+const KNOWN_MAKE_SET = new Set<string>([
+  ...MAKES.map((m) => m.toLowerCase()),
+  ...Object.keys(MAKE_ALIASES),
+]);
+
+export function isKnownMake(make?: string | null): boolean {
+  if (!make) return false;
+  return KNOWN_MAKE_SET.has(make.trim().toLowerCase());
+}
+
 export function normalizeVin(vin?: string): string | undefined {
   if (!vin) return undefined;
   const cleaned = vin.toUpperCase().replace(/[^A-HJ-NPR-Z0-9]/g, "");

@@ -12,6 +12,9 @@ export interface LiteIQInput {
   trueNetProfit?: number | null;
   profitEstimate?: number | null;
   distressed?: boolean;
+  // Engine gate, so the chip never disagrees with the GO/PASS pill on the same card.
+  dealVerdict?: string | null;
+  priceImplausible?: boolean;
 }
 
 export function liteDealIQ(
@@ -23,12 +26,19 @@ export function liteDealIQ(
   // Need at least a resale figure or a profit number to say anything.
   if (ask <= 0 || (sell <= 0 && profit == null)) return null;
 
+  // Guard: if sell_estimate looks circular (within 20% of ask × 1.25), don't show IQ
+  if (input.sellEstimate && Math.abs(sell - ask * 1.25) < ask * 0.05) {
+    return null; // hides the IQ chip — better to show nothing than a lie
+  }
+
   const iq = computeDealIQ({
     askPrice: ask,
     sellEstimate: sell || null,
     compsConfidence: "medium",
     trueNetProfit: profit != null ? Number(profit) : null,
     distress: !!input.distressed,
+    dealVerdict: input.dealVerdict,
+    priceImplausible: input.priceImplausible,
   });
 
   const clampedScore = Math.min(100, Math.max(0, iq.score));

@@ -128,6 +128,7 @@ export async function GET(
     compsConfidence,
     trueNetProfit: d.true_net_profit,
     dealVerdict: d.deal_verdict,
+    priceImplausible: !!d.deal_analysis?.priceImplausible,
     demand,
     timing,
     winMatch,

@@ -115,6 +115,7 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
           scoreBreakdown: analysis.scoreBreakdown,
           warnings: analysis.warnings,
           recommendations: analysis.recommendations,
+          priceImplausible: analysis.priceImplausible,
         },
         created_at: deal.created_at || now,
         updated_at: now,

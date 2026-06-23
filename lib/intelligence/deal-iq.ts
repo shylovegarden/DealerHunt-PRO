@@ -33,6 +33,10 @@ export interface IQInputs {
   mispricing?: { pctBelowCluster: number; z: number } | null;
   calibrationProfitBiasPct?: number | null; // signed: + engine under-predicts, - over-predicts
   distress?: boolean;
+  // The engine's own gate. A deal it already rejected (verdict "pass") or flagged as a non-real
+  // price (financing/lease bait) must never surface as a high-IQ buy, however good the raw signals
+  // look — otherwise the IQ chip contradicts the PASS verdict on the same card.
+  priceImplausible?: boolean;
 }
 
 const clamp = (n: number, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, n));
@@ -159,17 +163,31 @@ export function computeDealIQ(inp: IQInputs): DealIQ {
 
   // Weighted blend of whatever signals are present (graceful with sparse data).
   const totalW = signals.reduce((s, x) => s + x.weight, 0);
-  const score =
+  let score =
     totalW > 0
       ? Math.round(signals.reduce((s, x) => s + x.score * x.weight, 0) / totalW)
       : 50;
+
+  // Respect the engine's own gate so the IQ never contradicts the verdict on the same card:
+  //  • implausible price (financing/lease bait, fake $999) → the "discount" is a mirage; hard-floor.
+  //  • verdict "pass" → the engine rejected it; cap below "fair".
+  //  • verdict "hold" → workable but not a standout; cap below "elite".
+  const gated = inp.priceImplausible
+    ? Math.min(score, 12)
+    : inp.dealVerdict === "pass"
+      ? Math.min(score, 45)
+      : inp.dealVerdict === "hold"
+        ? Math.min(score, 78)
+        : score;
+  score = gated;
 
   const tier = tierFor(score);
   const top = [...signals].sort(
     (a, b) => b.score * b.weight - a.score * a.weight,
   )[0];
-  const headline =
-    tier === "elite"
+  const headline = inp.priceImplausible
+    ? "Skip — the listed price isn’t a real sale price (looks like a payment/lease)"
+    : tier === "elite"
       ? `Elite buy — ${top?.detail || "strong across the board"}`
       : tier === "strong"
         ? `Strong opportunity — ${top?.detail || "good signals"}`

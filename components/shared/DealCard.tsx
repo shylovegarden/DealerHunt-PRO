@@ -101,8 +101,15 @@ export const DealCard = memo(function DealCard({
   const isPositive = profitEstimate >= 0;
   const location = [locationCity, locationState].filter(Boolean).join(", ");
   const verdict = dealVerdict ? VERDICT_STYLES[dealVerdict] : null;
-  // Zero-cost Deal IQ from fields already on the card.
-  const iq = liteDealIQ({ askPrice, sellEstimate, mmrValue, profitEstimate });
+  // Zero-cost Deal IQ from fields already on the card. Pass the verdict so the chip can't
+  // contradict the GO/PASS pill (a rejected deal never shows a high IQ).
+  const iq = liteDealIQ({
+    askPrice,
+    sellEstimate,
+    mmrValue,
+    profitEstimate,
+    dealVerdict,
+  });
 
   return (
     <div

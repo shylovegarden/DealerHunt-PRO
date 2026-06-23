@@ -14,6 +14,7 @@ import { calculateProfit, type ProfitResult } from "./profit-calculator";
 import { milesBetweenStates, transportCostForMiles } from "@/lib/geo";
 import { lookupMarketValue, lookupMarketAggregate } from "./market-value";
 import { estimateBaselineValue } from "./baseline-value";
+import { isKnownMake } from "@/lib/scrapers/tools/deal-normalizer";
 
 // Home base used for transport-distance math (where you recondition/sell). Override via env.
 const HOME_BASE_STATE = process.env.HOME_BASE_STATE || "TX";
@@ -138,6 +139,7 @@ function estimateSellValue(
 
 export interface DealAnalysis extends ProfitResult {
   sellEstimate: number;
+  mmrValue?: number;
   sellBasis: "comps" | "market" | "baseline";
   recommendedMaxBid: number;
   miles: number | null;
@@ -298,15 +300,22 @@ export function analyzeDeal(deal: Partial<Deal>): DealAnalysis {
   let verdict = result.verdict;
   let warnings = result.warnings;
 
-  // Price-plausibility gate: financing/lease/payment bait isn't a real flip. Force it out of GO
-  // (so it can't reach the scan "GO only" filter or the flash-deals feed), cap the score, and
-  // surface a red warning so the deal page reads it as a caution, not a positive recommendation.
-  const priceImplausible = isPriceImplausible(deal, baseline);
+  // Reality gate: a deal isn't a valuation-grade flip if (a) the price is financing/lease/payment
+  // bait (fake $999), or (b) the make isn't a recognized automotive brand ("Biz On Wheels" — junk
+  // or mis-parsed). Either way, force it out of GO (so it can't reach the scan "GO only" filter, the
+  // flash feed, or the market pulse), cap the score, and surface a red warning. The Deal IQ engine
+  // reads the same `priceImplausible` flag to hard-floor its score, so the IQ chip can't contradict
+  // the PASS verdict on the same card.
+  const priceBait = isPriceImplausible(deal, baseline);
+  const unknownMake = !!deal.make && !isKnownMake(deal.make);
+  const priceImplausible = priceBait || unknownMake;
   if (priceImplausible) {
     verdict = "pass";
     score = Math.min(score, 20);
     warnings = [
-      "Listed price looks like a down payment / monthly / lease takeover — not a real sale price. Verify the actual buy price before bidding.",
+      priceBait
+        ? "Listed price looks like a down payment / monthly / lease takeover — not a real sale price. Verify the actual buy price before bidding."
+        : `Unrecognized make "${deal.make}" — this isn't a valuation-grade vehicle listing (likely junk or mis-parsed), so it's not scored as a deal.`,
       ...warnings,
     ];
   }
@@ -317,6 +326,7 @@ export function analyzeDeal(deal: Partial<Deal>): DealAnalysis {
     verdict,
     warnings,
     sellEstimate,
+    mmrValue: deal.mmr_value,
     sellBasis,
     recommendedMaxBid,
     miles,
