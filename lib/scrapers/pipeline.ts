@@ -12,6 +12,7 @@ import { sendAlertMatchEmail } from "@/lib/notifications/email";
 import { sendAlertMatchSMS } from "@/lib/notifications/sms";
 import { resolvePlaces } from "@/lib/geo/geocode";
 import { withinMiles } from "@/lib/geo/distance";
+import { cleanCity } from "@/lib/data/clean-location";
 
 function getSupabase() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
@@ -75,7 +76,9 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
           deal.title,
           (deal as any).description,
         ),
-        location_city: deal.location_city,
+        // Reject scraper junk (ad copy, dealer names, street addresses) so the map/geocoder/filters
+        // only ever see real city names.
+        location_city: cleanCity(deal.location_city),
         location_state: deal.location_state,
         location_zip: deal.location_zip,
         // Generated/non-existent columns commented out to prevent PGRST204 errors
