@@ -12,6 +12,7 @@ import useSWR from "swr";
 import { Mono } from "@/components/shared/Mono";
 import { Ico } from "@/components/shared/Ico";
 import { useRecentSearches } from "@/components/shared/useRecentSearches";
+import { parseSearchQuery } from "@/lib/nlp/parse-search";
 import { LayoutGrid, Rows3 } from "lucide-react";
 import { DealCard, DealCardSkeleton } from "@/components/shared/DealCard";
 import { ErrorState as SharedErrorState } from "@/components/shared/ErrorState";
@@ -444,13 +445,33 @@ export default function ScanPage() {
       : "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4";
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Commit a query to history + apply it immediately (used by Enter and recent chips).
+  // Commit a query to history + apply it immediately (used by Enter, Scan button, recent chips).
+  // Natural-language parse (Visor "souped-up search"): "F-150 under 25k in Texas" → make=Ford,
+  // q="F-150", maxPrice=25000, state=TX. Plain queries with no recognized tokens search as before.
   const commitSearch = useCallback(
     (val: string) => {
-      const q = val.trim();
-      setSearchInput(q);
-      setSearch(q);
-      addRecent(q);
+      const raw = val.trim();
+      addRecent(raw);
+
+      const p = parseSearchQuery(raw);
+      if (p.make) setMake(p.make);
+      if (p.state) setState(p.state);
+      if (p.max_price) setMaxPrice(String(p.max_price));
+      if (p.target_profit) setMinProfit(String(p.target_profit));
+      if (p.min_year) setMinYear(String(p.min_year));
+
+      const structured = !!(
+        p.make ||
+        p.state ||
+        p.max_price ||
+        p.target_profit ||
+        p.min_year
+      );
+      // Residual free-text: the model if we recognized one, else the raw query
+      // (so a plain "sienna" still searches), else empty when only filters were found.
+      const residual = p.model || (structured ? "" : raw);
+      setSearchInput(residual);
+      setSearch(residual);
     },
     [addRecent],
   );
@@ -767,7 +788,7 @@ export default function ScanPage() {
               background: "var(--s1)",
               border: "1.5px solid var(--b1)",
             }}
-            placeholder='Search make, model, city… e.g. "F-150 Dallas" or "Tesla salvage"'
+            placeholder='Try "F-150 under 25k in Texas" or "clean Accords" — press Enter'
             value={searchInput}
             onChange={(e) => handleSearchInput(e.target.value)}
             onKeyDown={(e) => {
@@ -871,7 +892,7 @@ export default function ScanPage() {
         </div>
         <button
           onClick={() => {
-            if (searchInput.trim()) addRecent(searchInput);
+            if (searchInput.trim()) commitSearch(searchInput);
             mutate();
           }}
           disabled={loading}
