@@ -11,10 +11,11 @@ set -euo pipefail
 cd "$(cd "$(dirname "$0")/.." && pwd)"
 export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 
-# Adaptive scheduling: each run scrapes the stalest cities first (self-optimizing coverage). The
-# scraper picks them from deal freshness — no shard bookkeeping needed.
+# Adaptive + freshness-aware: each run scrapes the stalest cities first, and the batch size scales
+# to how far behind coverage is (light when fresh, bigger to catch up). No shard bookkeeping.
+# Pin CL_ADAPTIVE_COUNT to force a fixed size.
 LOG="${TMPDIR:-/tmp}/dhp-scrape.log"
 echo "[$(date '+%F %T')] start (adaptive)" >> "$LOG"
-SCRAPE_SOURCES=craigslist CL_ADAPTIVE=1 CL_ADAPTIVE_COUNT="${CL_ADAPTIVE_COUNT:-14}" \
+SCRAPE_SOURCES=craigslist CL_ADAPTIVE=1 \
   npm run scrape:ci >> "$LOG" 2>&1
 echo "[$(date '+%F %T')] done" >> "$LOG"

@@ -65,13 +65,20 @@ async function main() {
     !process.env.CL_CITIES
   ) {
     try {
-      const { selectStaleCities } = await import("../lib/scrapers/adaptive");
-      const count = parseInt(process.env.CL_ADAPTIVE_COUNT || "14", 10);
-      const cities = await selectStaleCities(count);
-      if (cities.length) {
+      const { rankCitiesByStaleness, recommendBatchSize } =
+        await import("../lib/scrapers/adaptive");
+      const ranked = await rankCitiesByStaleness();
+      if (ranked.length) {
+        // Freshness-aware cadence: explicit count wins, else scale to how far behind we are.
+        const explicit = parseInt(process.env.CL_ADAPTIVE_COUNT || "0", 10);
+        const count = explicit > 0 ? explicit : recommendBatchSize(ranked);
+        const cities = ranked.slice(0, count).map((c) => c.site);
         process.env.CL_CITIES = cities.join(",");
+        const staleCount = ranked.filter(
+          (c) => c.ageHours == null || c.ageHours > 4,
+        ).length;
         console.log(
-          `🧭 adaptive: ${cities.length} stalest cities → ${cities.slice(0, 6).join(", ")}…`,
+          `🧭 adaptive: ${staleCount} stale of ${ranked.length} → scraping ${cities.length} → ${cities.slice(0, 6).join(", ")}…`,
         );
       }
     } catch (e) {
