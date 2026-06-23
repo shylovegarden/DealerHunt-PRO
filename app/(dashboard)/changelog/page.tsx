@@ -23,6 +23,12 @@ export default function ChangelogPage() {
       <h1 className="text-3xl font-black text-[var(--t1)] mb-1">Changelog</h1>
       <p className="text-[var(--t3)] mb-10">Every update to DealerHunt Pro.</p>
 
+      {entries.length === 0 && (
+        <div className="glass-panel p-8 text-center text-[var(--t4)] text-sm">
+          No updates published yet.
+        </div>
+      )}
+
       <div className="space-y-10">
         {entries.map((e) => (
           <div key={e.id} className="border-l-2 border-[var(--b2)] pl-5">
