@@ -12,6 +12,11 @@ export interface DealCardProps {
   year: number;
   make: string;
   model: string;
+  /** NHTSA-decoded extras surfaced on the card */
+  trim?: string;
+  bodyClass?: string;
+  recallsCount?: number;
+  assemblyCountry?: string;
   askPrice: number;
   mmrValue: number;
   profitEstimate: number;
@@ -74,6 +79,9 @@ export const DealCard = memo(function DealCard({
   year,
   make,
   model,
+  trim,
+  bodyClass,
+  recallsCount,
   askPrice,
   mmrValue,
   profitEstimate,
@@ -180,6 +188,29 @@ export const DealCard = memo(function DealCard({
             {year} {make} {model}
           </span>
         </h3>
+
+        {/* Trim + body type + recall badge — NHTSA-decoded, when known */}
+        {(trim || bodyClass || (recallsCount ?? 0) > 0) && (
+          <div className="flex items-center gap-2 flex-wrap -mt-0.5">
+            {(trim || bodyClass) && (
+              <span className="text-[11px] text-[var(--t4)] truncate">
+                {[trim, bodyClass].filter(Boolean).join(" · ")}
+              </span>
+            )}
+            {(recallsCount ?? 0) > 0 && (
+              <span
+                className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-bold"
+                style={{
+                  background: "var(--amber-lo)",
+                  color: "var(--amber-d)",
+                }}
+                title={`${recallsCount} open NHTSA recall(s) — negotiation leverage`}
+              >
+                ⚠ {recallsCount}
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Location + mileage */}
         <div className="flex items-center gap-2 text-xs text-[var(--t3)] flex-wrap">

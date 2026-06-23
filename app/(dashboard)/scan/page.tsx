@@ -32,6 +32,9 @@ interface ScanResult {
   year: number;
   make: string;
   model: string;
+  trim?: string;
+  bodyClass?: string;
+  recallsCount?: number;
   askPrice: number;
   mmrValue: number;
   profitEstimate: number;
@@ -55,6 +58,9 @@ function mapDealToResult(deal: Deal): ScanResult {
     year: deal.year ?? 0,
     make: deal.make || "",
     model: deal.model || "",
+    trim: (deal as any).trim || undefined,
+    bodyClass: (deal as any).bodyClass || undefined,
+    recallsCount: (deal as any).recallsCount ?? undefined,
     askPrice: deal.askPrice ?? 0,
     mmrValue: deal.mmrValue ?? 0,
     profitEstimate: deal.profitEstimate ?? 0,
@@ -1261,6 +1267,9 @@ export default function ScanPage() {
                 year={car.year}
                 make={car.make}
                 model={car.model}
+                trim={car.trim}
+                bodyClass={car.bodyClass}
+                recallsCount={car.recallsCount}
                 askPrice={car.askPrice}
                 mmrValue={car.mmrValue}
                 profitEstimate={car.profitEstimate}

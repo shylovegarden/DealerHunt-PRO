@@ -141,6 +141,9 @@ async function canonicalizeNew(limit: number): Promise<void> {
       if (make && make !== d.make) patch.make = make;
       if (model && model !== d.model) patch.model = model;
       if (dec.trim && !d.trim) patch.trim = dec.trim;
+      // Denormalize decoded signals onto the deal for the grid cards.
+      if (dec.bodyClass) patch.body_class = dec.bodyClass;
+      if (dec.plantCountry) patch.assembly_country = dec.plantCountry;
       if (Object.keys(patch).length)
         await sb.from("deals").update(patch).eq("id", d.id);
       n++;
