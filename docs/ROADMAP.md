@@ -104,3 +104,34 @@ GO/HOLD/PASS verdict ✅ · net profit after costs ✅ · Max Bid ✅ · transpo
 **dealer calibration** ✅ · **outcome logging** ✅ · fleet pipeline ✅ · **bulk sourcing** ✅ ·
 parts teardown ✅ · **Deal IQ fusion** ✅ · distressed detection ✅ · auction heat ✅ ·
 Source ROI by dealer ⏳ (todo).
+
+---
+
+## Deferred backlog (parked 2026-06-22)
+
+Code-buildable, no external accounts needed — pick up any time:
+
+- **Scraper city-parsing cleanup** — `location_city` is often junk (dealer ad copy,
+  names, street addresses), capping geocoding/map coverage at ~586/1485. Fix city
+  extraction per source in `lib/scrapers/sources/*`, then re-run
+  `POST /api/admin/geocode-backfill`. Highest-leverage data-quality win.
+- **"Deals near me" rail** on `/discover` — distance-sorted GO deals using the new
+  home + deal coordinates ([[deal-geocoding-system]]).
+- **Scheduled geocode backfill** — cron to run the backfill periodically.
+- **MCP: more tools** — add `get_deal` / `decode_vin` to `/api/mcp`.
+
+Blocked on the user's accounts/decisions:
+
+- **Stripe live** — needs Stripe account, 3 price IDs, webhook secret, env vars (code done + gated).
+- **PostHog analytics** — needs project key.
+- **Testimonials** — needs real customer quotes (won't fabricate).
+- **Cloudflare CDN** — needs an account/infra decision.
+
+## Visor UI/UX parity (grounded in Visor's real changelog)
+
+- **Light/Dark/System theme** — Visor's flagship; our tokens make it clean. → in progress
+- Compact view + Display-preferences (dealer name vs location, hide sold) → todo
+- Distance / zip-code sorting (now unlocked by geocoding) → todo
+- Recent searches from the search bar → todo
+- Gallery / table / map view switching with infinite scroll → partial (have grids + /map)
+- Window-sticker "verified" badge → todo (needs sticker data)

@@ -80,6 +80,58 @@
   --r5: 26px;
 }
 
+/* ───────────────────────────────────────────────────────────────────────────
+   Dark theme (Visor-style). The whole app is driven by the tokens above, so a
+   single override here re-skins every surface — glass-panel, fields, cards, and
+   the shadcn mappings (which reference these same tokens). Applied via
+   <html data-theme="dark"> by the no-FOUC script in layout.tsx + ThemeToggle.
+   Accent hues are kept (they pop on dark); only surfaces/text/borders/shadows
+   invert, with slightly stronger accent glows for contrast.
+   ─────────────────────────────────────────────────────────────────────────── */
+[data-theme="dark"] {
+  /* Surfaces — deep warm charcoal; cards (s0) sit above the page (s1) */
+  --s0: #1a1620;
+  --s1: #110e16;
+  --s2: #221d29;
+  --s3: #2a2533;
+  --s4: #332d3d;
+  --s5: #4a4356;
+  --s6: #8a7f93;
+
+  /* Text — warm off-white ink */
+  --t1: #f4eff8;
+  --t2: #d9d1e2;
+  --t3: #a99fb6;
+  --t4: #837990;
+  --t5: #635a72;
+
+  /* Borders */
+  --b1: #251f2e;
+  --b2: #322b3c;
+  --b3: #443c50;
+
+  /* Accent glows — a touch more alpha so they read on dark */
+  --amber-lo: rgba(242, 91, 154, 0.16);
+  --amber-bd: rgba(242, 91, 154, 0.32);
+  --clo: rgba(255, 56, 92, 0.16);
+  --cbd: rgba(255, 56, 92, 0.3);
+  --glo: rgba(63, 174, 142, 0.18);
+  --gbd: rgba(63, 174, 142, 0.34);
+  --rlo: rgba(239, 91, 107, 0.16);
+  --rbd: rgba(239, 91, 107, 0.3);
+  --blo: rgba(91, 155, 239, 0.18);
+  --bbd: rgba(91, 155, 239, 0.32);
+  --olo: rgba(255, 122, 77, 0.16);
+  --plo: rgba(155, 107, 255, 0.16);
+
+  /* Shadows — deeper on dark */
+  --shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+  --shadow2: 0 2px 12px rgba(0, 0, 0, 0.35);
+  --shadow3: 0 24px 70px rgba(0, 0, 0, 0.6);
+
+  color-scheme: dark;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;

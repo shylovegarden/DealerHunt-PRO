@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import {
   Map,
   Search,
@@ -153,6 +154,9 @@ export function TopNav() {
 
       {/* RIGHT: Actions */}
       <div className="flex items-center gap-2 flex-shrink-0">
+        {/* Theme (light/dark/system) */}
+        <ThemeToggle />
+
         {/* Alerts bell */}
         <Link
           href="/alerts"

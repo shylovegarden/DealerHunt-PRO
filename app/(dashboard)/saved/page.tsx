@@ -187,7 +187,7 @@ export default function SavedCarsPage() {
             placeholder="Paste Craigslist, Copart, or IAA URL..."
             value={inputUrl}
             onChange={(e) => setInputUrl(e.target.value)}
-            className="text-sm bg-white border-[var(--b2)] focus:border-[var(--amber)] h-11 flex-1 md:w-64"
+            className="text-sm bg-[var(--s0)] border-[var(--b2)] focus:border-[var(--amber)] h-11 flex-1 md:w-64"
             required
           />
           <Button

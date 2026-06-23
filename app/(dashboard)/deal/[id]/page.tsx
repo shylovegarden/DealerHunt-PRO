@@ -221,7 +221,7 @@ export default function DealPage({
           <div className="flex items-center gap-3 mb-2">
             <Badge
               variant="outline"
-              className="text-[var(--t1)] bg-white border-[var(--b1)]"
+              className="text-[var(--t1)] bg-[var(--s0)] border-[var(--b1)]"
             >
               {store.year} {store.make} {store.model}
             </Badge>
@@ -545,7 +545,7 @@ export default function DealPage({
                   onChange={(e) =>
                     store.updateField("askPrice", Number(e.target.value))
                   }
-                  className="pl-7 font-[var(--fm)] font-bold bg-white text-right"
+                  className="pl-7 font-[var(--fm)] font-bold bg-[var(--s0)] text-right"
                 />
               </div>
             </div>

@@ -61,6 +61,13 @@ export default function RootLayout({
       )}
     >
       <head>
+        {/* Resolve theme before first paint to avoid a flash. Reads the saved
+            preference (light | dark | system) and applies data-theme to <html>. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('theme')||'system';var m=window.matchMedia('(prefers-color-scheme:dark)').matches;var dark=t==='dark'||(t==='system'&&m);document.documentElement.setAttribute('data-theme',dark?'dark':'light');}catch(e){document.documentElement.setAttribute('data-theme','light');}})();`,
+          }}
+        />
         <link rel="manifest" href="/manifest.json" />
         <link rel="apple-touch-icon" href="/icon.svg" />
         <meta name="theme-color" content="#f25b9a" />
@@ -70,7 +77,7 @@ export default function RootLayout({
           content="black-translucent"
         />
         <meta name="mobile-web-app-capable" content="yes" />
-        <meta name="color-scheme" content="light" />
+        <meta name="color-scheme" content="light dark" />
       </head>
       <body className="h-full min-h-screen bg-[var(--s1)] text-[var(--t1)] antialiased overflow-x-hidden">
         <SWRProvider>

@@ -113,7 +113,7 @@ export default function DealerMap({ points = [] }: DealerMapProps) {
         <div className="absolute inset-0 z-[1000] flex flex-col items-center justify-center pointer-events-none px-6 text-center">
           <div
             className="border border-[var(--b1)] rounded-xl px-5 py-4 shadow-lg"
-            style={{ background: "rgba(250,246,242,0.9)" }}
+            style={{ background: "var(--s0)" }}
           >
             <p className="text-sm font-bold text-[var(--t1)]">
               No mapped locations yet
