@@ -6,6 +6,7 @@
 import type { Deal } from "@/types";
 import { paginate, type ScraperConfig } from "../engine";
 import { upsertDeals } from "../pipeline";
+import { STATE_SEED_ZIPS } from "@/lib/geo";
 
 export const AUTOTRADER_CONFIG: ScraperConfig = {
   name: "AutoTrader",
@@ -97,9 +98,15 @@ export function parseAutotraderNextData(html: string): Partial<Deal>[] {
 
 export async function scrapeAutoTrader(
   searchTerm = "",
-  zip = "75201",
+  zip = "",
   maxPages = AUTOTRADER_CONFIG.maxPages,
 ) {
+  // No zip → pick a random state seed ZIP so the rotation spreads geographic comp coverage
+  // instead of re-scraping Dallas every cycle.
+  if (!zip) {
+    const zips = Object.values(STATE_SEED_ZIPS).filter(Boolean) as string[];
+    zip = zips[Math.floor(Math.random() * zips.length)] || "75201";
+  }
   console.log(`[AutoTrader] Starting scrape near ${zip}...`);
   const allDeals: Partial<Deal>[] = [];
 

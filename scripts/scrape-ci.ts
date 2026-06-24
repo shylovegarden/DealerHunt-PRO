@@ -24,7 +24,8 @@ dotenv.config({ path: path.resolve(process.cwd(), ".env.local") });
 // $0-friendly defaults: no dealer login, no paid proxy. Copart uses FlareSolverr (free).
 const DEFAULT_SOURCES = [
   "craigslist",
-  "cars_com",
+  "cars_com", // FlareSolverr — real retail comps (data-vehicle-details JSON)
+  "autotrader", // FlareSolverr — real retail comps (__NEXT_DATA__)
   "ebay_motors",
   "independent_dealer",
   "copart",

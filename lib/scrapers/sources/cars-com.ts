@@ -121,7 +121,11 @@ export async function scrapeCarsComAllStates(searchTerm = ""): Promise<number> {
   const fromEnv = process.env.CARS_STATES?.split(",")
     .map((s) => s.trim().toUpperCase())
     .filter(Boolean);
-  const states = fromEnv?.length ? fromEnv : [...US_STATES];
+  // Shuffle so the per-source timeout doesn't always burn on the same first states — over many
+  // cycles this spreads cars.com coverage across all of them.
+  const states = fromEnv?.length
+    ? fromEnv
+    : [...US_STATES].sort(() => Math.random() - 0.5);
   const maxPages = parseInt(process.env.CARS_MAX_PAGES || "3");
   let total = 0;
   for (const state of states) {
