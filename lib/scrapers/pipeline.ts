@@ -119,6 +119,11 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
         },
         created_at: deal.created_at || now,
         updated_at: now,
+        // Advance last_seen_at on every re-observation so days-on-market / listing velocity actually
+        // accrues. first_seen_at is deliberately NOT set here — it keeps its insert default (now())
+        // and isn't in the ON CONFLICT update set, so the (last_seen - first_seen) span grows each
+        // cycle a listing is re-seen. Without this, days-on-market is permanently 0.
+        last_seen_at: now,
       };
     });
 

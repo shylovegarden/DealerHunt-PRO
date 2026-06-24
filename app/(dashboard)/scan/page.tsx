@@ -9,10 +9,9 @@ import React, {
 } from "react";
 import { useViewTransition } from "@/hooks/useViewTransition";
 import useSWR from "swr";
-import { Mono } from "@/components/shared/Mono";
 import { Ico } from "@/components/shared/Ico";
 import { useRecentSearches } from "@/components/shared/useRecentSearches";
-import { parseSearchQuery } from "@/lib/nlp/parse-search";
+
 import { LayoutGrid, Rows3 } from "lucide-react";
 import { DealCard, DealCardSkeleton } from "@/components/shared/DealCard";
 import { ErrorState as SharedErrorState } from "@/components/shared/ErrorState";
@@ -49,6 +48,9 @@ interface ScanResult {
   sellEstimate?: number;
   repairEstimate: number;
   auctionEnds: string;
+  priceDropAmount?: number;
+  priceDropDays?: number;
+  firstSeenAt?: string | Date;
 }
 
 function mapDealToResult(deal: Deal): ScanResult {
@@ -77,6 +79,9 @@ function mapDealToResult(deal: Deal): ScanResult {
     auctionEnds: deal.auctionEndAt
       ? new Date(deal.auctionEndAt).toLocaleDateString()
       : "Active",
+    priceDropAmount: deal.priceDropAmount,
+    priceDropDays: deal.priceDropDays,
+    firstSeenAt: deal.firstSeenAt,
   };
 }
 
@@ -292,55 +297,13 @@ function EmptyState({ onRetry }: { onRetry: () => void }) {
       </div>
 
       <h2 className="text-2xl font-bold text-[var(--t1)] mb-3">
-        Scrapers Warming Up
+        Scanning for deals
       </h2>
-      <p className="text-[var(--t3)] max-w-sm mb-2 leading-relaxed">
-        First results appear within{" "}
-        <strong className="text-[var(--t1)]">5 minutes</strong> of starting the
-        worker. The deal pipeline is initializing.
+      <p className="text-[var(--t3)] max-w-sm mb-8 leading-relaxed">
+        We’re continuously scanning thousands of listings for profitable
+        flips. Nothing matches your current view yet — try widening your
+        filters, or check back in a few minutes as fresh deals land.
       </p>
-      <p className="text-[var(--t4)] text-sm mb-8">
-        The database is empty — scrapers haven't run yet.
-      </p>
-
-      {/* Command block */}
-      <div
-        className="w-full max-w-sm rounded-[var(--r3)] p-4 mb-6 text-left"
-        style={{ background: "var(--s2)", border: "1px solid var(--b2)" }}
-      >
-        <p className="text-[10px] uppercase tracking-widest text-[var(--t4)] font-bold mb-2">
-          Start the worker
-        </p>
-        <div
-          className="flex items-center justify-between gap-3 rounded-[var(--r2)] px-3 py-2.5"
-          style={{
-            background: "#111827",
-            border: "1px solid rgba(255,255,255,0.08)",
-          }}
-        >
-          <Mono className="text-sm text-[#4ADE80]">npm run worker</Mono>
-          <button
-            onClick={() =>
-              navigator.clipboard?.writeText("npm run worker").catch(() => {})
-            }
-            className="text-[var(--t4)] hover:text-white transition-colors shrink-0"
-            title="Copy"
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-            >
-              <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-            </svg>
-          </button>
-        </div>
-      </div>
 
       <button
         onClick={onRetry}
@@ -473,29 +436,36 @@ export default function ScanPage() {
   // Natural-language parse (Visor "souped-up search"): "F-150 under 25k in Texas" → make=Ford,
   // q="F-150", maxPrice=25000, state=TX. Plain queries with no recognized tokens search as before.
   const commitSearch = useCallback(
-    (val: string) => {
+    async (val: string) => {
       const raw = val.trim();
       addRecent(raw);
 
-      const p = parseSearchQuery(raw);
-      if (p.make) setMake(p.make);
-      if (p.state) setState(p.state);
-      if (p.max_price) setMaxPrice(String(p.max_price));
-      if (p.target_profit) setMinProfit(String(p.target_profit));
-      if (p.min_year) setMinYear(String(p.min_year));
+      try {
+        const res = await fetch(`/api/scan/parse?q=${encodeURIComponent(raw)}`);
+        const p = await res.json();
 
-      const structured = !!(
-        p.make ||
-        p.state ||
-        p.max_price ||
-        p.target_profit ||
-        p.min_year
-      );
-      // Residual free-text: the model if we recognized one, else the raw query
-      // (so a plain "sienna" still searches), else empty when only filters were found.
-      const residual = p.model || (structured ? "" : raw);
-      setSearchInput(residual);
-      setSearch(residual);
+        if (p.make) setMake(p.make);
+        if (p.state) setState(p.state);
+        if (p.maxPrice) setMaxPrice(String(p.maxPrice));
+        if (p.targetProfit) setMinProfit(String(p.targetProfit));
+        if (p.minYear) setMinYear(String(p.minYear));
+
+        const structured = !!(
+          p.make ||
+          p.state ||
+          p.maxPrice ||
+          p.targetProfit ||
+          p.minYear
+        );
+        // Residual free-text: the model if we recognized one, else the raw query
+        // (so a plain "sienna" still searches), else empty when only filters were found.
+        const residual = p.model || (structured ? "" : raw);
+        setSearchInput(residual);
+        setSearch(residual);
+      } catch (err) {
+        setSearchInput(raw);
+        setSearch(raw);
+      }
     },
     [addRecent],
   );
@@ -1282,6 +1252,9 @@ export default function ScanPage() {
                 dealVerdict={car.dealVerdict}
                 recommendedMaxBid={car.recommendedMaxBid}
                 sellEstimate={car.sellEstimate}
+                priceDropAmount={car.priceDropAmount}
+                priceDropDays={car.priceDropDays}
+                firstSeenAt={car.firstSeenAt}
                 onClick={() => transitionTo(`/deal/${car.id}`)}
               />
             </div>
