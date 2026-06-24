@@ -30,6 +30,7 @@ import {
   FileText,
   ChevronDown,
   Zap,
+  BellRing,
 } from "lucide-react";
 
 // Clean primary nav — the core demo path. Everything else lives under "More".
@@ -47,6 +48,7 @@ const MORE_GROUPS = [
     group: "Source & analyze",
     items: [
       { name: "Find", href: "/find", icon: Map },
+      { name: "Saved searches", href: "/searches", icon: BellRing },
       { name: "Bulk sourcing", href: "/bulk", icon: Layers },
       { name: "Compare", href: "/compare", icon: GitCompare },
       { name: "Deal Check", href: "/deal-check", icon: FileCheck },
