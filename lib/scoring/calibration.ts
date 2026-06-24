@@ -56,27 +56,44 @@ export async function getDealerCalibration(
   const { data, error } = await supabase
     .from("deal_outcomes")
     .select(
-      "predicted_profit, predicted_sell, predicted_transport, predicted_recon, actual_profit, sell_price, actual_transport, actual_recon",
+      "deal_id, inventory_id, predicted_profit, predicted_sell, predicted_transport, predicted_recon, actual_profit, sell_price, actual_transport, actual_recon",
     )
     .eq("user_id", userId)
     .not("actual_profit", "is", null)
     .order("created_at", { ascending: false })
-    .limit(50);
+    .limit(100);
 
-  if (error || !data || data.length < MIN_SAMPLES) return null;
+  if (error || !data) return null;
+
+  // Dedupe: a fleet seed (POST /api/inventory) and a later "Track this flip" log (POST /api/outcomes)
+  // can both land in deal_outcomes for the SAME deal. Count each real flip once so calibration isn't
+  // double-weighted. Rows are created_at DESC, so the latest (sale-confirmed) row per deal wins;
+  // untied manual logs (no deal_id/inventory_id) are always kept.
+  const seen = new Set<string>();
+  const dedup: any[] = [];
+  for (const r of data) {
+    const k = r.deal_id || r.inventory_id;
+    if (k) {
+      if (seen.has(k)) continue;
+      seen.add(k);
+    }
+    dedup.push(r);
+  }
+  if (dedup.length < MIN_SAMPLES) return null;
+  const rows = dedup;
 
   const transportMultiplier = clamp(
-    meanRatio(data, "actual_transport", "predicted_transport"),
+    meanRatio(rows, "actual_transport", "predicted_transport"),
   );
   const reconMultiplier = clamp(
-    meanRatio(data, "actual_recon", "predicted_recon"),
+    meanRatio(rows, "actual_recon", "predicted_recon"),
   );
-  const sellMultiplier = clamp(meanRatio(data, "sell_price", "predicted_sell"));
+  const sellMultiplier = clamp(meanRatio(rows, "sell_price", "predicted_sell"));
 
   // Profit accuracy: mean absolute % error; bias: signed mean % error.
   const absErrs: number[] = [];
   const biases: number[] = [];
-  for (const r of data) {
+  for (const r of rows) {
     const a = Number(r.actual_profit);
     const p = Number(r.predicted_profit);
     if (Number.isFinite(a) && Number.isFinite(p) && Math.abs(p) > 1) {
@@ -96,11 +113,11 @@ export async function getDealerCalibration(
   const tPct = Math.round((transportMultiplier - 1) * 100);
   const message =
     tPct !== 0
-      ? `Based on ${data.length} logged deals, your transport runs ${Math.abs(tPct)}% ${tPct > 0 ? "higher" : "lower"} than our baseline — estimates now adjust for it.`
-      : `Calibrated to your ${data.length} logged deals.`;
+      ? `Based on ${rows.length} logged deals, your transport runs ${Math.abs(tPct)}% ${tPct > 0 ? "higher" : "lower"} than our baseline — estimates now adjust for it.`
+      : `Calibrated to your ${rows.length} logged deals.`;
 
   return {
-    sampleSize: data.length,
+    sampleSize: rows.length,
     transportMultiplier: Number(transportMultiplier.toFixed(2)),
     reconMultiplier: Number(reconMultiplier.toFixed(2)),
     sellMultiplier: Number(sellMultiplier.toFixed(2)),
