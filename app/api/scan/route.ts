@@ -108,6 +108,7 @@ export async function GET(req: NextRequest) {
   const maxMileage = parseInt(searchParams.get("maxMileage") || "0");
   const availability = searchParams.get("availability") || "";
   const madeInUsa = searchParams.get("madeInUsa") === "1";
+  const drivetrain = searchParams.get("drivetrain") || "";
   const page = parseInt(searchParams.get("page") || "0");
   const pageSize = 20;
 
@@ -132,6 +133,11 @@ export async function GET(req: NextRequest) {
     query = query.or(
       `title.ilike.%${q}%,make.ilike.%${q}%,model.ilike.%${q}%,vin.ilike.%${q}%`,
     );
+  }
+
+  // Drivetrain facet from the parsed options JSONB (AWD / 4WD / FWD / RWD).
+  if (drivetrain && drivetrain !== "all") {
+    query = query.eq("options->>drivetrain", drivetrain);
   }
 
   if (verdict && verdict !== "all") query = query.eq("deal_verdict", verdict);

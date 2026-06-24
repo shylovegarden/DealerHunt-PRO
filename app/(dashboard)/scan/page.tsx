@@ -490,6 +490,7 @@ export default function ScanPage() {
   const [maxMileage, setMaxMileage] = useState("any");
   const [availability, setAvailability] = useState("all");
   const [madeInUsa, setMadeInUsa] = useState(false);
+  const [drivetrain, setDrivetrain] = useState("all");
   const [sort, setSort] = useState("profit");
   // New: verdict (GO-only), price floor, year ceiling, and an advanced-filters disclosure.
   const [verdict, setVerdict] = useState("all");
@@ -509,6 +510,7 @@ export default function ScanPage() {
     if (titleType !== "all") c++;
     if (availability !== "all") c++;
     if (madeInUsa) c++;
+    if (drivetrain !== "all") c++;
     return c;
   }, [
     sourceFilter,
@@ -520,6 +522,7 @@ export default function ScanPage() {
     titleType,
     availability,
     madeInUsa,
+    drivetrain,
   ]);
 
   const resetFilters = useCallback(() => {
@@ -532,6 +535,7 @@ export default function ScanPage() {
     setTitleType("all");
     setAvailability("all");
     setMadeInUsa(false);
+    setDrivetrain("all");
   }, []);
 
   // Dynamic facets — only offer makes that have live inventory (in the selected state).
@@ -569,6 +573,7 @@ export default function ScanPage() {
     if (availability !== "all") params.set("availability", availability);
     if (verdict !== "all") params.set("verdict", verdict);
     if (madeInUsa) params.set("madeInUsa", "1");
+    if (drivetrain !== "all") params.set("drivetrain", drivetrain);
     return `/api/scan?${params.toString()}`;
   }, [
     dealerId,
@@ -587,6 +592,7 @@ export default function ScanPage() {
     availability,
     verdict,
     madeInUsa,
+    drivetrain,
     sort,
   ]);
 
@@ -1183,6 +1189,18 @@ export default function ScanPage() {
                   { value: "on_lot", label: "On lot" },
                   { value: "in_transit", label: "In transit" },
                   { value: "online_only", label: "Online only" },
+                ]}
+              />
+              <FilterSelect
+                label="Drivetrain"
+                value={drivetrain}
+                onChange={setDrivetrain}
+                options={[
+                  { value: "all", label: "Drivetrain: All" },
+                  { value: "AWD", label: "AWD" },
+                  { value: "4WD", label: "4WD" },
+                  { value: "FWD", label: "FWD" },
+                  { value: "RWD", label: "RWD" },
                 ]}
               />
               <button
