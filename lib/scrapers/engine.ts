@@ -213,15 +213,21 @@ export async function fetchBrowser(
     }
   });
 
-  await pRetry(
-    async () => {
-      await page.goto(url, { waitUntil: "networkidle", timeout: 30000 });
-      if (waitForSelector) {
-        await page.waitForSelector(waitForSelector, { timeout: 10000 });
-      }
-    },
-    { retries: 2, minTimeout: 3000 },
-  );
+  try {
+    await pRetry(
+      async () => {
+        await page.goto(url, { waitUntil: "networkidle", timeout: 30000 });
+        if (waitForSelector) {
+          await page.waitForSelector(waitForSelector, { timeout: 10000 });
+        }
+      },
+      { retries: 2, minTimeout: 3000 },
+    );
+  } catch (err) {
+    // Close context before re-throwing so we don't leak Chromium browser contexts.
+    await context.close().catch(() => {});
+    throw err;
+  }
 
   const html = await page.content();
   const $root = cheerio.load(html);

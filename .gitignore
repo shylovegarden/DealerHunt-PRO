@@ -22,6 +22,7 @@ yarn-error.log*
 # local env files
 .env*.local
 .env
+.env.scraper
 
 # loose one-off scripts / debug artifacts (never commit — may contain secrets)
 /scripts/apply-migrations.js

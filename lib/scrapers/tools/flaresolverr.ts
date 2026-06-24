@@ -19,7 +19,8 @@ export class FlareSolverrClient {
   private url: string;
 
   constructor(url = process.env.FLARESOLVERR_URL) {
-    this.url = url || "";
+    // Strip trailing /v1 if already included in the env var — fetch() appends /v1 itself.
+    this.url = (url || "").replace(/\/v1\/?$/, "");
   }
 
   isConfigured(): boolean {

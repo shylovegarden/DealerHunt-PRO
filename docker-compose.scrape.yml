@@ -1,0 +1,101 @@
+# docker-compose.scrape.yml
+# Runs the full DealerHunt scraper fleet locally — no GitHub Actions needed.
+#
+# Usage:
+#   1. Fill in .env.scraper (copy from .env.scraper.example, add your SUPABASE_SERVICE_ROLE_KEY)
+#   2. docker compose -f docker-compose.scrape.yml build
+#   3. docker compose -f docker-compose.scrape.yml up
+#
+# The scraper writes deals directly to your Supabase project via the service role key.
+# FlareSolverr runs as a sidecar — it bypasses Cloudflare on gated sources (Copart, Cars.com).
+#
+# Run a single source:
+#   docker compose -f docker-compose.scrape.yml run --rm scraper npx tsx scripts/scrape-ci.ts copart
+#
+# Run all sources continuously on a schedule (every 30 min):
+#   docker compose -f docker-compose.scrape.yml --profile cron up
+#
+# Realtime / Craigslist shard mode:
+#   CL_ADAPTIVE=1 docker compose -f docker-compose.scrape.yml run --rm \
+#     -e SCRAPE_SOURCES=craigslist scraper
+
+services:
+
+  # ── FlareSolverr ─────────────────────────────────────────────────────────────
+  # Runs a headless browser that solves Cloudflare JS challenges so the scraper
+  # can reach gated sites (Copart, some dealer pages) without paid proxies.
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    container_name: dhp-flaresolverr
+    restart: unless-stopped
+    environment:
+      LOG_LEVEL: warning
+      # Increase if Cloudflare challenges are timing out
+      CAPTCHA_SOLVER: none
+    ports:
+      - "8191:8191"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8191/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # ── Scraper ───────────────────────────────────────────────────────────────────
+  # Runs scrape-ci.ts once against all enabled sources, then exits.
+  # Build with: docker compose -f docker-compose.scrape.yml build scraper
+  scraper:
+    build:
+      context: .
+      dockerfile: Dockerfile.scraper
+    container_name: dhp-scraper
+    env_file:
+      - .env.scraper
+    environment:
+      NODE_ENV: production
+      # Point the scraper at the FlareSolverr sidecar
+      FLARESOLVERR_URL: http://flaresolverr:8191/v1
+      # All enabled $0-friendly sources — override with SCRAPE_SOURCES in .env.scraper
+      # to limit to specific ones (e.g. SCRAPE_SOURCES=copart,cars_com)
+      SCRAPE_SOURCES: ${SCRAPE_SOURCES:-craigslist,cars_com,ebay_motors,copart,iaa,cargurus,autotrader,truecar,carvana,vroom,offerup,carparts_com,bring_a_trailer,carmax,govplanet,mecum,hemmings,barrett_jackson,edmunds,kbb,iseecars,driveway,lkq,autotempest,carsdirect,traderev}
+      # Craigslist adaptive mode: scrape stalest cities first
+      CL_ADAPTIVE: "1"
+    depends_on:
+      flaresolverr:
+        condition: service_healthy
+    # Playwright needs /dev/shm >= 256 MB or Chromium will OOM
+    shm_size: "512mb"
+    # Exit when the scrape finishes (it's a one-shot job, not a daemon)
+    restart: "no"
+
+  # ── Cron runner (optional, --profile cron) ───────────────────────────────────
+  # Keeps the container alive and re-runs the scraper every 30 min.
+  # Start with: docker compose -f docker-compose.scrape.yml --profile cron up -d
+  scraper-cron:
+    profiles: ["cron"]
+    build:
+      context: .
+      dockerfile: Dockerfile.scraper
+    container_name: dhp-scraper-cron
+    env_file:
+      - .env.scraper
+    environment:
+      NODE_ENV: production
+      FLARESOLVERR_URL: http://flaresolverr:8191/v1
+      SCRAPE_SOURCES: ${SCRAPE_SOURCES:-craigslist,cars_com,ebay_motors,copart,iaa,cargurus,autotrader,truecar,carvana,vroom,offerup,carparts_com,bring_a_trailer,carmax,govplanet,mecum,hemmings,barrett_jackson,edmunds,kbb,iseecars,driveway,lkq,autotempest,carsdirect,traderev}
+      CL_ADAPTIVE: "1"
+    depends_on:
+      flaresolverr:
+        condition: service_healthy
+    shm_size: "512mb"
+    restart: unless-stopped
+    # Override the CMD to loop every 30 min
+    command: >
+      sh -c '
+        while true; do
+          echo "=== scrape started at $$(date) ===";
+          npx tsx scripts/scrape-ci.ts;
+          echo "=== scrape done, sleeping 30 min ===";
+          sleep 1800;
+        done
+      '

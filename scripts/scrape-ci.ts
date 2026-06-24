@@ -21,6 +21,45 @@ import path from "path";
 // so adaptive selection (below) must set CL_CITIES first. Hence runScrapers is imported dynamically.
 dotenv.config({ path: path.resolve(process.cwd(), ".env.local") });
 
+// All available sources for comprehensive scraping
+const ALL_SOURCES = [
+  // Auction sources
+  "copart",
+  "iaa",
+  "adesa",
+  "manheim",
+  "acv",
+  "bring_a_trailer",
+  "mecum",
+  "barrett_jackson",
+  "govplanet",
+  "traderev",
+  // Marketplace sources
+  "craigslist",
+  "cars_com",
+  "ebay_motors",
+  "autotrader",
+  "cargurus",
+  "carvana",
+  "truecar",
+  "vroom",
+  "offerup",
+  "carmax",
+  "edmunds",
+  "kbb",
+  "iseecars",
+  "driveway",
+  "hemmings",
+  "autotempest",
+  "carsdirect",
+  // Parts / salvage
+  "carparts_com",
+  "lkq",
+  // Dealer direct
+  "independent_dealer",
+  "facebook_marketplace",
+];
+
 // $0-friendly defaults: no dealer login, no paid proxy. Copart uses FlareSolverr (free).
 const DEFAULT_SOURCES = [
   "craigslist",
@@ -32,11 +71,19 @@ const DEFAULT_SOURCES = [
 
 function resolveSources(): string[] {
   const fromArgs = process.argv.slice(2).filter(Boolean);
-  if (fromArgs.length) return fromArgs;
+  if (fromArgs.length) {
+    // Handle "*" wildcard for all sources
+    if (fromArgs[0] === "*") return ALL_SOURCES;
+    return fromArgs;
+  }
   const fromEnv = process.env.SCRAPE_SOURCES?.split(",")
     .map((s) => s.trim())
     .filter(Boolean);
-  if (fromEnv?.length) return fromEnv;
+  if (fromEnv?.length) {
+    // Handle "*" wildcard for all sources
+    if (fromEnv[0] === "*") return ALL_SOURCES;
+    return fromEnv;
+  }
   return DEFAULT_SOURCES;
 }
 

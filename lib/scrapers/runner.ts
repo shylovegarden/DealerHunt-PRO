@@ -23,6 +23,21 @@ import { scrapeTrueCar } from "./sources/truecar";
 import { scrapeCarGurus } from "./sources/cargurus";
 import { scrapeAutoTrader } from "./sources/autotrader";
 import { scrapeOfferUp } from "./sources/offerup";
+import { scrapeBringATrailer } from "./sources/bring-a-trailer";
+import { scrapeCarMax } from "./sources/carmax";
+// New sources — full selection list
+import { scrapeGovPlanet } from "./sources/govplanet";
+import { scrapeMecum } from "./sources/mecum";
+import { scrapeHemmings } from "./sources/hemmings";
+import { scrapeBarrettJackson } from "./sources/barrett-jackson";
+import { scrapeEdmunds } from "./sources/edmunds";
+import { scrapeKbb } from "./sources/kbb";
+import { scrapeISeeCars } from "./sources/iseecars";
+import { scrapeDriveway } from "./sources/driveway";
+import { scrapeLkq } from "./sources/lkq";
+import { scrapeAutoTempest } from "./sources/autotempest";
+import { scrapeCarsDirect } from "./sources/carsdirect";
+import { scrapeTradeRev } from "./sources/traderev";
 import { ScraperRegistry } from "./tools/registry";
 import {
   recordScrapeRuns,
@@ -212,11 +227,21 @@ export function createScraperRegistry(
     requiresAuth: false,
     stealthRequired: true,
     fn: async () => {
-      // Scrape a batch of known dealer profiles
+      // Known independent dealer domains — add real URLs here as you discover good sources.
+      // Each entry: { profile: DealerProfile, baseUrl: string (the dealer's actual domain) }
       const { DEALER_PROFILES } = await import("./sources/index");
+      const DEALER_URLS: { profileId: string; baseUrl: string }[] = [
+        // Add real dealer URLs here, e.g.:
+        // { profileId: "generic-dealersocket", baseUrl: "https://www.example-dealer.com" },
+      ];
+      if (!DEALER_URLS.length) {
+        console.log("[IndependentDealer] No dealer URLs configured — add them to runner.ts DEALER_URLS");
+        return 0;
+      }
       let total = 0;
-      for (const profile of DEALER_PROFILES) {
-        total += await scrapeIndependentDealer(profile, profile.inventoryUrl);
+      for (const { profileId, baseUrl } of DEALER_URLS) {
+        const profile = DEALER_PROFILES.find(p => p.dealerId === profileId) || DEALER_PROFILES[0];
+        total += await scrapeIndependentDealer(profile, baseUrl);
       }
       return total;
     },
@@ -302,6 +327,189 @@ export function createScraperRegistry(
     fn: () => scrapeOfferUp(),
     enabled: true,
     estimatedDealsPerRun: 150,
+  });
+
+  registry.register({
+    id: "bring_a_trailer",
+    name: "Bring a Trailer",
+    type: "auction",
+    priority: "medium",
+    frequencyMinutes: 120,
+    requiresAuth: false,
+    stealthRequired: false,
+    fn: () => scrapeBringATrailer(),
+    enabled: true,
+    estimatedDealsPerRun: 150,
+  });
+
+  registry.register({
+    id: "carmax",
+    name: "CarMax",
+    type: "marketplace",
+    priority: "high",
+    frequencyMinutes: 240,
+    requiresAuth: false,
+    stealthRequired: true,
+    fn: () => scrapeCarMax(),
+    enabled: true,
+    estimatedDealsPerRun: 350,
+  });
+
+  // ── New sources: full user-selectable fleet ──────────────────────────────────
+  registry.register({
+    id: "govplanet",
+    name: "GovPlanet",
+    type: "auction",
+    priority: "high",
+    frequencyMinutes: 120,
+    requiresAuth: false,
+    stealthRequired: false,
+    fn: () => scrapeGovPlanet(),
+    enabled: true,
+    estimatedDealsPerRun: 200,
+  });
+
+  registry.register({
+    id: "mecum",
+    name: "Mecum Auctions",
+    type: "auction",
+    priority: "medium",
+    frequencyMinutes: 240,
+    requiresAuth: false,
+    stealthRequired: false,
+    fn: () => scrapeMecum(),
+    enabled: true,
+    estimatedDealsPerRun: 150,
+  });
+
+  registry.register({
+    id: "hemmings",
+    name: "Hemmings",
+    type: "marketplace",
+    priority: "medium",
+    frequencyMinutes: 360,
+    requiresAuth: false,
+    stealthRequired: false,
+    fn: () => scrapeHemmings(),
+    enabled: true,
+    estimatedDealsPerRun: 200,
+  });
+
+  registry.register({
+    id: "barrett_jackson",
+    name: "Barrett-Jackson",
+    type: "auction",
+    priority: "medium",
+    frequencyMinutes: 360,
+    requiresAuth: false,
+    stealthRequired: false,
+    fn: () => scrapeBarrettJackson(),
+    enabled: true,
+    estimatedDealsPerRun: 100,
+  });
+
+  registry.register({
+    id: "edmunds",
+    name: "Edmunds",
+    type: "marketplace",
+    priority: "high",
+    frequencyMinutes: 240,
+    requiresAuth: false,
+    stealthRequired: true,
+    fn: () => scrapeEdmunds(),
+    enabled: true,
+    estimatedDealsPerRun: 300,
+  });
+
+  registry.register({
+    id: "kbb",
+    name: "Kelley Blue Book",
+    type: "marketplace",
+    priority: "high",
+    frequencyMinutes: 240,
+    requiresAuth: false,
+    stealthRequired: true,
+    fn: () => scrapeKbb(),
+    enabled: true,
+    estimatedDealsPerRun: 300,
+  });
+
+  registry.register({
+    id: "iseecars",
+    name: "iSeeCars",
+    type: "marketplace",
+    priority: "medium",
+    frequencyMinutes: 360,
+    requiresAuth: false,
+    stealthRequired: false,
+    fn: () => scrapeISeeCars(),
+    enabled: true,
+    estimatedDealsPerRun: 200,
+  });
+
+  registry.register({
+    id: "driveway",
+    name: "Driveway",
+    type: "marketplace",
+    priority: "medium",
+    frequencyMinutes: 360,
+    requiresAuth: false,
+    stealthRequired: true,
+    fn: () => scrapeDriveway(),
+    enabled: true,
+    estimatedDealsPerRun: 150,
+  });
+
+  registry.register({
+    id: "lkq",
+    name: "LKQ / Row52",
+    type: "parts",
+    priority: "low",
+    frequencyMinutes: 720,
+    requiresAuth: false,
+    stealthRequired: false,
+    fn: () => scrapeLkq(),
+    enabled: true,
+    estimatedDealsPerRun: 400,
+  });
+
+  registry.register({
+    id: "autotempest",
+    name: "AutoTempest",
+    type: "marketplace",
+    priority: "low",
+    frequencyMinutes: 480,
+    requiresAuth: false,
+    stealthRequired: false,
+    fn: () => scrapeAutoTempest(),
+    enabled: true,
+    estimatedDealsPerRun: 200,
+  });
+
+  registry.register({
+    id: "carsdirect",
+    name: "CarsDirect",
+    type: "marketplace",
+    priority: "medium",
+    frequencyMinutes: 360,
+    requiresAuth: false,
+    stealthRequired: true,
+    fn: () => scrapeCarsDirect(),
+    enabled: true,
+    estimatedDealsPerRun: 250,
+  });
+
+  registry.register({
+    id: "traderev",
+    name: "TradeRev",
+    type: "auction",
+    priority: "high",
+    frequencyMinutes: 120,
+    requiresAuth: false,
+    stealthRequired: true,
+    fn: () => scrapeTradeRev(),
+    enabled: true,
+    estimatedDealsPerRun: 200,
   });
 
   registry.register({

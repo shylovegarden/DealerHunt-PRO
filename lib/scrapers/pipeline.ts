@@ -17,11 +17,37 @@ import { cleanCity } from "@/lib/data/clean-location";
 
 function getSupabase() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-  const supabaseKey =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    "";
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+  if (!supabaseKey) {
+    throw new Error(
+      "[Pipeline] SUPABASE_SERVICE_ROLE_KEY is not set. " +
+      "Scraper writes require the service role key — the anon key is blocked by RLS. " +
+      "Set SUPABASE_SERVICE_ROLE_KEY in .env.scraper or your environment."
+    );
+  }
   return createClient(supabaseUrl, supabaseKey);
+}
+
+// Maps free-form condition strings from scrapers → valid listing_condition enum values.
+// New scrapers sometimes write "clean", "certified", "collectible" etc.
+// Without this, PostgreSQL throws "invalid input value for enum listing_condition".
+function normalizeCondition(raw: string | undefined | null): string {
+  const c = (raw || "run_drive").toLowerCase().trim();
+  if (c === "clean" || c === "clean_title")       return "clean_title";
+  if (c === "salvage" || c === "salvage_title")   return "salvage_title";
+  if (c === "rebuilt" || c === "rebuilt_title")   return "rebuilt_title";
+  if (c === "parts" || c === "parts_only")        return "parts_only";
+  if (c === "certified" || c === "cpo")           return "certified";
+  if (c === "new")                                return "new";
+  if (c === "collectible")                        return "collectible";
+  if (c === "government_surplus")                 return "government_surplus";
+  if (c === "salvage_title")                      return "salvage_title";
+  if (c === "repairable")                         return "repairable";
+  if (c === "flood")                              return "flood";
+  if (c === "fire")                               return "fire";
+  if (c === "hail")                               return "hail";
+  // Default — safe fallback so nothing is rejected
+  return "run_drive";
 }
 
 export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
@@ -76,7 +102,7 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
         ),
         ask_price: deal.ask_price,
         mileage: deal.mileage,
-        condition: deal.condition,
+        condition: normalizeCondition(deal.condition),
         damage_type: deal.damage_type,
         availability_status: detectAvailability(
           deal.title,
@@ -90,12 +116,11 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
         // Listing photos (the `images` text[] column exists). Without this every scraped/ingested
         // deal showed a placeholder card.
         images: Array.isArray(deal.images) ? deal.images.slice(0, 12) : [],
-        // Generated/non-existent columns commented out to prevent PGRST204 errors
-        // description: deal.description,
-        // seller: deal.seller,
-        // seller_type: deal.seller_type,
-        // auction_end: deal.auction_end,
-        // bid_count: deal.bid_count,
+        description: (deal as any).description ?? null,
+        seller: (deal as any).seller ?? null,
+        seller_type: (deal as any).seller_type ?? null,
+        auction_end: (deal as any).auction_end ?? null,
+        bid_count: (deal as any).bid_count ?? null,
         estimated_transport_cost: analysis.transportCost,
         estimated_repair_cost: analysis.repairCost,
         true_net_profit: analysis.profit,
@@ -182,22 +207,41 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
 
   const returnedRows = upsertedRows || [];
 
-  // Insert price history for deals that have a price
-  const priceHistoryRows = returnedRows
-    .filter((r) => typeof r.ask_price === "number")
-    .map((r) => ({
-      deal_id: r.id,
-      price: r.ask_price,
-      observed_at: r.updated_at,
-    }));
-
-  if (priceHistoryRows.length > 0) {
-    const { error: priceError } = await getSupabase()
+  // Insert price history ONLY when the price changed since the last observation.
+  // Without this guard, every scrape run writes a row even for unchanged prices,
+  // causing unbounded table growth.
+  if (returnedRows.length > 0) {
+    const dealIds = returnedRows.map((r) => r.id).filter(Boolean);
+    const { data: lastPrices } = await getSupabase()
       .from("price_history")
-      .insert(priceHistoryRows);
+      .select("deal_id, price")
+      .in("deal_id", dealIds)
+      .order("observed_at", { ascending: false });
 
-    if (priceError) {
-      console.warn("[upsertDeals] Price history insert warning:", priceError);
+    const lastPriceMap = new Map<string, number>();
+    for (const row of lastPrices || []) {
+      if (!lastPriceMap.has(row.deal_id)) lastPriceMap.set(row.deal_id, row.price);
+    }
+
+    const priceHistoryRows = returnedRows
+      .filter((r) => typeof r.ask_price === "number" && r.id)
+      .filter((r) => {
+        const last = lastPriceMap.get(r.id);
+        return last === undefined || Math.abs(last - r.ask_price) > 0.01;
+      })
+      .map((r) => ({
+        deal_id: r.id,
+        price: r.ask_price,
+        observed_at: r.updated_at,
+      }));
+
+    if (priceHistoryRows.length > 0) {
+      const { error: priceError } = await getSupabase()
+        .from("price_history")
+        .insert(priceHistoryRows);
+      if (priceError) {
+        console.warn("[upsertDeals] Price history insert warning:", priceError);
+      }
     }
   }
 

@@ -6,25 +6,19 @@ import { isValidVin, extractVin, normalizeVin } from "@/lib/vehicle/vin";
 
 // Valid deal_source enum values (DB). Anything else is coerced to a safe default.
 const VALID_SOURCES = new Set([
-  "copart",
-  "iaa",
-  "adesa",
-  "manheim",
-  "facebook_marketplace",
-  "craigslist",
-  "ebay_motors",
-  "autotrader",
-  "cars_com",
-  "gov_auction",
-  "repo_network",
-  "independent_dealer",
-  "cargurus",
-  "craigslist_dealer",
-  "carvana",
-  "truecar",
-  "vroom",
-  "offerup",
-  "acv",
+  // Auction
+  "copart", "iaa", "adesa", "manheim", "acv",
+  "bring_a_trailer", "mecum", "barrett_jackson", "govplanet", "traderev",
+  // Marketplace
+  "craigslist", "craigslist_dealer", "ebay_motors", "autotrader", "cars_com",
+  "cargurus", "carvana", "truecar", "vroom", "offerup", "carmax",
+  "edmunds", "kbb", "iseecars", "driveway", "hemmings",
+  "autotempest", "carsdirect",
+  // Parts / salvage
+  "carparts_com", "lkq",
+  // Dealer / other
+  "independent_dealer", "facebook_marketplace",
+  "gov_auction", "repo_network",
 ]);
 
 // Map free-text title/condition to the listing_condition enum.

@@ -125,10 +125,48 @@ export const PARTS_SOURCES: Source[] = [
   { id: 'dealer-oem',   name: 'Dealer OEM Portals',   url: 'multiple',                      method: 'patchright', tier: 'C', notes: 'Honda, Toyota, Ford, GM' },
 ]
 
+// Active scraper fleet — IDs must match what the scrapers write to deals.source
+// These are the sources actually wired in runner.ts and producing real data.
+export const ACTIVE_SCRAPER_SOURCES: Source[] = [
+  // Auctions
+  { id: 'copart',          name: 'Copart',           url: 'https://www.copart.com',            method: 'patchright' },
+  { id: 'iaa',             name: 'IAA',              url: 'https://www.iaai.com',               method: 'cheerio'    },
+  { id: 'bring_a_trailer', name: 'Bring a Trailer',  url: 'https://bringatrailer.com',          method: 'cheerio'    },
+  { id: 'mecum',           name: 'Mecum',            url: 'https://www.mecum.com',              method: 'cheerio'    },
+  { id: 'barrett_jackson', name: 'Barrett-Jackson',  url: 'https://www.barrett-jackson.com',    method: 'cheerio'    },
+  { id: 'govplanet',       name: 'GovPlanet',        url: 'https://www.govplanet.com',          method: 'cheerio'    },
+  { id: 'traderev',        name: 'TradeRev',         url: 'https://www.traderev.com',           method: 'patchright' },
+  // Marketplaces
+  { id: 'craigslist',      name: 'Craigslist',       url: 'https://craigslist.org',             method: 'cheerio'    },
+  { id: 'ebay_motors',     name: 'eBay Motors',      url: 'https://www.ebay.com/motors',        method: 'cheerio'    },
+  { id: 'cars_com',        name: 'Cars.com',         url: 'https://www.cars.com',               method: 'cheerio'    },
+  { id: 'cargurus',        name: 'CarGurus',         url: 'https://www.cargurus.com',           method: 'cheerio'    },
+  { id: 'autotrader',      name: 'AutoTrader',       url: 'https://www.autotrader.com',         method: 'cheerio'    },
+  { id: 'truecar',         name: 'TrueCar',          url: 'https://www.truecar.com',            method: 'cheerio'    },
+  { id: 'carvana',         name: 'Carvana',          url: 'https://www.carvana.com',            method: 'patchright' },
+  { id: 'vroom',           name: 'Vroom',            url: 'https://www.vroom.com',              method: 'cheerio'    },
+  { id: 'offerup',         name: 'OfferUp',          url: 'https://offerup.com',                method: 'patchright' },
+  { id: 'carmax',          name: 'CarMax',           url: 'https://www.carmax.com',             method: 'cheerio'    },
+  { id: 'edmunds',         name: 'Edmunds',          url: 'https://www.edmunds.com',            method: 'cheerio'    },
+  { id: 'kbb',             name: 'Kelley Blue Book', url: 'https://www.kbb.com',                method: 'cheerio'    },
+  { id: 'iseecars',        name: 'iSeeCars',         url: 'https://www.iseecars.com',           method: 'cheerio'    },
+  { id: 'driveway',        name: 'Driveway',         url: 'https://www.driveway.com',           method: 'cheerio'    },
+  { id: 'hemmings',        name: 'Hemmings',         url: 'https://www.hemmings.com',           method: 'cheerio'    },
+  { id: 'autotempest',     name: 'AutoTempest',      url: 'https://www.autotempest.com',        method: 'cheerio'    },
+  { id: 'carsdirect',      name: 'CarsDirect',       url: 'https://www.carsdirect.com',         method: 'cheerio'    },
+  // Parts / salvage
+  { id: 'carparts_com',    name: 'CarParts.com',     url: 'https://www.carparts.com',           method: 'cheerio'    },
+  { id: 'lkq',             name: 'LKQ / Row52',      url: 'https://row52.com',                  method: 'cheerio'    },
+  // Dealer direct
+  { id: 'independent_dealer', name: 'Independent Dealers', url: '',                             method: 'cheerio'    },
+  { id: 'facebook_marketplace', name: 'Facebook Marketplace', url: 'https://www.facebook.com/marketplace', method: 'camoufox' },
+]
+
 export const ALL_VEHICLE_SOURCES = [
   ...SALVAGE_SOURCES,
   ...WHOLESALE_SOURCES,
   ...PRIVATE_SOURCES,
   ...REPO_GOV_SOURCES,
   ...SPECIALTY_SOURCES,
+  ...ACTIVE_SCRAPER_SOURCES,
 ]

@@ -1,0 +1,60 @@
+# Dockerfile.scraper
+# Dedicated image for running all DealerHunt scrapers locally or on any Docker host.
+# Installs Playwright + Chromium so browser-rendered sources (Copart, Cars.com, etc.) work.
+# FlareSolverr runs as a sidecar in docker-compose.scrape.yml.
+
+FROM node:20-bookworm-slim
+
+# System deps required by Playwright Chromium on Debian/bookworm
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    wget \
+    gnupg \
+    # Chromium runtime libs
+    libnss3 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libdrm2 \
+    libxkbcommon0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxfixes3 \
+    libxrandr2 \
+    libgbm1 \
+    libasound2 \
+    libpangocairo-1.0-0 \
+    libpango-1.0-0 \
+    libcairo2 \
+    libgdk-pixbuf2.0-0 \
+    libgtk-3-0 \
+    libx11-xcb1 \
+    libxss1 \
+    fonts-liberation \
+    fonts-noto-color-emoji \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Install node deps first (cached layer)
+COPY package.json package-lock.json ./
+RUN npm ci
+
+# Install Playwright Chromium (downloads the browser binary into node_modules)
+RUN npx playwright install chromium --with-deps
+
+# Copy source (only what the scraper needs — no Next.js build)
+COPY tsconfig.json ./
+COPY lib/ ./lib/
+COPY scripts/ ./scripts/
+COPY types/ ./types/
+COPY workers/ ./workers/
+
+# Tell Playwright where the browser lives (it will be in the node_modules cache)
+ENV PLAYWRIGHT_BROWSERS_PATH=/root/.cache/ms-playwright
+
+# Default: run all $0-friendly sources. Override via SCRAPE_SOURCES env at runtime.
+ENV SCRAPE_SOURCES=craigslist,cars_com,ebay_motors,copart,iaa,cargurus,autotrader,truecar,carvana,vroom,offerup,carparts_com,bring_a_trailer,carmax,govplanet,mecum,hemmings,barrett_jackson,edmunds,kbb,iseecars,driveway,lkq,autotempest,carsdirect,traderev
+
+CMD ["npx", "tsx", "scripts/scrape-ci.ts"]

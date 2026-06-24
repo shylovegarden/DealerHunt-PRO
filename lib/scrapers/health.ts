@@ -14,10 +14,13 @@ export interface SourceRunResult {
 
 function admin(): SupabaseClient | null {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !key) return null;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) {
+    // Do NOT fall back to anon key — scrape_runs has RLS and anon inserts are silently dropped.
+    // If the service role key is missing, health records simply won't be written (best-effort).
+    if (!key) console.warn("[Health] SUPABASE_SERVICE_ROLE_KEY not set — scrape_runs not recorded.");
+    return null;
+  }
   return createClient(url, key);
 }
 

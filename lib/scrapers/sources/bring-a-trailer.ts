@@ -124,7 +124,7 @@ export async function scrapeBringATrailer(
           }
 
           items.push({
-            source: "bring-a-trailer",
+            source: "bring_a_trailer",
             source_deal_id: auctionId,
             source_url: link ? normalizeUrl(link, BAT_CONFIG.baseUrl) : "",
             title,
