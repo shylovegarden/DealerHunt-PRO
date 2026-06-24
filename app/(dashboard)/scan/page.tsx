@@ -14,6 +14,7 @@ import { useRecentSearches } from "@/components/shared/useRecentSearches";
 
 import { LayoutGrid, Rows3 } from "lucide-react";
 import { DealCard, DealCardSkeleton } from "@/components/shared/DealCard";
+import { isValidVin } from "@/lib/vehicle/vin";
 import { ErrorState as SharedErrorState } from "@/components/shared/ErrorState";
 import { ALL_VEHICLE_SOURCES } from "@/lib/utils/sources";
 import { cn } from "@/lib/utils";
@@ -300,9 +301,9 @@ function EmptyState({ onRetry }: { onRetry: () => void }) {
         Scanning for deals
       </h2>
       <p className="text-[var(--t3)] max-w-sm mb-8 leading-relaxed">
-        We’re continuously scanning thousands of listings for profitable
-        flips. Nothing matches your current view yet — try widening your
-        filters, or check back in a few minutes as fresh deals land.
+        We’re continuously scanning thousands of listings for profitable flips.
+        Nothing matches your current view yet — try widening your filters, or
+        check back in a few minutes as fresh deals land.
       </p>
 
       <button
@@ -439,6 +440,14 @@ export default function ScanPage() {
     async (val: string) => {
       const raw = val.trim();
       addRecent(raw);
+
+      // VIN paste: search inventory by VIN directly (the scan API matches the vin column) and skip
+      // the NL parser, which would otherwise mangle the 17-char string into make/model tokens.
+      if (isValidVin(raw)) {
+        setSearchInput(raw);
+        setSearch(raw);
+        return;
+      }
 
       try {
         const res = await fetch(`/api/scan/parse?q=${encodeURIComponent(raw)}`);
