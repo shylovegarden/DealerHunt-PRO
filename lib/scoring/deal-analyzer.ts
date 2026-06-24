@@ -12,7 +12,11 @@
 import { Deal } from "@/types";
 import { calculateProfit, type ProfitResult } from "./profit-calculator";
 import { milesBetweenStates, transportCostForMiles } from "@/lib/geo";
-import { lookupMarketValue, lookupMarketAggregate } from "./market-value";
+import {
+  lookupMarketValue,
+  lookupMarketAggregate,
+  lookupSupply,
+} from "./market-value";
 import { estimateBaselineValue } from "./baseline-value";
 import { isKnownMake } from "@/lib/scrapers/tools/deal-normalizer";
 
@@ -93,7 +97,22 @@ function marketSignals(
 
   // Velocity/competition kept neutral-ish but tied to body type (deterministic, cheap).
   const velocity = isTruckSuv ? 6 : 5;
-  const competition = isTruckSuv ? 4 : 3;
+  let competition = isTruckSuv ? 4 : 3;
+
+  // Blend REAL supply scarcity (national active-listing count for this make|model) into the
+  // body-type prior: a flooded model is harder to move (more competition, softer demand); a scarce
+  // one clears faster. Conservative ±1 nudges so verdicts shift sensibly, not wildly. Falls back to
+  // the prior when the index isn't loaded (lookupSupply → null).
+  const supply = lookupSupply(make, model);
+  if (supply != null && supply > 0) {
+    if (supply >= 60) {
+      demand = Math.max(2, demand - 1);
+      competition = Math.min(5, competition + 1);
+    } else if (supply <= 8) {
+      demand = Math.min(10, demand + 1);
+      competition = Math.max(1, competition - 1);
+    }
+  }
 
   return { demand, velocity, seasonality, competition };
 }

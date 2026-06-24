@@ -149,6 +149,40 @@ export function extractModel(
   return match[1].charAt(0).toUpperCase() + match[1].slice(1).toLowerCase();
 }
 
+// Body-style / drivetrain / filler tokens that follow a model but are NOT the trim. Kept out of the
+// trim so a "Ford F-150 4x4 Crew Cab" doesn't store trim="4x4". (Real trims like XLT/Lariat/Raptor
+// pass through and feed baseline-value's trim tier — the main valuation lever for ~all listings,
+// since only ~4% of scraped deals carry a VIN to decode trim from.)
+const NON_TRIM =
+  /^(4x4|4wd|awd|fwd|rwd|2wd|crew|supercrew|supercab|super|quad|double|extended|ext|king|reg|regular|cab|sedan|coupe|hatchback|suv|truck|pickup|wagon|minivan|van|convertible|diesel|gas|hybrid|ev|electric|turbo|auto|automatic|manual|miles?|mi|odo|clean|salvage|rebuilt|title|for|sale|runs?|drives?|nice|excellent|great|low|new|used|loaded|leather|nav)$/i;
+
+/** Pull a likely trim (e.g. "XLT", "Lariat", "Scat Pack") from the tokens after the model. */
+export function extractTrim(
+  title?: string,
+  make?: string,
+  model?: string,
+): string | undefined {
+  if (!title || !model) return undefined;
+  const lower = title.toLowerCase();
+  const modelTok = model.toLowerCase().split(/\s+/).pop() || "";
+  const idx = modelTok ? lower.indexOf(modelTok) : -1;
+  if (idx < 0) return undefined;
+  const after = title.slice(idx + modelTok.length).trim();
+  const out: string[] = [];
+  for (const raw of after.split(/\s+/)) {
+    const clean = raw.replace(/[^A-Za-z0-9-]/g, "");
+    if (!clean) break;
+    if (NON_TRIM.test(clean) || /^\d/.test(clean)) {
+      if (out.length) break; // stop once we've started the trim and hit a non-trim token
+      continue; // skip leading junk
+    }
+    out.push(clean);
+    if (out.length >= 2) break;
+  }
+  const trim = out.join(" ").trim();
+  return trim.length >= 2 ? trim : undefined;
+}
+
 export function normalizeLocation(location?: string): string | undefined {
   if (!location) return undefined;
   return location.replace(/\s+/g, " ").replace(/,\s+/g, ", ").trim();
@@ -173,6 +207,14 @@ export function normalizeDeal(deal: Partial<Deal>): Partial<Deal> {
       normalized.model || extractModel(normalized.title, normalized.make);
   }
   normalized.mileage = normalized.mileage || extractMileage(normalized.title);
+  // Trim from the title when the scraper didn't supply one — feeds baseline-value's trim tier so a
+  // Raptor/Denali isn't valued like a base unit (and vice-versa) for the ~96% of deals without a VIN.
+  if (!normalized.trim)
+    normalized.trim = extractTrim(
+      normalized.title,
+      normalized.make,
+      normalized.model,
+    );
   normalized.location_city = normalizeLocation(normalized.location_city);
   normalized.location_state = normalizeLocation(normalized.location_state);
 

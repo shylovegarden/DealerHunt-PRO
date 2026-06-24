@@ -57,6 +57,12 @@ export interface MarketComps {
 let computed: Map<string, MarketComps> | null = null;
 let loadedAt = 0;
 
+// Real demand proxy: how many active listings exist nationally for a make|model right now. Built
+// from the same loaded deals (no extra query), keyed make|model across all years. Feeds the
+// analyzer's demand/competition signal so scoring reflects ACTUAL supply scarcity instead of a
+// hardcoded body-type guess. Few listings = scarce = moves faster; flooded = more competition.
+let supplyByModel: Map<string, number> | null = null;
+
 // The nightly `market_aggregates` rollup (pg_cron, avg of mmr_value per make/model/year/state/
 // period) compounds every day. We fold it into a parallel index so a deal with thin live comps
 // can still be valued from accumulated history — the "gets smarter as data grows" path. Kept
@@ -102,10 +108,13 @@ function median(prices: number[]): number | null {
   const q3 = sorted[Math.floor(sorted.length * 0.75)];
   const iqr = q3 - q1;
 
-  // Remove outliers: anything more than 1.5× IQR outside Q1/Q3
-  const clean = sorted.filter(
-    (p) => p >= q1 - 1.5 * iqr && p <= q3 + 1.5 * iqr,
-  );
+  // Aggressive outlier removal: 1.5× IQR (standard) but also enforce a max ratio
+  // to prevent extreme outliers (e.g. Shelby GT500 at $42k in a $5k Mustang bucket).
+  // Any price more than 3× the Q3 is rejected as an extreme outlier.
+  const maxPrice = Math.max(q3 * 3, q3 + 1.5 * iqr);
+  const minPrice = Math.max(0, q1 - 1.5 * iqr);
+
+  const clean = sorted.filter((p) => p >= minPrice && p <= maxPrice);
 
   // Fall back to raw median if filtering removes too much
   const use = clean.length >= Math.ceil(sorted.length * 0.5) ? clean : sorted;
@@ -138,10 +147,14 @@ export async function loadMarketIndex(
   }
 
   const buckets = new Map<string, { retail: number[]; wholesale: number[] }>();
+  const supply = new Map<string, number>();
   for (const r of data || []) {
     const k = key(r.make, r.model, r.year);
     // Require make + model present (year may be 'na'); skip empty rows.
     if (!(r.make && r.model)) continue;
+    // Tally national supply per make|model (all years) for the demand-scarcity signal.
+    const sk = `${(r.make || "").toLowerCase().trim()}|${normalizeModel(r.model)}`;
+    supply.set(sk, (supply.get(sk) || 0) + 1);
     if (!buckets.has(k)) buckets.set(k, { retail: [], wholesale: [] });
     const b = buckets.get(k)!;
     if (RETAIL_SOURCES.has(r.source)) {
@@ -169,6 +182,7 @@ export async function loadMarketIndex(
     });
   });
   computed = next;
+  supplyByModel = supply;
   loadedAt = Date.now();
   console.log(
     `[market-value] index: ${next.size} make/model/year groups from ${(data || []).length} comps`,
@@ -235,6 +249,19 @@ export function lookupMarketAggregate(
 ): { value: number; n: number } | null {
   if (!aggregates) return null;
   return aggregates.get(key(make, model, year)) || null;
+}
+
+/**
+ * National active-listing count for a make|model from the loaded index — the real supply/demand
+ * scarcity signal. Returns null when the index hasn't been loaded (caller falls back to its prior).
+ */
+export function lookupSupply(
+  make?: string | null,
+  model?: string | null,
+): number | null {
+  if (!supplyByModel) return null;
+  const sk = `${(make || "").toLowerCase().trim()}|${normalizeModel(model)}`;
+  return supplyByModel.get(sk) ?? 0;
 }
 
 /** Synchronous lookup from the loaded index. Returns null if not enough comparable data. */

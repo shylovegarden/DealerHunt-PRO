@@ -4,6 +4,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { analyzeDeal } from "../lib/scoring/deal-analyzer";
 import { loadMarketIndex } from "../lib/scoring/market-value";
+import { extractTrim } from "../lib/scrapers/tools/deal-normalizer";
 import { config } from "dotenv";
 config({ path: ".env.local" });
 
@@ -29,11 +30,19 @@ async function main() {
     if (!deals || deals.length === 0) break;
     for (const d of deals) {
       try {
-        const a = analyzeDeal(d as any);
-        if ((d as any).deal_verdict === "go" && a.verdict !== "go") goToPass++;
+        const row = d as any;
+        // Backfill trim from the title for existing rows (A2) so the baseline is trim-aware before
+        // we re-score. New scrapes get this in normalizeDeal; this catches the back catalog.
+        if (!row.trim) {
+          const t = extractTrim(row.title, row.make, row.model);
+          if (t) row.trim = t;
+        }
+        const a = analyzeDeal(row);
+        if (row.deal_verdict === "go" && a.verdict !== "go") goToPass++;
         const { error: upErr } = await sb
           .from("deals")
           .update({
+            trim: row.trim ?? null,
             sell_estimate: a.sellEstimate,
             recommended_max_bid: a.recommendedMaxBid,
             true_net_profit: a.profit,
@@ -41,17 +50,21 @@ async function main() {
             deal_verdict: a.verdict,
             is_arbitrage_opportunity: a.verdict === "go",
           })
-          .eq("id", (d as any).id);
+          .eq("id", row.id);
         if (!upErr) updated++;
       } catch {
         /* skip */
       }
     }
     scanned += deals.length;
-    console.log(`page ${page}: scanned ${scanned}, updated ${updated}, go→pass ${goToPass}`);
+    console.log(
+      `page ${page}: scanned ${scanned}, updated ${updated}, go→pass ${goToPass}`,
+    );
     if (deals.length < pageSize) break;
     page++;
   }
-  console.log(`DONE: scanned ${scanned}, updated ${updated}, demoted go→pass ${goToPass}`);
+  console.log(
+    `DONE: scanned ${scanned}, updated ${updated}, demoted go→pass ${goToPass}`,
+  );
 }
 main().then(() => process.exit(0));
