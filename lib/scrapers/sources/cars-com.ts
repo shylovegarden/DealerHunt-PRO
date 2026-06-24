@@ -31,6 +31,9 @@ export function parseCarsComHtml(html: string, state = ""): any[] {
     if (!v.vin || !price || stock === "new") continue; // used/CPO only for resale comps
     const seller =
       v.seller && typeof v.seller === "object" ? v.seller.name : v.seller;
+    // listing_condition is an enum — map cars.com stock type to a valid value (no "used").
+    const condition =
+      stock === "certified" || v.cpoIndicator ? "certified" : "clean";
     items.push({
       source: "cars_com",
       source_category: "retail",
@@ -49,7 +52,7 @@ export function parseCarsComHtml(html: string, state = ""): any[] {
       asking_price: price,
       odometer:
         parseInt(String(v.mileage || "0").replace(/[^0-9]/g, ""), 10) || 0,
-      condition: "used",
+      condition,
       body_class: v.bodyStyle || undefined,
       images: v.primaryThumbnail ? [v.primaryThumbnail] : [],
       seller: seller || undefined,
