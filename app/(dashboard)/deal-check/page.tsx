@@ -15,6 +15,7 @@ const money = (v: any) =>
 
 export default function DealCheckPage() {
   const [preview, setPreview] = useState<string | null>(null);
+  const [textInput, setTextInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
@@ -24,22 +25,32 @@ export default function DealCheckPage() {
     if (!file) return;
     setError(null);
     setResult(null);
+    setTextInput("");
     const reader = new FileReader();
     reader.onload = () => {
       const dataUrl = reader.result as string;
       setPreview(dataUrl);
-      analyze(dataUrl);
+      analyze({ image: dataUrl });
     };
     reader.readAsDataURL(file);
   }
 
-  async function analyze(image: string) {
+  function handleTextSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!textInput.trim()) return;
+    setError(null);
+    setResult(null);
+    setPreview(null);
+    analyze({ text: textInput });
+  }
+
+  async function analyze(payload: { image?: string; text?: string }) {
     setLoading(true);
     try {
       const res = await fetch("/api/deal-check", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image }),
+        body: JSON.stringify(payload),
       });
       const json = await res.json();
       if (!res.ok) setError(json.error || "Failed to read the document.");
@@ -69,25 +80,37 @@ export default function DealCheckPage() {
         </p>
       </div>
 
-      <label
-        className="glass-panel p-8 flex flex-col items-center justify-center cursor-pointer text-center border-dashed"
-        style={{ borderWidth: 2, borderColor: "var(--b2)" }}
-      >
-        <Ico name="camera" size={28} className="text-[var(--t4)] mb-2" />
-        <span className="font-bold text-[var(--t1)]">
-          Upload or photograph the deal sheet
-        </span>
-        <span className="text-xs text-[var(--t4)] mt-1">
-          JPG / PNG / screenshot
-        </span>
-        <input
-          type="file"
-          accept="image/*"
-          capture="environment"
-          className="hidden"
-          onChange={onFile}
-        />
-      </label>
+      <div className="glass-panel p-1 rounded-2xl border border-[var(--b2)]">
+        <form onSubmit={handleTextSubmit} className="flex flex-col relative">
+          <textarea
+            value={textInput}
+            onChange={(e) => setTextInput(e.target.value)}
+            placeholder="Paste a URL or raw text from a deal sheet..."
+            className="w-full bg-transparent resize-none p-4 pb-14 outline-none text-[var(--t2)] placeholder:text-[var(--t4)] min-h-[120px] rounded-xl"
+          />
+          <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
+            <label className="flex items-center gap-2 px-3 py-1.5 rounded-lg cursor-pointer hover:bg-[var(--s2)] transition-colors text-[var(--t3)] text-sm font-semibold">
+              <Ico name="camera" size={18} />
+              <span>Upload Photo</span>
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={onFile}
+              />
+            </label>
+            <button
+              type="submit"
+              disabled={loading || !textInput.trim()}
+              className="px-4 py-1.5 rounded-lg font-bold text-sm text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              style={{ background: "var(--t1)" }}
+            >
+              Analyze
+            </button>
+          </div>
+        </form>
+      </div>
 
       {preview && (
         // eslint-disable-next-line @next/next/no-img-element
@@ -135,6 +158,37 @@ export default function DealCheckPage() {
                   </p>
                 </div>
               </div>
+
+              {mc.comps && mc.comps.length > 0 && (
+                <div className="mt-6 border-t border-[var(--b2)] pt-4">
+                  <p className="text-[10px] uppercase tracking-widest text-[var(--t4)] font-bold mb-3">
+                    Live Market Comps
+                  </p>
+                  <div className="space-y-2">
+                    {mc.comps.map((comp: any) => (
+                      <a
+                        key={comp.id}
+                        href={`/deal/${comp.id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center justify-between p-3 rounded-lg border border-[var(--b2)] bg-[var(--s0)] hover:border-[var(--amber)] transition-colors group"
+                      >
+                        <div className="flex flex-col">
+                          <span className="text-sm font-bold text-[var(--t1)] group-hover:text-[var(--amber)] transition-colors">
+                            {comp.year} {comp.make} {comp.model}
+                          </span>
+                          <span className="text-xs text-[var(--t4)]">
+                            {comp.mileage ? `${comp.mileage.toLocaleString()} mi` : "Mileage unlisted"}
+                          </span>
+                        </div>
+                        <Mono className="text-sm font-bold text-[var(--t2)]">
+                          {money(comp.ask_price)}
+                        </Mono>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

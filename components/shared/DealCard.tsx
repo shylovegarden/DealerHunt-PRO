@@ -1,6 +1,7 @@
 "use client";
 
 import React, { memo } from "react";
+import { motion } from "framer-motion";
 import { Mono } from "./Mono";
 import { cn } from "@/lib/utils";
 import { liteDealIQ, IQ_TIER_COLOR } from "@/lib/intelligence/lite-iq";
@@ -57,7 +58,7 @@ export const DealCard = memo(function DealCard({
   });
 
   return (
-    <div
+    <motion.div
       onClick={onClick}
       role={onClick ? "button" : undefined}
       tabIndex={onClick ? 0 : undefined}
@@ -73,17 +74,9 @@ export const DealCard = memo(function DealCard({
         onClick &&
           "cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--amber)] focus-visible:outline-none",
       )}
-      style={{
-        willChange: "transform",
-        transition:
-          "transform 170ms cubic-bezier(.16,1,.3,1), box-shadow 170ms cubic-bezier(.16,1,.3,1)",
-      }}
-      onMouseEnter={(e) => {
-        (e.currentTarget as HTMLElement).style.transform = "translateY(-3px)";
-      }}
-      onMouseLeave={(e) => {
-        (e.currentTarget as HTMLElement).style.transform = "";
-      }}
+      whileHover={onClick ? { y: -3, scale: 1.01 } : undefined}
+      whileTap={onClick ? { scale: 0.98 } : undefined}
+      transition={{ type: "spring", stiffness: 400, damping: 25 }}
     >
       {/* Top strip: source badge + score ring */}
       <div
@@ -287,20 +280,16 @@ export const DealCard = memo(function DealCard({
         <span className="text-[11px] text-[var(--t4)] font-medium font-mono truncate">
           #{id.slice(0, 8).toUpperCase()}
         </span>
-        <a
+        <motion.a
           href={`/deal/${id}`}
           onClick={(e) => e.stopPropagation()}
           className="flex items-center gap-1.5 text-xs font-bold text-white rounded-[var(--r2)] px-3 py-1.5 shrink-0 border-none"
           style={{
             background: "var(--grad)",
-            transition: "transform 120ms cubic-bezier(.16,1,.3,1)",
           }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLElement).style.transform = "scale(1.05)";
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLElement).style.transform = "";
-          }}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          transition={{ type: "spring", stiffness: 400, damping: 25 }}
         >
           View Deal
           <svg
@@ -315,9 +304,9 @@ export const DealCard = memo(function DealCard({
           >
             <path d="M5 12h14M12 5l7 7-7 7" />
           </svg>
-        </a>
+        </motion.a>
       </div>
-    </div>
+    </motion.div>
   );
 });
 

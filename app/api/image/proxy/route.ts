@@ -1,67 +1,77 @@
 export const dynamic = "force-dynamic";
 
-// GET /api/image/proxy?url=... — fetch a listing photo server-side with browser-like headers so
-// hotlink-protected sources (Craigslist, Copart, IAA CDNs) load, cache it at the edge, and fall back
-// to a clean placeholder on any failure. $0 — no storage needed for the on-demand path.
+import { NextResponse } from "next/server";
 
-const PLACEHOLDER = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 240" fill="none"><rect width="400" height="240" fill="#1b1722"/><path d="M80 158h240v30H80zM104 158l24-46h144l24 46" stroke="#3a3346" stroke-width="2" fill="none"/><circle cx="132" cy="190" r="16" stroke="#3a3346" stroke-width="2"/><circle cx="268" cy="190" r="16" stroke="#3a3346" stroke-width="2"/><text x="200" y="120" text-anchor="middle" fill="#6b6276" font-size="12" font-family="system-ui">No photo</text></svg>`;
-
-function placeholder() {
-  return new Response(PLACEHOLDER, {
-    headers: {
-      "Content-Type": "image/svg+xml",
-      "Cache-Control": "public, max-age=3600",
-    },
-  });
-}
-
+/**
+ * GET /api/image/proxy?url=...
+ * Proxy external images that block hotlinks (Craigslist, Facebook, etc.)
+ * by fetching them server-side and streaming back.
+ */
 export async function GET(req: Request) {
-  const target = new URL(req.url).searchParams.get("url");
-  if (!target || !/^https?:\/\//.test(target)) return placeholder();
+  const { searchParams } = new URL(req.url);
+  const url = searchParams.get("url");
 
-  let origin = "";
-  try {
-    origin = new URL(target).origin;
-    const hostname = new URL(target).hostname;
-    const ALLOWED_DOMAINS = [
-      "images.craigslist.org",
-      "photos.drive2.ru",
-      "images.autotrader.com",
-      "photos.dealer.com",
-      "i.ebayimg.com",
-    ];
-    const allowed = ALLOWED_DOMAINS.some(
-      (d) => hostname === d || hostname.endsWith("." + d),
-    );
-    if (!allowed && !hostname.includes("craigslist")) {
-      return placeholder();
-    }
-  } catch {
-    return placeholder();
+  if (!url) {
+    return new NextResponse("Missing url parameter", { status: 400 });
   }
 
   try {
-    const res = await fetch(target, {
+    // Validate URL to prevent SSRF
+    const parsed = new URL(url);
+    const allowedDomains = [
+      "craigslist.org",
+      "fbcdn.net",
+      "facebook.com",
+      "cargurus.com",
+      "cars.com",
+      "autotrader.com",
+      "ebay.com",
+      "ebayimg.com",
+      "copart.com",
+      "iaai.com",
+    ];
+    
+    const isAllowed = allowedDomains.some(
+      (domain) =>
+        parsed.hostname === domain ||
+        parsed.hostname.endsWith(`.${domain}`)
+    );
+
+    if (!isAllowed) {
+      return new NextResponse("Domain not allowed", { status: 403 });
+    }
+
+    // Fetch the image with proper headers to avoid blocks
+    const response = await fetch(url, {
       headers: {
         "User-Agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36",
-        Referer: origin,
-        Accept: "image/avif,image/webp,image/*,*/*;q=0.8",
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        Referer: parsed.origin + "/",
       },
-      signal: AbortSignal.timeout(8000),
+      // Don't cache too aggressively since listings can change
+      cache: "no-store",
     });
-    if (!res.ok) return placeholder();
-    const type = res.headers.get("content-type") || "image/jpeg";
-    if (!type.startsWith("image/")) return placeholder();
-    const buf = await res.arrayBuffer();
-    return new Response(buf, {
+
+    if (!response.ok) {
+      return new NextResponse("Failed to fetch image", {
+        status: response.status,
+      });
+    }
+
+    // Stream the image back
+    const contentType = response.headers.get("content-type") || "image/jpeg";
+    
+    return new NextResponse(response.body, {
       headers: {
-        "Content-Type": type,
-        "Cache-Control": "public, max-age=86400, s-maxage=86400",
+        "Content-Type": contentType,
+        "Cache-Control": "public, max-age=3600", // Cache for 1 hour
         "Access-Control-Allow-Origin": "*",
       },
     });
-  } catch {
-    return placeholder();
+  } catch (error) {
+    console.error("[image-proxy] Error:", error);
+    return new NextResponse("Internal server error", { status: 500 });
   }
 }

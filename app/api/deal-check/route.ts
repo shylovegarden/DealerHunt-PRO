@@ -4,14 +4,15 @@ export const maxDuration = 60;
 import { NextRequest, NextResponse } from "next/server";
 import { generateText } from "ai";
 import { createServerComponentClient } from "@/lib/supabase";
+import * as cheerio from "cheerio";
 import { getTextModel, hasTextModel } from "@/lib/ai/text-model";
 import { getServerUser } from "@/lib/server-supabase";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 // POST /api/deal-check  { image: <data URL> }
-// Photograph an auction run sheet / wholesaler offer → vision model extracts the line items
+// Photograph an auction run sheet / wholesaler offer OR paste a URL/text → model extracts the line items
 // (price, fees, add-ons, taxes, OTD, red flags) → compared to our market. Uses the existing
-// OpenAI/Google vision model (gpt-4o-mini). Auth + rate-limited; an explicit, cost-aware action.
+// OpenAI/Google model. Auth + rate-limited; an explicit, cost-aware action.
 const PROMPT = `Extract every financial detail from this vehicle deal sheet / buyer's order / auction run sheet. Return ONLY JSON (no prose), with this shape:
 {
   "vehicle": { "year": number|null, "make": string|null, "model": string|null, "vin": string|null, "mileage": number|null },
@@ -49,11 +50,37 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid body" }, { status: 400 });
   }
   const image: string | undefined = body.image;
-  if (!image)
+  const inputText: string | undefined = body.text;
+
+  if (!image && !inputText)
     return NextResponse.json(
-      { error: "image (data URL) required" },
+      { error: "Image or text required" },
       { status: 400 },
     );
+
+  let contentText = inputText;
+  if (inputText && (inputText.startsWith("http://") || inputText.startsWith("https://"))) {
+    try {
+      const res = await fetch(inputText);
+      const html = await res.text();
+      const $ = cheerio.load(html);
+      $("script, style, noscript, img, svg").remove();
+      contentText = $("body").text().replace(/\s+/g, " ").trim().slice(0, 40000); // cap size
+    } catch (e) {
+      return NextResponse.json(
+        { error: "Could not read the provided URL." },
+        { status: 422 },
+      );
+    }
+  }
+
+  const messagesContent: any[] = [{ type: "text", text: PROMPT }];
+  if (contentText) {
+    messagesContent.push({ type: "text", text: `Document Text:\n${contentText}` });
+  }
+  if (image) {
+    messagesContent.push({ type: "image", image });
+  }
 
   let extracted: any;
   try {
@@ -62,10 +89,7 @@ export async function POST(req: NextRequest) {
       messages: [
         {
           role: "user",
-          content: [
-            { type: "text", text: PROMPT },
-            { type: "image", image },
-          ],
+          content: messagesContent,
         },
       ],
       temperature: 0,
@@ -89,7 +113,7 @@ export async function POST(req: NextRequest) {
       const supabase = createServerComponentClient();
       let q = supabase
         .from("deals")
-        .select("ask_price")
+        .select("id, year, make, model, mileage, ask_price")
         .eq("active", true)
         .ilike("make", v.make)
         .ilike("model", `%${String(v.model).split(" ")[0]}%`)
@@ -104,11 +128,18 @@ export async function POST(req: NextRequest) {
             data.length,
         );
         const sell = Number(extracted.selling_price);
+
+        // Sort by price proximity to average or just take cheapest ones
+        // Let's sort by price ascending to show the best comps
+        const sortedComps = [...data].sort((a, b) => Number(a.ask_price) - Number(b.ask_price));
+        const topComps = sortedComps.slice(0, 5);
+
         marketComparison = {
           marketAvg: avg,
           vsMarket: sell - avg,
           isFair: sell <= avg * 1.05,
           sampleSize: data.length,
+          comps: topComps,
         };
       }
     }

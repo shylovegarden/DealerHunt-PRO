@@ -121,10 +121,10 @@ export function ImageGallery({
             {/* HERO IMAGE */}
             <div
               className={cn(
-                "relative group cursor-pointer overflow-hidden",
+                "relative group cursor-pointer overflow-hidden w-full aspect-[4/3] md:aspect-auto",
                 images.length >= 5
                   ? "md:col-span-2 md:row-span-2"
-                  : "md:col-span-4 md:row-span-2 aspect-[16/9]",
+                  : "md:col-span-4 md:row-span-2 md:aspect-[16/9]",
               )}
               onClick={() => setIsLightboxOpen(true)}
               onTouchStart={handleTouchStart}

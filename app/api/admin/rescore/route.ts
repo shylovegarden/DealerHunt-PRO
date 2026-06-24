@@ -76,9 +76,11 @@ export async function POST(req: Request) {
         .from("deals")
         .update({
           sell_estimate: a.sellEstimate,
-          mmr_value: a.mmrValue,
+          mmr_value: a.mmrValue || null,
           recommended_max_bid: a.recommendedMaxBid,
           true_net_profit: a.profit,
+          repair_estimate: a.repairCost,
+          transport_estimate: a.transportCost,
           profit_score: Math.min(100, Math.max(0, a.score)),
           deal_verdict: a.verdict,
           is_arbitrage_opportunity: a.verdict === "go",
