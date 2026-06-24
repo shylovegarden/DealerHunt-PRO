@@ -187,8 +187,10 @@ const PERF =
 const BASE_TRIM =
   /\b(base|work ?truck|tradesman|fleet|ls|se|sv|standard|value)\b/i;
 
-export function trimTierMultiplier(trim?: string | null): number {
-  const t = (trim || "").toLowerCase();
+export function trimTierMultiplier(trim?: unknown): number {
+  // Defensive: a scraper can hand us a non-string trim (e.g. an object) — coerce so one bad row
+  // can't crash the whole scoring batch.
+  const t = (typeof trim === "string" ? trim : "").toLowerCase();
   if (!t) return 1;
   if (PERF.test(t)) return 1.25;
   if (BASE_TRIM.test(t)) return 0.88;

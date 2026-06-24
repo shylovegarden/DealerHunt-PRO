@@ -1,27 +1,21 @@
 // lib/scrapers/sources/autotrader.ts
-// ─── AutoTrader scraper - Largest automotive marketplace ──────────────────────
+// AutoTrader is a Next.js SPA — the old data-cmp/CSS selectors rotted. The full inventory is in the
+// __NEXT_DATA__ JSON (props.pageProps.__eggsState.inventory), keyed by listing id, with clean
+// year/make/model/trim/vin/mileage/price/images. We parse THAT via FlareSolverr (renderMode static).
 
 import type { Deal } from "@/types";
-import * as cheerio from "cheerio";
-import {
-  paginate,
-  extractPrice,
-  extractMileage,
-  extractYear,
-  normalizeUrl,
-  type ScraperConfig,
-} from "../engine";
+import { paginate, type ScraperConfig } from "../engine";
 import { upsertDeals } from "../pipeline";
 
 export const AUTOTRADER_CONFIG: ScraperConfig = {
   name: "AutoTrader",
   baseUrl: "https://www.autotrader.com",
-  renderMode: "browser", // Heavy JS site
-  requestDelay: 4000, // Slow to avoid detection
+  renderMode: "static", // direct → FlareSolverr escalation on Cloudflare block
+  requestDelay: 2500,
   concurrency: 1,
   useProxies: true,
-  stealth: true,
-  maxPages: 15,
+  stealth: false,
+  maxPages: 10,
   headers: {
     "Accept-Language": "en-US,en;q=0.9",
     "User-Agent":
@@ -29,139 +23,107 @@ export const AUTOTRADER_CONFIG: ScraperConfig = {
   },
 };
 
+/** Parse an AutoTrader SRP into listing rows from the embedded __NEXT_DATA__ inventory. */
+export function parseAutotraderNextData(html: string): Partial<Deal>[] {
+  const m = html.match(
+    /<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/,
+  );
+  if (!m) return [];
+  let nd: any;
+  try {
+    nd = JSON.parse(m[1]);
+  } catch {
+    return [];
+  }
+  const inv = nd?.props?.pageProps?.__eggsState?.inventory;
+  if (!inv || typeof inv !== "object") return [];
+
+  const items: Partial<Deal>[] = [];
+  for (const id of Object.keys(inv)) {
+    const o = inv[id] || {};
+    const listingType = String(o.listingType || "").toUpperCase();
+    if (listingType === "NEW") continue; // used/CPO only — resale comps
+    const price = Number(
+      o.pricingDetail?.displayPrice ??
+        o.pricingDetail?.dealerDiscountedPrice ??
+        0,
+    );
+    const vin = o.vin;
+    if (!price || !vin) continue;
+
+    const make = o.make?.name || o.make?.code || undefined;
+    const model = o.model?.name || o.model?.code || undefined;
+    const trim =
+      (typeof o.atTrim === "string" && o.atTrim) ||
+      (typeof o.trim === "string" && o.trim) ||
+      undefined;
+    const mileage =
+      parseInt(String(o.mileage?.value ?? "0").replace(/[^0-9]/g, ""), 10) || 0;
+    const images = Array.isArray(o.images?.sources)
+      ? o.images.sources
+          .map((s: any) => s?.src)
+          .filter(Boolean)
+          .slice(0, 8)
+      : [];
+    const url = o.vdpBaseUrl
+      ? o.vdpBaseUrl.startsWith("http")
+        ? o.vdpBaseUrl
+        : `https://www.autotrader.com${o.vdpBaseUrl}`
+      : `https://www.autotrader.com/cars-for-sale/vehicle/${id}`;
+
+    items.push({
+      source: "autotrader",
+      source_deal_id: vin || String(id),
+      source_url: url,
+      title: `${o.year || ""} ${make || ""} ${model || ""} ${trim || ""}`
+        .replace(/\s+/g, " ")
+        .trim(),
+      year: Number(o.year) || undefined,
+      make,
+      model,
+      trim,
+      vin,
+      ask_price: price,
+      mileage,
+      condition: listingType === "CERTIFIED" ? "certified" : "clean",
+      images,
+      seller_type: "dealer",
+      seller: o.ownerName || "AutoTrader",
+      scraped_at: new Date().toISOString(),
+    });
+  }
+  return items;
+}
+
 export async function scrapeAutoTrader(
   searchTerm = "",
-  zip = "75201", // Dallas default
+  zip = "75201",
   maxPages = AUTOTRADER_CONFIG.maxPages,
 ) {
-  console.log(
-    `[AutoTrader] Starting scrape for "${searchTerm}" near ${zip}...`,
-  );
+  console.log(`[AutoTrader] Starting scrape near ${zip}...`);
   const allDeals: Partial<Deal>[] = [];
 
   const config = { ...AUTOTRADER_CONFIG, maxPages };
   const gen = paginate<Partial<Deal>>(
     config,
     (page) => {
-      const baseUrl = "https://www.autotrader.com/cars-for-sale/all-cars";
       const params = new URLSearchParams({
         zip,
-        searchRadius: "500",
+        searchRadius: "100",
         ...(searchTerm && { makeCodeList: searchTerm }),
         startYear: "2010",
         numRecords: "25",
         firstRecord: String((page - 1) * 25),
       });
-      return `${baseUrl}?${params.toString()}`;
+      return `https://www.autotrader.com/cars-for-sale/all-cars?${params.toString()}`;
     },
     async (input) => {
-      const $ = typeof input === "string" ? cheerio.load(input) : input;
-      const items: Partial<Deal>[] = [];
-
-      // AutoTrader uses data attributes and specific class names
-      $(
-        '[data-cmp="inventoryListing"], .inventory-listing, [data-testid="listing-card"], .listing-row',
-      ).each((_: number, el: any) => {
-        const row = $(el);
-
-        // Extract title/year/make/model
-        const title = row
-          .find(
-            '[data-cmp="subheading"], .listing-title, h2, [data-testid="listing-title"]',
-          )
-          .text()
-          .trim();
-        if (!title) return;
-
-        // Extract price
-        const priceText = row
-          .find(
-            '[data-cmp="pricing"], .first-price, .pricing-detail, [data-testid="listing-price"]',
-          )
-          .text()
-          .trim();
-        const price = extractPrice(priceText);
-        if (!price) return;
-
-        // Extract mileage
-        const mileageText = row
-          .find(
-            '[data-cmp="mileage"], .item-card-specifications, [data-testid="listing-mileage"]',
-          )
-          .text()
-          .trim();
-
-        // Extract location
-        const locationText = row
-          .find(
-            '[data-cmp="dealerLocation"], .dealer-location, [data-testid="dealer-location"]',
-          )
-          .text()
-          .trim();
-
-        // Extract dealer name
-        const dealerText = row
-          .find(
-            '[data-cmp="sellerName"], .dealer-name, [data-testid="dealer-name"]',
-          )
-          .text()
-          .trim();
-
-        // Extract link
-        const link =
-          row.find('a[href*="/cars-for-sale/"]').attr("href") ||
-          row.find("a").first().attr("href");
-
-        // Extract image
-        const imgSrc =
-          row
-            .find('img[data-cmp="image"], img.listing-image, img')
-            .first()
-            .attr("src") || row.find("img").first().attr("data-src");
-
-        // Extract VIN or listing ID
-        const vinText = row.find('[data-cmp="vin"], .vin-number').text().trim();
-        const listingId = link?.match(/\/(\d+)$/)?.[1] || "";
-        const itemId = vinText || listingId;
-
-        // Parse year/make/model from title
-        const titleParts = title.split(" ");
-        const year = extractYear(title);
-        const make = titleParts[year ? 1 : 0] || "";
-        const model =
-          titleParts.slice(year ? 2 : 1, year ? 4 : 3).join(" ") || "";
-
-        // Determine seller type
-        const sellerType = dealerText.toLowerCase().includes("private")
-          ? "private"
-          : "dealer";
-
-        items.push({
-          source: "autotrader",
-          source_deal_id: itemId,
-          source_url: link ? normalizeUrl(link, AUTOTRADER_CONFIG.baseUrl) : "",
-          title,
-          year,
-          make,
-          model,
-          vin: vinText,
-          ask_price: price,
-          mileage: extractMileage(mileageText),
-          condition: "clean", // AutoTrader is mostly clean title
-          location_city: locationText.split(",")[0]?.trim() || locationText,
-          location_state: locationText.split(",")[1]?.trim() || "",
-          images: imgSrc ? [imgSrc] : [],
-          seller_type: sellerType,
-          seller: dealerText || "AutoTrader",
-          scraped_at: new Date().toISOString(),
-        });
-      });
-
-      const hasMore =
-        $(
-          'a[aria-label="Go to next page"], .pagination-next, button[data-cmp="nextPage"]',
-        ).length > 0;
-      return { items, hasMore };
+      const html =
+        typeof input === "string"
+          ? input
+          : ((input as any)?.html?.() ?? String(input));
+      const items = parseAutotraderNextData(html);
+      return { items, hasMore: items.length >= 20 };
     },
   );
 
@@ -170,10 +132,6 @@ export async function scrapeAutoTrader(
   }
 
   console.log(`[AutoTrader] Found ${allDeals.length} deals`);
-
-  if (allDeals.length > 0) {
-    await upsertDeals(allDeals);
-  }
-
+  if (allDeals.length > 0) await upsertDeals(allDeals);
   return allDeals.length;
 }
