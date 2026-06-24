@@ -8,6 +8,7 @@ import { DealTicker } from "@/components/home/DealTicker";
 import { MarketPulse } from "@/components/home/MarketPulse";
 import { FlashRail } from "@/components/discovery/FlashRail";
 import { IntelRail } from "@/components/discovery/IntelRail";
+import { CalibrationNudge } from "@/components/deal/CalibrationNudge";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -101,6 +102,7 @@ export default function TodayPage() {
 
       <DealTicker />
       <SystemPulse />
+      <CalibrationNudge />
       <MarketPulse />
 
       {/* Everything worth acting on — each rail self-fetches and hides when empty */}
