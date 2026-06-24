@@ -8,6 +8,7 @@ import { normalizeDeals } from "./tools/deal-normalizer";
 import { analyzeDeal } from "@/lib/scoring/deal-analyzer";
 import { loadMarketIndex } from "@/lib/scoring/market-value";
 import { detectAvailability } from "@/lib/discovery/categorize";
+import { extractOptions } from "./extract-options";
 import { sendAlertMatchEmail } from "@/lib/notifications/email";
 import { sendAlertMatchSMS } from "@/lib/notifications/sms";
 import { resolvePlaces } from "@/lib/geo/geocode";
@@ -68,6 +69,11 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
         model: deal.model,
         trim: deal.trim,
         vin: deal.vin,
+        // Structured options (drivetrain / transmission / fuel / features) parsed from the listing
+        // text, so the scan filters can offer real "AWD", "Diesel", "Sunroof", etc. facets (A4/B2).
+        options: extractOptions(
+          `${deal.title || ""} ${(deal as any).description || ""}`,
+        ),
         ask_price: deal.ask_price,
         mileage: deal.mileage,
         condition: deal.condition,
