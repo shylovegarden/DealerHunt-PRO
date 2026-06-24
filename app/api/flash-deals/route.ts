@@ -62,11 +62,20 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
 
     const deals = (data || []).map(mapFlashDeal);
-    return NextResponse.json({
-      deals,
-      count: deals.length,
-      state: state || "nationwide",
-    });
+    return NextResponse.json(
+      {
+        deals,
+        count: deals.length,
+        state: state || "nationwide",
+      },
+      {
+        // D2: this feed is global (no per-user data), so let the CDN serve it for 60s and
+        // revalidate in the background — read-heavy route, much faster repeat loads.
+        headers: {
+          "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+        },
+      },
+    );
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
