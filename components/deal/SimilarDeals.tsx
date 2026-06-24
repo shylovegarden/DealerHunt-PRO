@@ -3,6 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import useSWR from "swr";
+import { proxiedImage } from "@/lib/image-url";
 import { Mono } from "@/components/shared/Mono";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -60,7 +61,7 @@ export function SimilarDeals({ dealId }: { dealId: string }) {
               {d.images?.[0] ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={d.images[0]}
+                  src={proxiedImage(d.images[0])}
                   alt=""
                   loading="lazy"
                   className="absolute inset-0 h-full w-full object-cover"

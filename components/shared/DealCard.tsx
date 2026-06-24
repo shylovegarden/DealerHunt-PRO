@@ -3,75 +3,15 @@
 import React, { memo } from "react";
 import { Mono } from "./Mono";
 import { cn } from "@/lib/utils";
-import type { Deal } from "@/lib/data/deals-service";
 import { liteDealIQ, IQ_TIER_COLOR } from "@/lib/intelligence/lite-iq";
-
-export interface DealCardProps {
-  id: string;
-  source: string;
-  year: number;
-  make: string;
-  model: string;
-  /** NHTSA-decoded extras surfaced on the card */
-  trim?: string;
-  bodyClass?: string;
-  recallsCount?: number;
-  assemblyCountry?: string;
-  askPrice: number;
-  mmrValue: number;
-  profitEstimate: number;
-  profitScore?: number;
-  locationCity?: string;
-  locationState?: string;
-  mileage?: number;
-  condition?: string;
-  damageType?: string;
-  /** Engine verdict — surfaced as a colored pill */
-  dealVerdict?: "go" | "hold" | "pass";
-  /** Recommended max bid (secondary line under net profit) */
-  recommendedMaxBid?: number;
-  /** Estimated resale value */
-  sellEstimate?: number;
-  onClick?: () => void;
-}
-
-const VERDICT_STYLES: Record<
-  string,
-  { label: string; text: string; bg: string }
-> = {
-  go: { label: "GO", text: "var(--green)", bg: "var(--glo)" },
-  hold: { label: "HOLD", text: "var(--amber)", bg: "var(--amber-lo)" },
-  pass: { label: "PASS", text: "var(--t4)", bg: "var(--s2)" },
-};
-
-const SOURCE_COLORS: Record<string, { bg: string; text: string }> = {
-  copart: { bg: "var(--blo)", text: "var(--blue)" },
-  iaa: { bg: "var(--plo)", text: "var(--purple)" },
-  craigslist: { bg: "var(--olo)", text: "var(--orange)" },
-  facebook: { bg: "var(--blo)", text: "var(--blue)" },
-  ebay: { bg: "var(--amber-lo)", text: "var(--amber)" },
-  manheim: { bg: "var(--glo)", text: "var(--green)" },
-  adesa: { bg: "var(--glo)", text: "var(--green)" },
-  acv: { bg: "var(--glo)", text: "var(--green)" },
-};
-
-function getSourceColor(source: string) {
-  const key = source.toLowerCase().split(/[^a-z]/)[0];
-  return SOURCE_COLORS[key] ?? { bg: "var(--s2)", text: "var(--t4)" };
-}
-
-function getScoreColor(score: number) {
-  if (score >= 80) return { text: "var(--green)", bg: "var(--glo)" };
-  if (score >= 60) return { text: "var(--amber)", bg: "var(--amber-lo)" };
-  return { text: "var(--red)", bg: "var(--rlo)" };
-}
-
-function formatCondition(condition?: string, damageType?: string): string {
-  if (damageType && condition) return `${damageType} / ${condition}`;
-  if (damageType) return damageType;
-  if (condition) return condition;
-  return "Unknown";
-}
+import { daysOnMarket, domTier } from "@/lib/intelligence/days-on-market";
+import { type DealCardProps } from "./deal-card/types";
+import {
+  VERDICT_STYLES,
+  getSourceColor,
+  getScoreColor,
+  formatCondition,
+} from "./deal-card/utils";
 
 export const DealCard = memo(function DealCard({
   id,
@@ -94,10 +34,15 @@ export const DealCard = memo(function DealCard({
   dealVerdict,
   recommendedMaxBid,
   sellEstimate,
+  priceDropAmount,
+  priceDropDays,
+  firstSeenAt,
   onClick,
 }: DealCardProps) {
   const srcColor = getSourceColor(source);
   const scoreColor = getScoreColor(profitScore);
+  const dom = daysOnMarket(firstSeenAt);
+  const tier = dom != null ? domTier(dom) : null;
   const isPositive = profitEstimate >= 0;
   const location = [locationCity, locationState].filter(Boolean).join(", ");
   const verdict = dealVerdict ? VERDICT_STYLES[dealVerdict] : null;
@@ -197,7 +142,11 @@ export const DealCard = memo(function DealCard({
         </h3>
 
         {/* Trim + body type + recall badge — NHTSA-decoded, when known */}
-        {(trim || bodyClass || (recallsCount ?? 0) > 0) && (
+        {(trim ||
+          bodyClass ||
+          (recallsCount ?? 0) > 0 ||
+          (priceDropAmount ?? 0) > 0 ||
+          (dom ?? 0) > 0) && (
           <div className="flex items-center gap-2 flex-wrap -mt-0.5">
             {(trim || bodyClass) && (
               <span className="text-[11px] text-[var(--t4)] truncate">
@@ -214,6 +163,30 @@ export const DealCard = memo(function DealCard({
                 title={`${recallsCount} open NHTSA recall(s) — negotiation leverage`}
               >
                 ⚠ {recallsCount}
+              </span>
+            )}
+
+            {/* Price Drop Badge */}
+            {priceDropAmount && priceDropAmount > 0 && (
+              <span
+                className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-bold"
+                style={{ background: "var(--glo)", color: "var(--green)" }}
+              >
+                📉 -${priceDropAmount.toLocaleString()}{" "}
+                {priceDropDays && priceDropDays <= 3 ? "recently" : ""}
+              </span>
+            )}
+
+            {/* DOM Badge */}
+            {dom != null && dom > 0 && tier && (
+              <span
+                className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-bold"
+                style={{
+                  color: tier.color,
+                  border: `1px solid ${tier.color}40`,
+                }}
+              >
+                ⏳ {dom} days ({tier.label})
               </span>
             )}
           </div>

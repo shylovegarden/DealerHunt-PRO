@@ -43,6 +43,9 @@ export default function InsightsPage() {
     isLoading: outLoading,
     mutate: mutateOut,
   } = useSWR("/api/outcomes", fetcher, { revalidateOnFocus: false });
+  const { data: roiData } = useSWR("/api/insights/source-roi", fetcher, {
+    revalidateOnFocus: false,
+  });
   const cal = calData?.calibration ?? null;
   const outcomes: any[] = outData?.outcomes ?? [];
   const loadFailed = !!outError || (outData && outData.error);
@@ -136,6 +139,45 @@ export default function InsightsPage() {
 
       {/* AI Market Pulse — Deal IQ Layer 4 (explicit generate, cached) */}
       <MarketPulse />
+
+      {/* Source ROI summary */}
+      {!loadFailed && roiData?.bySource?.length > 0 && (
+        <div className="glass-panel p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <Ico name="finance" size={15} className="text-[var(--t4)]" />
+            <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--t4)] font-bold">
+              Source ROI
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+            {roiData.bySource.map((src: any) => (
+              <div
+                key={src.source}
+                className="bg-[var(--s0)] border border-[var(--b2)] rounded-[var(--r2)] p-3"
+              >
+                <p className="text-xs uppercase font-bold text-[var(--t3)] mb-1">
+                  {src.source}
+                </p>
+                <div className="flex justify-between items-baseline">
+                  <p className="text-sm font-semibold text-[var(--t1)]">
+                    {src.count} deals
+                  </p>
+                  <p className="text-sm font-bold text-[var(--green)]">
+                    {src.avgMargin > 0 ? "+" : ""}
+                    {src.avgMargin}% ROI
+                  </p>
+                </div>
+                <p className="text-xs text-[var(--t4)] mt-1">
+                  Avg Net:{" "}
+                  {src.avgNet > 0
+                    ? `+$${src.avgNet.toLocaleString()}`
+                    : `-$${Math.abs(src.avgNet).toLocaleString()}`}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Calibration summary */}
       {!loadFailed && !(outLoading && !outData) && (

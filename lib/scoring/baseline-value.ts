@@ -27,6 +27,30 @@ const BASE_NEW: Record<Segment, number> = {
   sedan: 24000,
 };
 
+const SEGMENT_CURVES: Record<Segment, number[]> = {
+  // Year 1, Year 2-3, Year 4-6, Year 7+ depreciation rates
+  fullsize_truck: [0.12, 0.08, 0.06, 0.05],
+  midsize_truck: [0.1, 0.07, 0.06, 0.05],
+  fullsize_suv: [0.15, 0.1, 0.08, 0.07],
+  midsize_suv: [0.16, 0.11, 0.09, 0.08],
+  compact_suv: [0.16, 0.12, 0.1, 0.08],
+  sports: [0.14, 0.09, 0.07, 0.06],
+  luxury: [0.22, 0.15, 0.12, 0.1],
+  minivan: [0.18, 0.12, 0.1, 0.08],
+  sedan: [0.18, 0.13, 0.11, 0.09],
+};
+
+const TITLE_MULTIPLIERS: Record<string, number> = {
+  clean: 1.0,
+  clear: 1.0,
+  salvage: 0.55,
+  rebuilt: 0.65,
+  junk: 0.3,
+  parts: 0.3,
+  flood: 0.4,
+  hail: 0.85,
+};
+
 const has = (s: string, ...needles: string[]) =>
   needles.some((n) => s.includes(n));
 
@@ -178,17 +202,32 @@ export function estimateBaselineValue(
   model: string | null | undefined,
   mileage?: number | null,
   trim?: string | null,
+  titleType?: string | null,
 ): number {
   if (!year || year < 1950) return 0;
   const seg = classifySegment(make || "", model || "");
   let value = BASE_NEW[seg] * trimTierMultiplier(trim);
 
-  const nowYear = 2026;
+  const nowYear = new Date().getFullYear();
   const age = Math.max(0, Math.min(25, nowYear - year));
+  const curve = SEGMENT_CURVES[seg];
+
   for (let i = 0; i < age; i++) {
-    const rate = i === 0 ? 0.16 : i <= 2 ? 0.12 : i <= 5 ? 0.1 : 0.08;
+    const rate =
+      i === 0 ? curve[0] : i <= 2 ? curve[1] : i <= 5 ? curve[2] : curve[3];
     value *= 1 - rate;
   }
+
+  // Title adjustment
+  const tType = (titleType || "clean").toLowerCase();
+  let titleMult = 1.0;
+  for (const [key, mult] of Object.entries(TITLE_MULTIPLIERS)) {
+    if (tType.includes(key)) {
+      titleMult = mult;
+      break;
+    }
+  }
+  value *= titleMult;
 
   // Mileage adjustment vs a 13k/yr baseline; over-mileage docks ~3% of value per 10k excess.
   if (mileage && mileage > 0) {

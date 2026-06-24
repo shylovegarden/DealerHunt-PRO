@@ -25,6 +25,7 @@ import { MarketContext } from "@/components/deal/MarketContext";
 import { PriceTimeline } from "@/components/deal/PriceTimeline";
 import { VehicleSpecs } from "@/components/deal/VehicleSpecs";
 import useDealerDefaults from "@/hooks/useDealerDefaults";
+import { estimateTeardownValue } from "@/lib/intelligence/teardown";
 
 // Fetcher function for SWR
 const fetcher = (url: string) =>
@@ -483,6 +484,21 @@ export default function DealPage({
                   0 Open Recalls
                 </div>
               )}
+
+              {/* Salvage Teardown */}
+              {store.titleType === "salvage" &&
+                store.marketValue > 0 &&
+                store.userType === "dealer" && (
+                  <div className="flex items-center gap-2 text-xs font-bold text-white bg-[var(--amber)] px-3 py-1.5 rounded-md shadow-sm">
+                    <Ico name="wrench" size={14} />
+                    Est. Parts Value: $
+                    {estimateTeardownValue(
+                      store.marketValue,
+                      store.make,
+                      store.model,
+                    ).total.toLocaleString()}
+                  </div>
+                )}
             </div>
           </CardContent>
         </Card>

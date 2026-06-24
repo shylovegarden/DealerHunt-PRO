@@ -263,6 +263,12 @@ export default function ArbitrageDashboardPage() {
                       dealVerdict={item.deal.dealVerdict}
                       recommendedMaxBid={item.deal.recommendedMaxBid}
                       sellEstimate={item.deal.sellEstimate}
+                      priceDropAmount={item.deal.priceDropAmount}
+                      priceDropDays={item.deal.priceDropDays}
+                      firstSeenAt={item.deal.firstSeenAt}
+                      onClick={() =>
+                        (window.location.href = `/deal/${item.deal.id}`)
+                      }
                     />
                   </div>
                 ))
@@ -307,6 +313,12 @@ export default function ArbitrageDashboardPage() {
                         dealVerdict={deal.dealVerdict}
                         recommendedMaxBid={deal.recommendedMaxBid}
                         sellEstimate={deal.sellEstimate}
+                        priceDropAmount={deal.priceDropAmount}
+                        priceDropDays={deal.priceDropDays}
+                        firstSeenAt={deal.firstSeenAt}
+                        onClick={() =>
+                          (window.location.href = `/deal/${deal.id}`)
+                        }
                       />
                     </div>
                   ))}

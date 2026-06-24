@@ -93,11 +93,23 @@ function confidenceFor(n: number): MarketComps["confidence"] {
   return "none";
 }
 
-function median(nums: number[]): number | null {
-  if (!nums.length) return null;
-  const s = [...nums].sort((a, b) => a - b);
-  const mid = Math.floor(s.length / 2);
-  return s.length % 2 ? s[mid] : Math.round((s[mid - 1] + s[mid]) / 2);
+function median(prices: number[]): number | null {
+  if (!prices.length) return null;
+  const sorted = [...prices].sort((a, b) => a - b);
+  if (sorted.length < 4) return sorted[Math.floor(sorted.length / 2)];
+
+  const q1 = sorted[Math.floor(sorted.length * 0.25)];
+  const q3 = sorted[Math.floor(sorted.length * 0.75)];
+  const iqr = q3 - q1;
+
+  // Remove outliers: anything more than 1.5× IQR outside Q1/Q3
+  const clean = sorted.filter(
+    (p) => p >= q1 - 1.5 * iqr && p <= q3 + 1.5 * iqr,
+  );
+
+  // Fall back to raw median if filtering removes too much
+  const use = clean.length >= Math.ceil(sorted.length * 0.5) ? clean : sorted;
+  return use[Math.floor(use.length / 2)];
 }
 
 /**

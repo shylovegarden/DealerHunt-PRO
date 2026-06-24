@@ -193,6 +193,7 @@ export function analyzeDeal(deal: Partial<Deal>): DealAnalysis {
     deal.model,
     deal.mileage,
     deal.trim,
+    deal.condition,
   );
   // Tight upper bound: over-valuing (fake GO deals that lose money) is worse than under-valuing, so
   // reject any comp/market value above 1.9× the trim-aware baseline and fall back to the baseline.

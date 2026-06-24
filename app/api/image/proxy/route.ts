@@ -22,6 +22,20 @@ export async function GET(req: Request) {
   let origin = "";
   try {
     origin = new URL(target).origin;
+    const hostname = new URL(target).hostname;
+    const ALLOWED_DOMAINS = [
+      "images.craigslist.org",
+      "photos.drive2.ru",
+      "images.autotrader.com",
+      "photos.dealer.com",
+      "i.ebayimg.com",
+    ];
+    const allowed = ALLOWED_DOMAINS.some(
+      (d) => hostname === d || hostname.endsWith("." + d),
+    );
+    if (!allowed && !hostname.includes("craigslist")) {
+      return placeholder();
+    }
   } catch {
     return placeholder();
   }

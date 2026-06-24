@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   // Pull a wide active slice once, derive distinct facets in JS (cheaper than 3 distinct round-trips).
   let q = supabase
     .from("deals")
-    .select("make, location_state, year")
+    .select("make, model, location_state, year")
     .eq("active", true)
     .gt("ask_price", 0)
     .not("make", "is", null)
@@ -29,10 +29,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
 
   const makes = new Map<string, number>();
+  const models = new Map<string, number>();
   const states = new Set<string>();
   const years = new Set<number>();
   for (const r of data || []) {
     if (r.make) makes.set(r.make, (makes.get(r.make) || 0) + 1);
+    if (r.model) models.set(r.model, (models.get(r.model) || 0) + 1);
     if (r.location_state) states.add(r.location_state);
     if (r.year) years.add(Number(r.year));
   }
@@ -42,6 +44,9 @@ export async function GET(req: NextRequest) {
     makes: Array.from(makes.entries())
       .sort((a, b) => b[1] - a[1])
       .map(([make, count]) => ({ make, count })),
+    models: Array.from(models.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([model, count]) => ({ model, count })),
     states: Array.from(states).sort(),
     years: Array.from(years).sort((a, b) => b - a),
   });

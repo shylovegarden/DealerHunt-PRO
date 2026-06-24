@@ -73,6 +73,7 @@ export default async function FlashDealsPage() {
                 {...(deal as unknown as Deal)}
                 mmrValue={deal.mmrValue || 0}
                 profitEstimate={deal.profitEstimate || 0}
+                onClick={() => (window.location.href = `/deal/${deal.id}`)}
               />
             </div>
           ))}

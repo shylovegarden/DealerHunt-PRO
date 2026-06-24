@@ -22,8 +22,8 @@ export type Deal = {
   locationState?: string;
   locationZip?: string;
   active: boolean;
-  firstSeenAt: Date;
-  lastSeenAt: Date;
+  firstSeenAt: string | Date;
+  lastSeenAt: string | Date;
   sourceUrl: string;
   auctionEndAt?: Date;
   damageType?: string;
@@ -42,6 +42,8 @@ export type Deal = {
   sellEstimate?: number;
   recommendedMaxBid?: number;
   dealVerdict?: "go" | "hold" | "pass";
+  priceDropAmount?: number;
+  priceDropDays?: number;
   dealAnalysis?: {
     roi?: number;
     profitMargin?: number;
@@ -146,6 +148,12 @@ export class DealsService {
           : undefined,
       dealVerdict: row.deal_verdict || undefined,
       dealAnalysis: row.deal_analysis || undefined,
+      priceDropAmount:
+        row.price_drop_amount != null
+          ? Number(row.price_drop_amount)
+          : undefined,
+      priceDropDays:
+        row.price_drop_days != null ? Number(row.price_drop_days) : undefined,
     };
   }
 

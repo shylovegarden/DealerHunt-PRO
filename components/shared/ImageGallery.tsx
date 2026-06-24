@@ -114,143 +114,123 @@ export function ImageGallery({
 
   return (
     <>
+      {/* WOW CSS GRID LAYOUT */}
       <div className="flex flex-col gap-3">
-        {/* HERO IMAGE */}
-        <div
-          className="relative w-full aspect-[4/3] bg-[var(--s2)] rounded-[var(--r3)] overflow-hidden border border-[var(--b1)] group cursor-pointer"
-          onClick={() => hasImages && setIsLightboxOpen(true)}
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
-        >
-          {hasImages ? (
-            <>
-              {/* Loading skeleton */}
-              {!imageLoaded[currentIndex] && !imageError[currentIndex] && (
+        {hasImages ? (
+          <div className="grid grid-cols-1 md:grid-cols-4 md:grid-rows-2 gap-2 md:aspect-[21/9] rounded-[var(--r3)] overflow-hidden">
+            {/* HERO IMAGE */}
+            <div
+              className={cn(
+                "relative group cursor-pointer overflow-hidden",
+                images.length >= 5
+                  ? "md:col-span-2 md:row-span-2"
+                  : "md:col-span-4 md:row-span-2 aspect-[16/9]",
+              )}
+              onClick={() => setIsLightboxOpen(true)}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+            >
+              {!imageLoaded[0] && !imageError[0] && (
                 <div className="absolute inset-0 bg-gradient-to-r from-[var(--s2)] via-[var(--s3)] to-[var(--s2)] animate-pulse" />
               )}
-
-              {/* Error state */}
-              {imageError[currentIndex] ? (
-                <div className="w-full h-full flex flex-col items-center justify-center text-[var(--t4)]">
+              {imageError[0] ? (
+                <div className="w-full h-full bg-[var(--s2)] flex flex-col items-center justify-center text-[var(--t4)]">
                   <Ico
                     name="alert-triangle"
                     size={48}
                     className="opacity-20 mb-3 text-[var(--red)]"
                   />
                   <span className="text-sm font-bold uppercase tracking-widest">
-                    Image Failed to Load
+                    Image Failed
                   </span>
                 </div>
               ) : (
                 <img
-                  src={currentImage!}
-                  alt={`${title} - View ${currentIndex + 1}`}
+                  src={images[0]}
+                  alt={`${title} - View 1`}
                   className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                  loading="lazy"
+                  loading="eager"
                   onLoad={() =>
-                    setImageLoaded((prev) => ({
-                      ...prev,
-                      [currentIndex]: true,
-                    }))
+                    setImageLoaded((prev) => ({ ...prev, [0]: true }))
                   }
                   onError={() =>
-                    setImageError((prev) => ({ ...prev, [currentIndex]: true }))
+                    setImageError((prev) => ({ ...prev, [0]: true }))
                   }
                 />
               )}
 
-              {/* Controls */}
-              {images.length > 1 && (
-                <>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      goToPrev();
-                    }}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 w-12 h-12 md:w-10 md:h-10 rounded-full text-[var(--t1)] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[var(--s1)] touch-manipulation"
-                    style={{
-                      background: "var(--s0)",
-                      boxShadow: "var(--shadow2)",
-                    }}
-                    aria-label="Previous image"
-                  >
-                    <Ico name="arrow" className="-rotate-180" size={20} />
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      goToNext();
-                    }}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 w-12 h-12 md:w-10 md:h-10 rounded-full text-[var(--t1)] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[var(--s1)] touch-manipulation"
-                    style={{
-                      background: "var(--s0)",
-                      boxShadow: "var(--shadow2)",
-                    }}
-                    aria-label="Next image"
-                  >
-                    <Ico name="arrow" size={20} />
-                  </button>
-                </>
-              )}
-
-              {/* Zoom indicator */}
+              {/* View All button overlay on mobile only */}
               <div
-                className="absolute top-3 right-3 px-3 py-1 rounded-full text-white text-xs font-bold tracking-widest opacity-0 group-hover:opacity-100 transition-opacity"
+                className="md:hidden absolute bottom-3 right-3 px-3 py-1 rounded-full text-white text-xs font-bold tracking-widest"
                 style={{ background: "rgba(36,28,43,0.7)" }}
               >
-                Click to Zoom
+                1 / {images.length}
               </div>
-
-              <div
-                className="absolute bottom-3 right-3 px-3 py-1 rounded-full text-white text-xs font-bold tracking-widest"
-                style={{ background: "rgba(36,28,43,0.7)" }}
-              >
-                {currentIndex + 1} / {images.length}
-              </div>
-            </>
-          ) : (
-            <div className="w-full h-full flex flex-col items-center justify-center text-[var(--t4)]">
-              <Ico name="car" size={48} className="opacity-20 mb-3" />
-              <span className="text-sm font-bold uppercase tracking-widest">
-                No Images Available
-              </span>
             </div>
-          )}
-        </div>
 
-        {/* THUMBNAILS */}
-        {hasImages && images.length > 1 && (
-          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide snap-x">
-            {images.map((img, idx) => (
-              <button
-                key={idx}
-                onClick={() => setCurrentIndex(idx)}
-                className={cn(
-                  "relative shrink-0 w-24 aspect-[4/3] rounded-[var(--r2)] overflow-hidden border-2 transition-all snap-start touch-manipulation",
-                  currentIndex === idx
-                    ? "border-[var(--amber)] shadow-[0_2px_8px_rgba(255,56,92,0.3)] opacity-100"
-                    : "border-transparent opacity-60 hover:opacity-100 hover:border-[var(--b2)]",
-                )}
-                aria-label={`View image ${idx + 1}`}
-              >
-                {!imageLoaded[idx] && !imageError[idx] && (
-                  <div className="absolute inset-0 bg-gradient-to-r from-[var(--s2)] via-[var(--s3)] to-[var(--s2)] animate-pulse" />
-                )}
-                <img
-                  src={img}
-                  alt={`Thumb ${idx + 1}`}
-                  className="w-full h-full object-cover"
-                  loading="lazy"
-                  onLoad={() =>
-                    setImageLoaded((prev) => ({ ...prev, [idx]: true }))
-                  }
-                  onError={() =>
-                    setImageError((prev) => ({ ...prev, [idx]: true }))
-                  }
-                />
-              </button>
-            ))}
+            {/* SECONDARY IMAGES (Desktop only, if enough images exist) */}
+            {images.length >= 5 &&
+              images.slice(1, 5).map((img, idx) => {
+                const realIdx = idx + 1;
+                return (
+                  <div
+                    key={realIdx}
+                    className="hidden md:block relative group cursor-pointer overflow-hidden"
+                    onClick={() => {
+                      setCurrentIndex(realIdx);
+                      setIsLightboxOpen(true);
+                    }}
+                  >
+                    {!imageLoaded[realIdx] && !imageError[realIdx] && (
+                      <div className="absolute inset-0 bg-gradient-to-r from-[var(--s2)] via-[var(--s3)] to-[var(--s2)] animate-pulse" />
+                    )}
+                    {imageError[realIdx] ? (
+                      <div className="w-full h-full bg-[var(--s2)] flex items-center justify-center text-[var(--t4)]">
+                        <Ico
+                          name="alert-triangle"
+                          size={24}
+                          className="opacity-20 text-[var(--red)]"
+                        />
+                      </div>
+                    ) : (
+                      <img
+                        src={img}
+                        alt={`Thumb ${realIdx + 1}`}
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        loading="lazy"
+                        onLoad={() =>
+                          setImageLoaded((prev) => ({
+                            ...prev,
+                            [realIdx]: true,
+                          }))
+                        }
+                        onError={() =>
+                          setImageError((prev) => ({
+                            ...prev,
+                            [realIdx]: true,
+                          }))
+                        }
+                      />
+                    )}
+                    {/* If it's the last image in the grid but there are more images in total, show overlay */}
+                    {realIdx === 4 && images.length > 5 && (
+                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center transition-opacity hover:bg-black/50">
+                        <span className="text-white font-bold text-lg">
+                          +{images.length - 5} photos
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+          </div>
+        ) : (
+          <div className="w-full aspect-[4/3] bg-[var(--s2)] rounded-[var(--r3)] flex flex-col items-center justify-center text-[var(--t4)] border border-[var(--b1)]">
+            <Ico name="car" size={48} className="opacity-20 mb-3" />
+            <span className="text-sm font-bold uppercase tracking-widest">
+              No Images Available
+            </span>
           </div>
         )}
       </div>

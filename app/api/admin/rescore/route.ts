@@ -76,11 +76,13 @@ export async function POST(req: Request) {
         .from("deals")
         .update({
           sell_estimate: a.sellEstimate,
+          mmr_value: a.mmrValue,
           recommended_max_bid: a.recommendedMaxBid,
           true_net_profit: a.profit,
-          profit_score: a.score,
+          profit_score: Math.min(100, Math.max(0, a.score)),
           deal_verdict: a.verdict,
           is_arbitrage_opportunity: a.verdict === "go",
+          score_updated_at: new Date().toISOString(),
         })
         .eq("id", d.id);
       if (!upErr) updated++;
