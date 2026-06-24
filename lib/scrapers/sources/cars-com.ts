@@ -1,15 +1,64 @@
-import * as cheerio from "cheerio";
-import {
-  fetchHtml,
-  paginate,
-  extractPrice,
-  extractMileage,
-  extractYear,
-  normalizeUrl,
-  type ScraperConfig,
-} from "../engine";
+import { paginate, type ScraperConfig } from "../engine";
 import { enrichAndStore } from "./shared";
 import { STATE_SEED_ZIPS, US_STATES } from "@/lib/geo";
+
+// cars.com is a web-component SPA: the old `.vehicle-card`/`.price` selectors rotted. But every
+// <fuse-card> carries a `data-vehicle-details="{…JSON…}"` attribute with clean structured data
+// (year/make/model/trim/vin/mileage/price/bodyStyle/thumbnail). We read THAT — robust to CSS churn.
+const decodeEntities = (s: string) =>
+  s
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#x2F;/g, "/")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
+
+/** Parse cars.com SRP HTML into listing rows from the embedded data-vehicle-details JSON. */
+export function parseCarsComHtml(html: string, state = ""): any[] {
+  const items: any[] = [];
+  const re = /data-vehicle-details="([^"]*)"/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html))) {
+    let v: any;
+    try {
+      v = JSON.parse(decodeEntities(m[1]));
+    } catch {
+      continue;
+    }
+    const price = parseInt(String(v.price || "").replace(/[^0-9]/g, ""), 10);
+    const stock = String(v.stockType || "").toLowerCase();
+    if (!v.vin || !price || stock === "new") continue; // used/CPO only for resale comps
+    const seller =
+      v.seller && typeof v.seller === "object" ? v.seller.name : v.seller;
+    items.push({
+      source: "cars_com",
+      source_category: "retail",
+      external_id: v.listingId || v.vin,
+      listing_url: v.listingId
+        ? `https://www.cars.com/vehicledetail/${v.listingId}/`
+        : `https://www.cars.com/`,
+      title: `${v.year || ""} ${v.make || ""} ${v.model || ""} ${v.trim || ""}`
+        .replace(/\s+/g, " ")
+        .trim(),
+      year: parseInt(String(v.year || ""), 10) || undefined,
+      make: v.make || undefined,
+      model: v.model || undefined,
+      trim: v.trim || undefined,
+      vin: v.vin || undefined,
+      asking_price: price,
+      odometer:
+        parseInt(String(v.mileage || "0").replace(/[^0-9]/g, ""), 10) || 0,
+      condition: "used",
+      body_class: v.bodyStyle || undefined,
+      images: v.primaryThumbnail ? [v.primaryThumbnail] : [],
+      seller: seller || undefined,
+      seller_type: "dealer",
+      location_state: state ? state.toUpperCase() : undefined,
+    });
+  }
+  return items;
+}
 
 export const CARS_COM_CONFIG: ScraperConfig = {
   name: "Cars.com",
@@ -41,77 +90,13 @@ export async function scrapeCarsCom(
       return `https://www.cars.com/shopping/results/?page=${page}${q}${st}&sort=best_match_desc`;
     },
     async (input) => {
-      const $ = typeof input === "string" ? cheerio.load(input) : input;
-      const items: any[] = [];
-
-      $(".vehicle-card, .car-card, [data-vehicle-id]").each((_, el) => {
-        const row = $(el);
-        const title =
-          row.find(".title, h2, .vehicle-card__title").first().text().trim() ||
-          row.find("a").first().attr("title") ||
-          "";
-        if (!title) return;
-
-        const priceText = row
-          .find('.price, .vehicle-card__price, [class*="price"]')
-          .first()
-          .text()
-          .trim();
-        const price = extractPrice(priceText) || 0;
-        if (!price) return;
-
-        const mileText = row
-          .find('.mileage, .odometer, [class*="mile"]')
-          .first()
-          .text()
-          .trim();
-        const href =
-          row.find("a").first().attr("href") ||
-          row.find('a[href*="/vehicledetail"]').attr("href") ||
-          "";
-        const img =
-          row.find("img").first().attr("src") ||
-          row.find("img").attr("data-src") ||
-          "";
-        const dealer = row
-          .find('.dealer-name, .seller-name, [class*="dealer"]')
-          .first()
-          .text()
-          .trim();
-        const loc = row
-          .find('.dealer-location, .location, [class*="location"]')
-          .first()
-          .text()
-          .trim();
-
-        items.push({
-          source: "cars_com",
-          source_category: "retail",
-          external_id:
-            href.match(/\/(\d+)\//)?.[1] ||
-            href.split("/").pop()?.replace(".html", "") ||
-            "",
-          listing_url: href.startsWith("http")
-            ? href
-            : `https://www.cars.com${href}`,
-          title,
-          year: extractYear(title),
-          make: title.split(" ")[1] || "",
-          model: title.split(" ").slice(2, 4).join(" "),
-          asking_price: price,
-          odometer: extractMileage(mileText) || 0,
-          condition: "used",
-          location_city: loc.split(",")[0]?.trim(),
-          location_state: loc.split(",")[1]?.trim() || state?.toUpperCase(),
-          images: img ? [img] : [],
-          seller: dealer,
-          seller_type: "dealer",
-        });
-      });
-
-      const hasMore =
-        $('.next-page, [aria-label="Next"], .pagination-next').length > 0;
-      return { items, hasMore };
+      const html =
+        typeof input === "string"
+          ? input
+          : ((input as any)?.html?.() ?? String(input));
+      const items = parseCarsComHtml(html, state);
+      // More pages likely while a full grid comes back.
+      return { items, hasMore: items.length >= 20 };
     },
   );
 
