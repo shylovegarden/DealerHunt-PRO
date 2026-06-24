@@ -21,6 +21,8 @@ export default function SettingsPage() {
   const { dealerId, loading: dealerLoading } = useDealerId();
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [homeZip, setHomeZip] = useState("");
+  const [locating, setLocating] = useState(false);
 
   const [profile, setProfile] = useState({
     name: "",
@@ -116,6 +118,60 @@ export default function SettingsPage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  // Home location → unlocks radius "near me" + nearest-deals (saved-search radius too).
+  const saveHomeZip = async () => {
+    if (!/^\d{5}$/.test(homeZip.trim())) {
+      toast.error("Enter a 5-digit ZIP code");
+      return;
+    }
+    try {
+      const r = await fetch("/api/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ home_zip: homeZip.trim() }),
+      });
+      if (!r.ok) throw new Error();
+      toast.success("Home ZIP saved — “near me” deals enabled");
+      mutate();
+    } catch {
+      toast.error("Couldn’t save ZIP");
+    }
+  };
+
+  const useMyLocation = () => {
+    if (typeof navigator === "undefined" || !("geolocation" in navigator)) {
+      toast.error("Location isn’t available on this device");
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const r = await fetch("/api/profile", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              home_lat: pos.coords.latitude,
+              home_lng: pos.coords.longitude,
+            }),
+          });
+          if (!r.ok) throw new Error();
+          toast.success("Location set — nearest deals + radius enabled");
+          mutate();
+        } catch {
+          toast.error("Couldn’t save your location");
+        } finally {
+          setLocating(false);
+        }
+      },
+      () => {
+        toast.error("Location permission denied");
+        setLocating(false);
+      },
+      { enableHighAccuracy: false, timeout: 8000 },
+    );
   };
 
   return (
@@ -223,6 +279,46 @@ export default function SettingsPage() {
                     </option>
                   ))}
                 </select>
+              </div>
+
+              {/* Home location — unlocks "near me" radius + nearest-deals rails */}
+              <div className="space-y-1.5 sm:col-span-2">
+                <label className="block text-xs font-medium text-[var(--t2)]">
+                  Home location (enables “near me” radius + nearest deals)
+                </label>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    value={homeZip}
+                    onChange={(e) => setHomeZip(e.target.value)}
+                    placeholder="ZIP code"
+                    inputMode="numeric"
+                    maxLength={5}
+                    className="w-28 text-sm text-[var(--t1)] rounded-lg px-3 py-2.5 outline-none border-none"
+                    style={{ background: "var(--s2)" }}
+                  />
+                  <button
+                    type="button"
+                    onClick={saveHomeZip}
+                    className="text-sm font-semibold rounded-lg px-3 py-2.5 border"
+                    style={{
+                      background: "var(--s0)",
+                      borderColor: "var(--b2)",
+                      color: "var(--t2)",
+                    }}
+                  >
+                    Set ZIP
+                  </button>
+                  <button
+                    type="button"
+                    onClick={useMyLocation}
+                    disabled={locating}
+                    className="flex items-center gap-1.5 text-sm font-semibold rounded-lg px-3 py-2.5 text-white border-none disabled:opacity-60"
+                    style={{ background: "var(--grad)" }}
+                  >
+                    <Ico name={locating ? "refresh" : "map"} size={15} />
+                    {locating ? "Locating…" : "Use my location"}
+                  </button>
+                </div>
               </div>
 
               <Field

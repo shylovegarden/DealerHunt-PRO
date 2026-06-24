@@ -81,6 +81,12 @@ export async function POST(req: NextRequest) {
     ...(body.budget_max !== undefined && { budget_max: body.budget_max }),
     ...(body.budget_min !== undefined && { budget_min: body.budget_min }),
     ...(body.home_zip !== undefined && { home_zip: body.home_zip }),
+    // Direct coords from the browser-GPS "Use my location" button (no geocode needed).
+    ...(body.home_lat !== undefined &&
+      body.home_lng !== undefined && {
+        home_lat: body.home_lat,
+        home_lng: body.home_lng,
+      }),
     ...(body.onboarded !== undefined && { onboarded: body.onboarded }),
     updated_at: new Date().toISOString(),
   };
