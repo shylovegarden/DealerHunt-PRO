@@ -22,11 +22,18 @@ import { MarketTiming } from "@/components/deal/MarketTiming";
 import { AIBrief } from "@/components/deal/AIBrief";
 import { DealIQCard } from "@/components/deal/DealIQCard";
 import { LogOutcome } from "@/components/deal/LogOutcome";
+import { ImageGallery } from "@/components/shared/ImageGallery";
+import { PriceMilesScatter } from "@/components/deal/PriceMilesScatter";
+import { BestTimeToBuy } from "@/components/deal/BestTimeToBuy";
 import { MarketContext } from "@/components/deal/MarketContext";
 import { PriceTimeline } from "@/components/deal/PriceTimeline";
 import { VehicleSpecs } from "@/components/deal/VehicleSpecs";
 import useDealerDefaults from "@/hooks/useDealerDefaults";
 import { estimateTeardownValue } from "@/lib/intelligence/teardown";
+import {
+  SortableWidgetGrid,
+  type WidgetItem,
+} from "@/components/deal/SortableWidgetGrid";
 
 // Fetcher function for SWR
 const fetcher = (url: string) =>
@@ -267,6 +274,14 @@ export default function DealPage({
         </div>
       </div>
 
+      {/* LISTING PHOTOS — all on one page (Visor-style gallery + lightbox) */}
+      {serverDeal?.images && serverDeal.images.length > 0 && (
+        <ImageGallery
+          images={serverDeal.images}
+          title={`${serverDeal.year ?? ""} ${serverDeal.make ?? ""} ${serverDeal.model ?? ""}`.trim()}
+        />
+      )}
+
       {/* ENGINE DECISION (authoritative, server-computed from comps + full cost model) */}
       {dealData?.deal?.dealVerdict &&
         (() => {
@@ -377,6 +392,18 @@ export default function DealPage({
           predictedRecon={serverDeal.dealAnalysis?.costs?.repair}
         />
       )}
+
+      {/* VISUALIZE — price-vs-mileage position + best time to buy */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <PriceMilesScatter
+          dealId={id}
+          mileage={serverDeal?.mileage}
+          askPrice={serverDeal?.askPrice}
+        />
+        {serverDeal && (
+          <BestTimeToBuy make={serverDeal.make} model={serverDeal.model} />
+        )}
+      </div>
 
       {/* MAX BID ENGINE + PRICE HISTORY (Name-your-price / price-trend) */}
       <motion.div
@@ -713,24 +740,18 @@ export default function DealPage({
           </CardContent>
         </Card>
       </div>
-
-      {/* DEAL IQ — fused, explainable intelligence score */}
-      <DealIQCard dealId={id} />
-
-      {/* MARKET CONTEXT — days-on-market, depreciation, time-travel, cross-source prices */}
-      <MarketContext dealId={id} />
-
-      {/* VEHICLE SPECS + RECALLS — authoritative free NHTSA data (when VIN known) */}
-      <VehicleSpecs vin={store.vin} />
-
-      {/* PRICE TIMELINE — drops + motivated-seller signal */}
-      <PriceTimeline dealId={id} />
-
-      {/* AI BRIEF — on-demand plain-English verdict rationale + risks */}
-      <AIBrief dealId={id} />
-
-      {/* SIMILAR DEALS — semantic (pgvector) with attribute fallback */}
-      <SimilarDeals dealId={id} />
+      {/* DRAGGABLE WIDGET GRID */}
+      <SortableWidgetGrid
+        storageKey="deal-dashboard-layout-v1"
+        widgets={[
+          { id: "deal-iq", content: <DealIQCard dealId={id} /> },
+          { id: "market-context", content: <MarketContext dealId={id} /> },
+          { id: "vehicle-specs", content: <VehicleSpecs vin={store.vin} /> },
+          { id: "price-timeline", content: <PriceTimeline dealId={id} /> },
+          { id: "ai-brief", content: <AIBrief dealId={id} /> },
+          { id: "similar-deals", content: <SimilarDeals dealId={id} /> },
+        ]}
+      />
 
       {/* FIXED BOTTOM ACTION BAR — sits ABOVE the mobile BottomNav (which is itself bottom-0), so
           the two fixed bars don't overlap on phones; flush to the bottom on desktop (no BottomNav). */}
@@ -743,35 +764,43 @@ export default function DealPage({
         }}
       >
         <div className="max-w-5xl mx-auto flex flex-wrap justify-end gap-2 md:gap-3">
-          <Button
-            variant="outline"
-            onClick={handleWatchPrice}
-            disabled={watching}
-            className="border-[var(--b2)] text-[var(--t3)] font-semibold text-xs md:text-sm h-10 md:h-11 rounded-xl"
-          >
-            {watching ? "Adding…" : "Watch Price"}
-          </Button>
-          <Button
-            onClick={() => {
-              const fromState = dealData?.deal?.locationState;
-              const params = new URLSearchParams({ dealId: id });
-              if (fromState) params.set("from", fromState);
-              router.push(`/move?${params.toString()}`);
-            }}
-            className="text-white font-semibold text-xs md:text-sm h-10 md:h-11 rounded-xl"
-            style={{ background: "var(--t1)" }}
-          >
-            Get Transport
-          </Button>
-          {store.userType === "dealer" && (
+          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
             <Button
-              onClick={handleSaveToFleet}
-              disabled={saving}
-              className="text-white font-bold text-xs md:text-sm h-10 md:h-11 rounded-xl"
-              style={{ background: "var(--grad)" }}
+              variant="outline"
+              onClick={handleWatchPrice}
+              disabled={watching}
+              className="border-[var(--b2)] text-[var(--t3)] font-semibold text-xs md:text-sm h-10 md:h-11 rounded-xl"
             >
-              {saving ? "Saving..." : "Add to Fleet"}
+              {watching ? "Adding…" : "Watch Price"}
             </Button>
+          </motion.div>
+
+          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+            <Button
+              onClick={() => {
+                const fromState = dealData?.deal?.locationState;
+                const params = new URLSearchParams({ dealId: id });
+                if (fromState) params.set("from", fromState);
+                router.push(`/move?${params.toString()}`);
+              }}
+              className="text-white font-semibold text-xs md:text-sm h-10 md:h-11 rounded-xl"
+              style={{ background: "var(--t1)" }}
+            >
+              Get Transport
+            </Button>
+          </motion.div>
+
+          {store.userType === "dealer" && (
+            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+              <Button
+                onClick={handleSaveToFleet}
+                disabled={saving}
+                className="text-white font-bold text-xs md:text-sm h-10 md:h-11 rounded-xl"
+                style={{ background: "var(--grad)" }}
+              >
+                {saving ? "Saving..." : "Add to Fleet"}
+              </Button>
+            </motion.div>
           )}
         </div>
       </div>
