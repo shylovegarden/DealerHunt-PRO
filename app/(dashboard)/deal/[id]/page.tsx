@@ -21,6 +21,7 @@ import { SimilarDeals } from "@/components/deal/SimilarDeals";
 import { MarketTiming } from "@/components/deal/MarketTiming";
 import { AIBrief } from "@/components/deal/AIBrief";
 import { DealIQCard } from "@/components/deal/DealIQCard";
+import { LogOutcome } from "@/components/deal/LogOutcome";
 import { MarketContext } from "@/components/deal/MarketContext";
 import { PriceTimeline } from "@/components/deal/PriceTimeline";
 import { VehicleSpecs } from "@/components/deal/VehicleSpecs";
@@ -357,6 +358,25 @@ export default function DealPage({
             </Card>
           );
         })()}
+
+      {/* LOG OUTCOME — the loop that activates per-dealer calibration from real flips */}
+      {serverDeal && (
+        <LogOutcome
+          dealId={id}
+          year={serverDeal.year ?? store.year}
+          make={serverDeal.make ?? store.make}
+          model={serverDeal.model ?? store.model}
+          defaultPurchase={
+            serverDeal.recommendedMaxBid ??
+            serverDeal.askPrice ??
+            store.askPrice
+          }
+          predictedProfit={engineNetProfit}
+          predictedSell={serverDeal.sellEstimate}
+          predictedTransport={serverDeal.dealAnalysis?.costs?.transport}
+          predictedRecon={serverDeal.dealAnalysis?.costs?.repair}
+        />
+      )}
 
       {/* MAX BID ENGINE + PRICE HISTORY (Name-your-price / price-trend) */}
       <motion.div
