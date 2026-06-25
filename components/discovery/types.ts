@@ -31,6 +31,9 @@ export interface DiscoveryDeal {
   luxury?: boolean;
   priceTier?: string;
   titleClass?: "clean" | "rebuilt" | "salvage" | "parts" | "unknown";
+  /** Channel/risk lane + its color (auction/salvage/repairable/clean-retail/private). */
+  lane?: "auction" | "salvage" | "repairable" | "clean-retail" | "private";
+  laneColor?: string;
   grade: DealGrade;
   discountPct: number;
   gradeLabel: string;

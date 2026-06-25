@@ -9,6 +9,8 @@ import { analyzeDeal } from "@/lib/scoring/deal-analyzer";
 import { loadMarketIndex } from "@/lib/scoring/market-value";
 import { detectAvailability } from "@/lib/discovery/categorize";
 import { extractOptions } from "./extract-options";
+import { extractContact } from "./extract-contact";
+import { normalizeCondition } from "./normalize-condition";
 import { sendAlertMatchEmail } from "@/lib/notifications/email";
 import { sendAlertMatchSMS } from "@/lib/notifications/sms";
 import { resolvePlaces } from "@/lib/geo/geocode";
@@ -71,12 +73,22 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
         vin: deal.vin,
         // Structured options (drivetrain / transmission / fuel / features) parsed from the listing
         // text, so the scan filters can offer real "AWD", "Diesel", "Sunroof", etc. facets (A4/B2).
-        options: extractOptions(
-          `${deal.title || ""} ${(deal as any).description || ""}`,
-        ),
+        // We also fold seller contact (phone/email/listing) under options.contact — no new column — so
+        // dealers can Call/Text/Email in-app via the ContactSeller panel.
+        options: {
+          ...extractOptions(
+            `${deal.title || ""} ${(deal as any).description || ""}`,
+          ),
+          contact: extractContact(
+            `${(deal as any).seller || ""} ${(deal as any).description || ""} ${deal.title || ""}`,
+            deal.source_url,
+          ),
+        },
         ask_price: deal.ask_price,
         mileage: deal.mileage,
-        condition: deal.condition,
+        // Coerce to the listing_condition enum — AI-rescue / bespoke salvage sites emit free text
+        // ("Clean Title", "Non-Repairable") that the enum rejects, which silently dropped every row.
+        condition: normalizeCondition(deal.condition),
         damage_type: deal.damage_type,
         availability_status: detectAvailability(
           deal.title,

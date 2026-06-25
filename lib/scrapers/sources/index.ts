@@ -323,6 +323,12 @@ interface DealerProfile {
   };
   // JS-rendered sites need browser; static can use fetch
   renderMode?: "static" | "browser";
+  // Per-site defaults injected onto every scraped car when the listing itself doesn't say. A salvage
+  // yard's stock is salvage-title; a rebuilder's is rebuilt/repairable. These land on condition /
+  // damage_type, which dealLane() already reads — so curated salvage cars color correctly (red/orange)
+  // instead of falling through to the "private" lane. See SITE_TYPE_DEFAULTS.
+  conditionDefault?: string;
+  damageDefault?: string;
 }
 
 export const DEALER_PROFILES: DealerProfile[] = [
@@ -363,6 +369,20 @@ export const DEALER_PROFILES: DealerProfile[] = [
     pagination: { param: "paged", style: "page", perPage: 12 },
   },
 ];
+
+// Read an explicit title brand off the listing text. Returns undefined when the listing says nothing
+// (most dealer cards), so the caller falls back to the site's type default. Unlike autotempest's
+// titleToCondition this never guesses "clean" — silence means "use the site default", not "clean".
+function conditionFromTitle(title?: string): string | undefined {
+  const x = (title || "").toLowerCase();
+  if (/\bsalvage\b/.test(x)) return "salvage_title";
+  if (/\brebuilt\b/.test(x)) return "rebuilt_title";
+  if (/\b(repairable|rebuildable)\b/.test(x)) return "repairable";
+  if (/\bflood\b/.test(x)) return "flood";
+  if (/\b(parts only|parts car|non[-\s]?run|wrecked|junk)\b/.test(x))
+    return "salvage_title";
+  return undefined;
+}
 
 export async function scrapeIndependentDealer(
   profile: DealerProfile,
@@ -428,7 +448,11 @@ export async function scrapeIndependentDealer(
           model: title.split(" ").slice(2, 4).join(" ") || "",
           ask_price: price,
           mileage: extractMileage(mileText) || mileageFromTitle(title),
-          condition: "run_drive",
+          // Prefer what the listing text says; else the site's type default (salvage yard → salvage,
+          // rebuilder → rebuilt). Drives the correct lane/color downstream via dealLane().
+          condition:
+            conditionFromTitle(title) ?? profile.conditionDefault ?? "run_drive",
+          damage_type: profile.damageDefault,
           location_city: profile.city,
           location_state: profile.state,
           images: imgSrc ? [normalizeUrl(imgSrc, baseUrl)] : [],
@@ -463,7 +487,12 @@ export async function scrapeIndependentDealer(
               model: v.model || "",
               ask_price: v.price,
               mileage: v.mileage,
-              condition: "run_drive",
+              condition:
+                (v as any).condition ||
+                conditionFromTitle(v.title) ||
+                profile.conditionDefault ||
+                "run_drive",
+              damage_type: profile.damageDefault,
               location_city: v.location_city || profile.city,
               location_state: v.location_state || profile.state,
               images: [],
@@ -498,7 +527,13 @@ export async function scrapeIndependentDealer(
 // Given just a website URL, this auto-detects the inventory pattern
 export async function autoDiscoverAndCrawl(
   dealerWebsite: string,
-  hint?: { name?: string; city?: string; state?: string },
+  hint?: {
+    name?: string;
+    city?: string;
+    state?: string;
+    conditionDefault?: string;
+    damageDefault?: string;
+  },
 ): Promise<number> {
   console.log(`[AutoDiscover] Analyzing ${dealerWebsite}`);
 
@@ -511,19 +546,32 @@ export async function autoDiscoverAndCrawl(
   const cheerio = await import("cheerio");
   const $ = cheerio.load(html);
 
-  // Find inventory link
+  // Find inventory link. Two-pass + guarded: a link whose HREF points at an inventory path is far more
+  // reliable than one matched only on link text, so we prefer href matches and fall back to text. We
+  // skip non-navigational hrefs (javascript:void(0), #, mailto:, tel:) — those were silently becoming
+  // the "inventory URL" and aborting the whole crawl (e.g. damage.com's JS nav toggle).
+  const navigational = (href: string) =>
+    href &&
+    !/^(javascript:|#|mailto:|tel:|data:)/i.test(href.trim()) &&
+    href.trim() !== "/";
+  const INV_PATH = /inventory|vehicles|\/used|for-sale|listings|stock|showroom/i;
+  const INV_TEXT = /inventory|vehicles|stock|cars|used|available|repairable/i;
+
   let inventoryUrl = "";
+  let textFallback = "";
   $("a[href]").each((_, el) => {
-    const href = $(el).attr("href") || "";
+    const href = ($(el).attr("href") || "").trim();
+    if (!navigational(href)) return; // skip JS/anchor/mailto links
     const text = $(el).text().toLowerCase();
-    if (
-      /inventory|vehicles|stock|cars|used|available/i.test(text) ||
-      /\/inventory|\/vehicles|\/used/i.test(href)
-    ) {
+    if (INV_PATH.test(href)) {
       inventoryUrl = normalizeUrl(href, dealerWebsite);
-      return false; // break
+      return false; // strong match — stop
+    }
+    if (!textFallback && INV_TEXT.test(text)) {
+      textFallback = normalizeUrl(href, dealerWebsite);
     }
   });
+  if (!inventoryUrl) inventoryUrl = textFallback;
 
   if (!inventoryUrl) {
     console.warn(`[AutoDiscover] No inventory page found at ${dealerWebsite}`);
@@ -535,7 +583,7 @@ export async function autoDiscoverAndCrawl(
     p.selectors.dealCard.split(",").some((sel) => $(sel.trim()).length > 0),
   );
 
-  const profile: DealerProfile = matchedProfile || {
+  const base: DealerProfile = matchedProfile || {
     dealerId: `auto-${new URL(dealerWebsite).hostname}`,
     name: hint?.name || $("title").text() || dealerWebsite,
     city: hint?.city || "",
@@ -557,6 +605,17 @@ export async function autoDiscoverAndCrawl(
     pagination: { param: "page", style: "page", perPage: 24 },
   };
 
+  // Carry the caller's hints (site name/location + the type-driven condition/damage defaults) onto the
+  // profile even when we reuse a known platform template, so curated salvage cars get the right lane.
+  const profile: DealerProfile = {
+    ...base,
+    name: hint?.name || base.name,
+    city: hint?.city || base.city,
+    state: hint?.state || base.state,
+    conditionDefault: hint?.conditionDefault ?? base.conditionDefault,
+    damageDefault: hint?.damageDefault ?? base.damageDefault,
+  };
+
   return scrapeIndependentDealer(profile, dealerWebsite);
 }
 
@@ -567,39 +626,148 @@ export async function autoDiscoverAndCrawl(
 // homepage URL; autoDiscoverAndCrawl finds the inventory page and ingests it via a platform template
 // or AI-rescue, so ADDING A SITE = ADDING A LINE. These are salvage yards / rebuilders reselling
 // rebuildable cars — the key moat layer. State hints land them on the 50-state map. Extend freely.
-export const CURATED_SITES: { url: string; name: string; state?: string }[] = [
-  { url: "https://www.damage.com", name: "Damage.com", state: "FL" },
-  { url: "https://www.x2builders.com", name: "X2 Builders" },
-  { url: "https://www.salvageautosauction.com", name: "Salvage Autos Auction" },
-  { url: "https://www.repairablevehicles.com", name: "Repairable Vehicles" },
-  { url: "https://www.crashedtoys.com", name: "CrashedToys", state: "MN" },
-  { url: "https://www.rebuildables.com", name: "Rebuildables" },
-  { url: "https://www.erepairables.com", name: "eRepairables" },
-  { url: "https://www.aeofmiami.com", name: "A&E of Miami", state: "FL" },
+// How each kind of site is read. The `type` makes the network easily distinguishable on the map and in
+// the discover rails; it also picks the condition/damage default injected onto every car from that site
+// (via SITE_TYPE_DEFAULTS) so dealLane() colors them correctly — salvage yards red, rebuilders orange.
+export type CuratedSiteType =
+  | "salvage_yard" // total-loss / branded inventory → salvage lane (red)
+  | "rebuilder_dealer" // rebuildable / repairable stock → repairable lane (orange)
+  | "independent_dealer" // generic used-car lot → private lane (blue)
+  | "auction_proxy" // resells auction lots → salvage/auction risk
+  | "clean_retail"; // franchise / clean retail → clean-retail lane (green)
+
+export interface CuratedSite {
+  url: string;
+  name: string;
+  state?: string; // 2-letter; lands the site on the 50-state map + per-state discover grouping
+  city?: string;
+  type: CuratedSiteType;
+}
+
+// type → defaults injected onto every car scraped from a site of that type. These land on
+// condition / damage_type, which dealLane() already reads → correct lane/color, no dealLane change.
+export const SITE_TYPE_DEFAULTS: Record<
+  CuratedSiteType,
+  { condition?: string; damage_type?: string }
+> = {
+  salvage_yard: { condition: "salvage_title" },
+  rebuilder_dealer: { condition: "rebuilt_title", damage_type: "repairable" },
+  independent_dealer: { condition: "run_drive" }, // preserves prior behavior
+  auction_proxy: { condition: "salvage_title" },
+  clean_retail: { condition: "clean" },
+};
+
+// prettier-ignore
+export const CURATED_SITES: CuratedSite[] = [
+  // ── National salvage/rebuilder networks (multi-state inventory) ──
+  { url: "https://www.damage.com", name: "Damage.com", state: "FL", type: "salvage_yard" },
+  { url: "https://www.x2builders.com", name: "X2 Builders", type: "rebuilder_dealer" },
+  { url: "https://www.salvageautosauction.com", name: "Salvage Autos Auction", type: "auction_proxy" },
+  { url: "https://www.repairablevehicles.com", name: "Repairable Vehicles", type: "rebuilder_dealer" },
+  { url: "https://www.crashedtoys.com", name: "CrashedToys", state: "MN", type: "salvage_yard" },
+  { url: "https://www.rebuildables.com", name: "Rebuildables", type: "rebuilder_dealer" },
+  { url: "https://www.erepairables.com", name: "eRepairables", type: "rebuilder_dealer" },
+  { url: "https://www.aeofmiami.com", name: "A&E of Miami", state: "FL", type: "independent_dealer" },
+  { url: "https://www.autosavvy.com", name: "AutoSavvy", state: "UT", type: "rebuilder_dealer" }, // multi-state chain (UT/AZ/CO/ID/NV/NM/TX)
+
+  // ── Northeast / Mid-Atlantic ──
+  { url: "https://www.chayabrothers.com", name: "Chaya Brothers Auto & Salvage", state: "NH", type: "rebuilder_dealer" },
+  { url: "https://www.argocycles.com", name: "Argo Cycles & Auto", state: "NH", type: "salvage_yard" },
+  { url: "https://www.salvagezone.com", name: "SalvageZone (Elite Motor Cars)", state: "NY", type: "rebuilder_dealer" },
+  { url: "https://www.alpinerebuildablecars.com", name: "Alpine Rebuildable Cars", state: "NJ", type: "rebuilder_dealer" },
+  { url: "https://ezfixercars.com", name: "EZ Fixer Cars", state: "NJ", type: "rebuilder_dealer" },
+  { url: "https://route34.com", name: "Route 34 Auto", state: "NJ", type: "rebuilder_dealer" },
+  { url: "https://economynj.com", name: "Economy Auto", state: "NJ", type: "rebuilder_dealer" },
+  { url: "https://www.replicaautosales.net", name: "Replica Auto Sales", state: "PA", type: "rebuilder_dealer" },
+  { url: "https://www.alsautopa.com", name: "Al's Auto", state: "PA", type: "rebuilder_dealer" },
+  { url: "https://www.novakautoparts.com", name: "Novak Auto Parts", state: "PA", type: "salvage_yard" },
+  { url: "https://www.stoystownautosales.com", name: "Stoystown Auto Sales", state: "PA", type: "rebuilder_dealer" },
+
+  // ── South / Southeast ──
+  { url: "https://www.interautocenter.com", name: "Inter Auto Center", state: "VA", type: "rebuilder_dealer" },
+  { url: "https://ecoastauto.com", name: "East Coast Auto Source", state: "VA", type: "rebuilder_dealer" },
+  { url: "https://robbinsrepairables.com", name: "Robbins Repairables", state: "NC", type: "rebuilder_dealer" },
+  { url: "https://www.newbuildcars.com", name: "Newbuild Automotive", state: "GA", type: "rebuilder_dealer" },
+  { url: "https://www.autoworldofamerica.com", name: "Autoworld of America", state: "FL", type: "rebuilder_dealer" },
+  { url: "https://casmiami.com", name: "CAS Miami", state: "FL", type: "auction_proxy" },
+  { url: "https://sperryauto.com", name: "Sperry Auto Sales", state: "KY", type: "rebuilder_dealer" },
+  { url: "https://cullmanautorebuilders.com", name: "Cullman Auto Rebuilders", state: "AL", type: "rebuilder_dealer" },
+  { url: "https://www.tennisonautosales.com", name: "Tennison Auto Sales & Salvage", state: "AR", type: "rebuilder_dealer" },
+
+  // ── Midwest ──
+  { url: "https://www.marcellsinc.com", name: "Marcell's Inc", state: "OH", type: "rebuilder_dealer" },
+  { url: "https://www.denisonautopartsoh.com", name: "Denison Auto Parts", state: "OH", type: "salvage_yard" },
+  { url: "https://www.cardomemi.com", name: "CarDome Auto Sales", state: "MI", type: "rebuilder_dealer" },
+  { url: "https://www.florasauto.com", name: "Flora's Auto", state: "IN", type: "rebuilder_dealer" },
+  { url: "https://autonetworkinc.com", name: "Auto Network, Inc.", state: "IN", type: "rebuilder_dealer" },
+  { url: "https://www.billsmithauto.com", name: "Bill Smith Auto", state: "IL", type: "rebuilder_dealer" },
+  { url: "https://www.autoworksinc.com", name: "Auto Works Inc.", state: "WI", type: "rebuilder_dealer" },
+  { url: "https://www.mnrepairables.com", name: "MN Motors", state: "MN", type: "rebuilder_dealer" },
+  { url: "https://www.starautous.com", name: "Star Auto", state: "MN", type: "rebuilder_dealer" },
+  { url: "https://midwestrepairables.com", name: "Midwest Repairables", state: "MN", type: "rebuilder_dealer" },
+  { url: "https://www.royaldriveautos.com", name: "Royal Drive", state: "MN", type: "rebuilder_dealer" },
+  { url: "https://www.samsriverside.com", name: "Sam's Riverside", state: "IA", type: "salvage_yard" },
+  { url: "https://www.dgautollc.com", name: "D & G Auto", state: "MO", type: "rebuilder_dealer" },
+  { url: "https://www.southsiderebuilders.com", name: "Southside Auto Sales", state: "MO", type: "salvage_yard" },
+  { url: "https://www.prosalvage.com", name: "ProSalvage", state: "MO", type: "auction_proxy" },
+  { url: "https://www.rebuildautos.com", name: "RebuildAutos", state: "MO", type: "auction_proxy" },
+  { url: "https://www.recar.com", name: "ReCar", state: "MO", type: "rebuilder_dealer" },
+  { url: "https://repairableautos.com", name: "Ken's Auto Body & Sales", state: "ND", type: "rebuilder_dealer" },
+
+  // ── West / Southwest ──
+  { url: "https://www.prestigeautobrokers.com", name: "Prestige Auto Brokers", state: "TX", type: "rebuilder_dealer" },
+  { url: "https://www.axautostx.com", name: "America's Xtreme Auto", state: "TX", type: "rebuilder_dealer" },
+  { url: "https://www.montanaautorecyclers.com", name: "Montana Auto Recyclers", state: "MT", type: "rebuilder_dealer" },
+  { url: "https://asalvagecar.com", name: "STS Automotive Denver", state: "CO", type: "rebuilder_dealer" },
+  { url: "https://www.prestmanauto.com", name: "Prestman Auto", state: "UT", type: "rebuilder_dealer" },
+  { url: "https://autols.com", name: "Auto LifeStyle", state: "UT", type: "rebuilder_dealer" },
+  { url: "https://bestwesternmotors.com", name: "Best Western Motors", state: "AZ", type: "rebuilder_dealer" },
+  { url: "https://www.autogator.com", name: "Auto Gator", state: "CA", type: "rebuilder_dealer" },
 ];
 
-/** Crawl the curated salvage/dealer network — bounded + polite. Each site ingested from its URL. */
+/** Crawl the curated salvage/dealer network — bounded + polite. Each site ingested from its URL.
+ *  Per-site yield is logged so silently-dead/walled sites are visible (not assumed-covered); dead
+ *  sites produce 0 cars and are pruned by the normal stale/dead retention. */
 export async function scrapeCuratedSites(
   maxSites = CURATED_SITES.length,
 ): Promise<number> {
+  const sites = CURATED_SITES.slice(0, maxSites);
   console.log(
-    `[CuratedSites] Crawling ${maxSites} curated salvage/dealer sites...`,
+    `[CuratedSites] Crawling ${sites.length} curated salvage/dealer sites...`,
   );
   let total = 0;
-  for (const site of CURATED_SITES.slice(0, maxSites)) {
+  const yields: { name: string; state?: string; type: string; n: number }[] =
+    [];
+  for (const site of sites) {
+    const d = SITE_TYPE_DEFAULTS[site.type];
     try {
       const n = await autoDiscoverAndCrawl(site.url, {
         name: site.name,
+        city: site.city,
         state: site.state,
+        conditionDefault: d.condition,
+        damageDefault: d.damage_type,
       });
-      console.log(`[CuratedSites] ${site.name}: ${n} listings`);
+      console.log(
+        `[CuratedSites] ${site.name} (${site.type}${site.state ? `/${site.state}` : ""}): ${n} listings`,
+      );
+      yields.push({ name: site.name, state: site.state, type: site.type, n });
       total += n;
     } catch (e) {
       console.warn(`[CuratedSites] ${site.name} failed:`, (e as Error).message);
+      yields.push({ name: site.name, state: site.state, type: site.type, n: 0 });
     }
     await new Promise((r) => setTimeout(r, 2000)); // be polite between sites
   }
-  console.log(`[CuratedSites] ${total} listings from the curated network`);
+  // Coverage summary: how many sites yielded, and how many distinct states are now covered.
+  const live = yields.filter((y) => y.n > 0);
+  const states = new Set(live.map((y) => y.state).filter(Boolean));
+  const dead = yields.filter((y) => y.n === 0).map((y) => y.name);
+  console.log(
+    `[CuratedSites] ${total} listings · ${live.length}/${sites.length} sites live · ${states.size} states covered`,
+  );
+  if (dead.length)
+    console.log(`[CuratedSites] no yield (check/prune): ${dead.join(", ")}`);
   return total;
 }
 

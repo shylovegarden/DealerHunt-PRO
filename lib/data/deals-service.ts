@@ -29,6 +29,9 @@ export type Deal = {
   damageType?: string;
   seller?: string;
   sellerType?: "dealer" | "auction" | "private";
+  // Seller contact extracted at scrape time (options.contact). Powers in-app Call/Text/Email so the
+  // dealer doesn't have to leave for the original site to reach out.
+  contact?: { phone?: string; email?: string; listingUrl?: string };
   repair_estimate?: number;
   transport_cost?: number;
   is_arbitrage_opportunity?: boolean;
@@ -117,6 +120,7 @@ export class DealsService {
       damageType: row.damage_type,
       seller: row.seller,
       sellerType: row.seller_type,
+      contact: row.options?.contact || undefined,
       repair_estimate: row.repair_estimate
         ? Number(row.repair_estimate)
         : undefined,

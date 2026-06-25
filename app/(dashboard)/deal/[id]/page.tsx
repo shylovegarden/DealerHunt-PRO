@@ -26,6 +26,7 @@ import { LogOutcome } from "@/components/deal/LogOutcome";
 import { DealEconomics } from "@/components/deal/DealEconomics";
 import { RecentlySold } from "@/components/deal/RecentlySold";
 import { VinHistory } from "@/components/deal/VinHistory";
+import { ContactSeller } from "@/components/deal/ContactSeller";
 import { ImageGallery } from "@/components/shared/ImageGallery";
 import { PriceMilesScatter } from "@/components/deal/PriceMilesScatter";
 import { BestTimeToBuy } from "@/components/deal/BestTimeToBuy";
@@ -472,6 +473,14 @@ export default function DealPage({
           sell={serverDeal.sellEstimate ?? 0}
           profit={serverDeal.true_net_profit ?? engineNetProfit ?? 0}
           verdict={String(serverDeal.dealVerdict).toUpperCase()}
+        />
+      )}
+
+      {/* CONTACT SELLER — Call / Text / Email in-app + original listing, so the dealer never leaves */}
+      {serverDeal && (
+        <ContactSeller
+          contact={serverDeal.contact}
+          sourceUrl={serverDeal.sourceUrl}
         />
       )}
 

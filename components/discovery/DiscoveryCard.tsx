@@ -19,6 +19,15 @@ const TITLE_STYLES: Record<
   parts: { label: "Parts Only", bg: "var(--rlo)", text: "var(--red)" },
 };
 
+// Short, glanceable lane labels — the channel/risk a dealer reads instantly (color from the API).
+const LANE_LABELS: Record<string, string> = {
+  auction: "Auction",
+  salvage: "Salvage",
+  repairable: "Repairable",
+  "clean-retail": "Retail",
+  private: "Private",
+};
+
 function cheapestPrice(deal: DiscoveryDeal): number {
   const prices = [deal.askPrice, ...deal.alsoOn.map((a) => a.askPrice)].filter(
     (p) => p > 0,
@@ -210,8 +219,24 @@ export const DiscoveryCard = memo(function DiscoveryCard({
             {title}
           </h3>
 
-          {/* Meta: mileage · location · title class */}
+          {/* Meta: lane · mileage · location */}
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[var(--t4)]">
+            {deal.lane && deal.laneColor && (
+              <span
+                className="inline-flex items-center gap-1 rounded-[var(--r1)] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                style={{
+                  background: `${deal.laneColor}22`,
+                  color: deal.laneColor,
+                }}
+                title={`${LANE_LABELS[deal.lane] || deal.lane} channel`}
+              >
+                <span
+                  className="h-1.5 w-1.5 rounded-full"
+                  style={{ background: deal.laneColor }}
+                />
+                {LANE_LABELS[deal.lane] || deal.lane}
+              </span>
+            )}
             {deal.mileage ? (
               <span className="font-mono text-[var(--t3)]">
                 {deal.mileage.toLocaleString()} mi

@@ -3,7 +3,12 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { createServerComponentClient } from "@/lib/supabase";
 import { getServerUser } from "@/lib/server-supabase";
-import { categorize, auctionHeat } from "@/lib/discovery/categorize";
+import {
+  categorize,
+  auctionHeat,
+  dealLane,
+  LANE_COLORS,
+} from "@/lib/discovery/categorize";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 // /api/discover — the meta-search/aggregator endpoint (CarGurus/Kayak style).
@@ -16,10 +21,15 @@ function mapDeal(
 ) {
   const tags = categorize({ ...d, sellBasis: d.deal_analysis?.sellBasis });
   const { heat, hoursLeft } = auctionHeat(d.auction_end_at);
+  // Channel/risk lane (auction/salvage/repairable/clean-retail/private) + its color, so the card can
+  // show a lane chip and the per-lane rails below can group the same way the scan table does.
+  const lane = dealLane(d);
   return {
     id: d.id,
     source: d.source,
     sourceUrl: d.source_url,
+    lane,
+    laneColor: LANE_COLORS[lane],
     title: d.title || `${d.year || ""} ${d.make || ""} ${d.model || ""}`.trim(),
     year: d.year,
     make: d.make,
@@ -68,7 +78,7 @@ export async function GET(request: NextRequest) {
     let q = supabase
       .from("deals")
       .select(
-        "id, source, source_url, title, year, make, model, trim, vin, mileage, condition, ask_price, sell_estimate, mmr_value, deal_analysis, profit_score, true_net_profit, recommended_max_bid, deal_verdict, location_city, location_state, images, last_seen_at, first_seen_at, auction_end_at",
+        "id, source, source_url, title, year, make, model, trim, vin, mileage, condition, damage_type, ask_price, sell_estimate, mmr_value, deal_analysis, profit_score, true_net_profit, recommended_max_bid, deal_verdict, location_city, location_state, images, last_seen_at, first_seen_at, auction_end_at",
       )
       .eq("active", true)
       .gt("ask_price", 0)
@@ -187,6 +197,22 @@ export async function GET(request: NextRequest) {
       )
       .slice(0, N);
 
+    // ── Channel lanes (the curated salvage-network payoff) — group by dealLane so a dealer can browse
+    // the whole state by risk channel: branded/total-loss, fixable, and live auction lots, each sorted
+    // best-deal-first. These only populate once the salvage/rebuilder sites are categorized correctly.
+    const laneRail = (lane: string) =>
+      merged
+        .filter((d) => d.lane === lane)
+        .sort(
+          (a, b) =>
+            byGradeRank[b.grade] - byGradeRank[a.grade] ||
+            b.discountPct - a.discountPct,
+        )
+        .slice(0, N);
+    const salvage = laneRail("salvage");
+    const repairable = laneRail("repairable");
+    const auctionLots = laneRail("auction");
+
     // ── Personalized "For You" rail (Booking/Kayak "your picks") ──
     // Reads the signed-in dealer's saved preferences — preferred states, budget, makes, min profit —
     // and surfaces matching deals first. Preferences were captured but never used; this wires them in.
@@ -275,6 +301,24 @@ export async function GET(request: NextRequest) {
         title: "Top Flips",
         subtitle: "Highest profit potential",
         deals: roi,
+      },
+      {
+        key: "salvage",
+        title: "🔴 Salvage",
+        subtitle: "Branded / total-loss — salvage-yard & dealer supply",
+        deals: salvage,
+      },
+      {
+        key: "repairable",
+        title: "🟠 Repairable",
+        subtitle: "Rebuildable cars from the rebuilder network",
+        deals: repairable,
+      },
+      {
+        key: "auctionLots",
+        title: "🟡 Auction Lots",
+        subtitle: "Live auction inventory (Copart/IAA/ADESA & gov)",
+        deals: auctionLots,
       },
       {
         key: "trucks",
