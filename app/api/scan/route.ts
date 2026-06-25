@@ -91,7 +91,13 @@ export async function GET(req: NextRequest) {
   if (!rl.allowed) return tooManyRequests(rl) as any;
 
   const { searchParams } = new URL(req.url);
-  const q = searchParams.get("q") || "";
+  // Sanitize free-text search before it's interpolated into the PostgREST .or() filter — strip
+  // anything that isn't a normal vehicle/VIN character so commas/parens can't inject extra filters.
+  const q = (searchParams.get("q") || "")
+    .replace(/[^a-zA-Z0-9\s-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 60);
   const state = searchParams.get("state") || "";
   const make = searchParams.get("make") || "";
   const source = searchParams.get("source") || "";

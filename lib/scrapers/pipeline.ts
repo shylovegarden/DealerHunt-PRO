@@ -165,19 +165,40 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
     console.warn("[upsertDeals] geocoding skipped:", (e as Error).message);
   }
 
-  const { data: upsertedRows, error } = await getSupabase()
+  const SELECT_COLS =
+    "id, source, ask_price, updated_at, vin, make, model, year, true_net_profit, deal_verdict, lat, lng";
+  const sb = getSupabase();
+  let { data: upsertedRows, error } = await sb
     .from("deals")
     .upsert(rows, {
       onConflict: "source,source_deal_id",
       ignoreDuplicates: false,
     })
-    .select(
-      "id, source, ask_price, updated_at, vin, make, model, year, true_net_profit, deal_verdict, lat, lng",
-    );
+    .select(SELECT_COLS);
 
   if (error) {
-    console.error("[upsertDeals] Error:", error);
-    throw new Error(`Failed to upsert deals: ${error.message}`);
+    // A batch fails atomically, so one bad row (e.g. an enum/type violation) would otherwise lose
+    // the whole batch. Fall back to per-row upserts: keep the good rows, skip + log the offenders.
+    console.warn(
+      `[upsertDeals] batch failed (${error.message}); retrying per-row to salvage good rows`,
+    );
+    const salvaged: any[] = [];
+    for (const row of rows) {
+      const { data, error: rowErr } = await sb
+        .from("deals")
+        .upsert([row], {
+          onConflict: "source,source_deal_id",
+          ignoreDuplicates: false,
+        })
+        .select(SELECT_COLS);
+      if (rowErr)
+        console.warn(
+          `[upsertDeals] skipped ${row.source}/${row.source_deal_id}: ${rowErr.message}`,
+        );
+      else if (data) salvaged.push(...data);
+    }
+    upsertedRows = salvaged;
+    error = null;
   }
 
   const returnedRows = upsertedRows || [];

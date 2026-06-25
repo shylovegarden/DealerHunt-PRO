@@ -136,6 +136,7 @@ export async function loadMarketIndex(
     .select(
       "make, model, year, mileage, source, ask_price, condition, damage_type",
     )
+    .eq("active", true) // only live inventory feeds comps — don't price off dead stock
     .gt("ask_price", 1000)
     .lt("ask_price", 200000)
     .limit(50000);
