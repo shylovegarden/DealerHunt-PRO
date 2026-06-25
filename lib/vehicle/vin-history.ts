@@ -10,12 +10,59 @@
 // key is set — never a hard dependency on one source.
 
 export interface VinHistory {
-  source: "nmvtis" | "listing-text" | "none";
+  source: "nmvtis" | "vin-graph" | "listing-text" | "none";
   authoritative: boolean; // true only for NMVTIS — UI should label estimates as "claimed"
   titleBrands: string[]; // red flags found (salvage, rebuilt, flood, …)
   cleanClaims: string[]; // "no accidents", "clean Carfax", "1 owner" (claimed unless authoritative)
   owners?: number;
   note: string;
+}
+
+// The abstraction: we watch the WHOLE market at once, so our own scrape records ARE a history report
+// no single-site service has. If a VIN ever showed up at a salvage auction, or was listed as
+// rebuilt/branded, or had recorded damage — in ANY past sighting across ANY channel — that's a real
+// flag, even when the current listing claims "clean". Free, unique, and it compounds with every scrape.
+const AUCTION_SRC: Record<string, string> = {
+  copart: "Copart salvage auction",
+  iaa: "IAA salvage auction",
+  adesa: "ADESA auction",
+  manheim: "Manheim auction",
+  acv: "ACV auction",
+  gov_auction: "government auction",
+};
+
+export interface VinSighting {
+  source?: string | null;
+  condition?: string | null;
+  damage_type?: string | null;
+  created_at?: string | null;
+}
+
+/** Cross-reference a VIN against our own multi-channel sightings → prior-salvage / branded flags. */
+export function sightingsToHistory(rows: VinSighting[]): VinHistory | null {
+  if (!rows?.length) return null;
+  const flags = new Set<string>();
+  for (const r of rows) {
+    const src = (r.source || "").toLowerCase().trim();
+    const cond = (r.condition || "").toLowerCase();
+    const dmg = (r.damage_type || "").toLowerCase();
+    if (AUCTION_SRC[src]) flags.add(`Previously at ${AUCTION_SRC[src]}`);
+    if (/salvage|junk|parts/.test(cond))
+      flags.add("Prior salvage (our records)");
+    if (/flood/.test(cond)) flags.add("Prior flood (our records)");
+    if (/\bfire\b/.test(cond)) flags.add("Prior fire (our records)");
+    if (/rebuilt/.test(cond)) flags.add("Previously listed rebuilt");
+    if (dmg && dmg !== "none" && dmg !== "unknown")
+      flags.add(`Recorded damage: ${dmg}`);
+  }
+  if (!flags.size) return null;
+  return {
+    source: "vin-graph",
+    authoritative: false,
+    titleBrands: Array.from(flags),
+    cleanClaims: [],
+    note: `Cross-referenced across ${rows.length} sighting${rows.length === 1 ? "" : "s"} in our multi-channel records — a signal no single-site report sees.`,
+  };
 }
 
 // Title-brand red flags (ordered most→least severe). Source text is title + condition + damage + notes.

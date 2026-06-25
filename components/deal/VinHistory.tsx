@@ -29,14 +29,32 @@ export function VinHistory({
     () => historyFromText({ title, condition, damageType }),
     [title, condition, damageType],
   );
-  // Tier 2 — authoritative upgrade when a VIN + NMVTIS key exist (else returns non-authoritative).
+  // Server tiers — our VIN graph (free, unique) + NMVTIS (authoritative, key-gated).
   const { data } = useSWR(
     vin && vin.length === 17 ? `/api/vin/${vin}/history` : null,
     fetcher,
     { revalidateOnFocus: false },
   );
-  const h: VinHistoryT =
-    data && data.authoritative ? (data as VinHistoryT) : local;
+  const route: VinHistoryT | null =
+    data && data.source && data.source !== "none"
+      ? (data as VinHistoryT)
+      : null;
+
+  // Merge all tiers: NMVTIS/graph red flags + the local listing-text flags & claims.
+  const h: VinHistoryT = {
+    source: route?.authoritative
+      ? "nmvtis"
+      : route
+        ? "vin-graph"
+        : local.source,
+    authoritative: !!route?.authoritative,
+    titleBrands: Array.from(
+      new Set([...(route?.titleBrands || []), ...local.titleBrands]),
+    ),
+    cleanClaims: route?.authoritative ? route.cleanClaims : local.cleanClaims,
+    owners: route?.owners ?? local.owners,
+    note: route?.note || local.note,
+  };
 
   const hasFlags = h.titleBrands.length > 0;
   // Show only when we have something meaningful (flags, claims, or an authoritative all-clear).
@@ -57,7 +75,11 @@ export function VinHistory({
             VIN history
           </p>
           <span className="text-[10px] text-[var(--t5)]">
-            {h.authoritative ? "NMVTIS · verified" : "from listing · claimed"}
+            {h.authoritative
+              ? "NMVTIS · verified"
+              : h.source === "vin-graph"
+                ? "our records · cross-referenced"
+                : "from listing · claimed"}
           </span>
         </div>
 

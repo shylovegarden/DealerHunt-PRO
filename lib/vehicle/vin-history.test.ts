@@ -1,5 +1,36 @@
 import { describe, it, expect } from "vitest";
-import { historyFromText } from "./vin-history";
+import { historyFromText, sightingsToHistory } from "./vin-history";
+
+describe("sightingsToHistory (our VIN graph — washed-title catcher)", () => {
+  it("flags a VIN seen at a salvage auction even if currently listed clean", () => {
+    const h = sightingsToHistory([
+      { source: "copart", condition: "repairable", damage_type: "FRONT END" },
+      { source: "craigslist", condition: "clean" }, // re-listed clean later
+    ]);
+    expect(h).not.toBeNull();
+    expect(h!.source).toBe("vin-graph");
+    expect(h!.titleBrands).toEqual(
+      expect.arrayContaining(["Previously at Copart salvage auction"]),
+    );
+  });
+
+  it("flags a prior rebuilt/branded sighting", () => {
+    const h = sightingsToHistory([
+      { source: "craigslist", condition: "rebuilt_title" },
+    ]);
+    expect(h!.titleBrands).toContain("Previously listed rebuilt");
+  });
+
+  it("returns null when every sighting is clean", () => {
+    expect(
+      sightingsToHistory([
+        { source: "carvana", condition: "clean" },
+        { source: "cars_com", condition: "clean" },
+      ]),
+    ).toBeNull();
+    expect(sightingsToHistory([])).toBeNull();
+  });
+});
 
 describe("historyFromText (free Tier-1 VIN history)", () => {
   it("flags title brands from listing text + condition", () => {
