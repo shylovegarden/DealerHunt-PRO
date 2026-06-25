@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { generateText } from "ai";
 import { createServerComponentClient } from "@/lib/supabase";
 import * as cheerio from "cheerio";
+import { fetchWithPatchright } from "@/lib/scrapers/tools/patchright-engine";
 import { getTextModel, hasTextModel } from "@/lib/ai/text-model";
 import { getServerUser } from "@/lib/server-supabase";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
@@ -59,16 +60,26 @@ export async function POST(req: NextRequest) {
     );
 
   let contentText = inputText;
-  if (inputText && (inputText.startsWith("http://") || inputText.startsWith("https://"))) {
+  if (
+    inputText &&
+    (inputText.startsWith("http://") || inputText.startsWith("https://"))
+  ) {
     try {
-      const res = await fetch(inputText);
-      const html = await res.text();
+      // Use stealth browser to bypass Cloudflare/bot-protection on Copart/IAA etc.
+      const html = await fetchWithPatchright(inputText);
       const $ = cheerio.load(html);
       $("script, style, noscript, img, svg").remove();
-      contentText = $("body").text().replace(/\s+/g, " ").trim().slice(0, 40000); // cap size
+      contentText = $("body")
+        .text()
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 40000); // cap size
     } catch (e) {
       return NextResponse.json(
-        { error: "Could not read the provided URL." },
+        {
+          error:
+            "Could not read the provided URL. The site might be heavily protected.",
+        },
         { status: 422 },
       );
     }
@@ -76,7 +87,10 @@ export async function POST(req: NextRequest) {
 
   const messagesContent: any[] = [{ type: "text", text: PROMPT }];
   if (contentText) {
-    messagesContent.push({ type: "text", text: `Document Text:\n${contentText}` });
+    messagesContent.push({
+      type: "text",
+      text: `Document Text:\n${contentText}`,
+    });
   }
   if (image) {
     messagesContent.push({ type: "image", image });
@@ -131,7 +145,9 @@ export async function POST(req: NextRequest) {
 
         // Sort by price proximity to average or just take cheapest ones
         // Let's sort by price ascending to show the best comps
-        const sortedComps = [...data].sort((a, b) => Number(a.ask_price) - Number(b.ask_price));
+        const sortedComps = [...data].sort(
+          (a, b) => Number(a.ask_price) - Number(b.ask_price),
+        );
         const topComps = sortedComps.slice(0, 5);
 
         marketComparison = {

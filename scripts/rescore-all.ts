@@ -49,6 +49,13 @@ async function main() {
             profit_score: a.score,
             deal_verdict: a.verdict,
             is_arbitrage_opportunity: a.verdict === "go",
+            // Refresh the basis/implausible label in deal_analysis so the deal page + IQ confidence
+            // reflect the re-scored valuation (not a stale "markup"/baseline from the last scrape).
+            deal_analysis: {
+              ...(row.deal_analysis || {}),
+              sellBasis: a.sellBasis,
+              priceImplausible: a.priceImplausible,
+            },
           })
           .eq("id", row.id);
         if (!upErr) updated++;
