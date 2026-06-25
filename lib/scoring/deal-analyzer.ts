@@ -23,6 +23,7 @@ import {
   conditionAdjustedSell,
   titleSeverityMultiplier,
 } from "./condition-value";
+import { checkPriceSanity } from "./price-sanity";
 import { isKnownMake } from "@/lib/scrapers/tools/deal-normalizer";
 
 // Home base used for transport-distance math (where you recondition/sell). Override via env.
@@ -174,6 +175,10 @@ export interface DealAnalysis extends ProfitResult {
   soldAnchored: boolean;
   // Wholesale / MMR-equivalent buy-side benchmark — what this unit is worth at auction/wholesale.
   wholesaleEstimate: number;
+  // "Too good to be true" detector: 'typo' (dropped-digit, with the likely real price), 'implausible'
+  // (bait/deposit), or 'ok'. Lets the UI warn instead of showing fake profit.
+  priceSanity: "ok" | "typo" | "implausible";
+  inferredPrice?: number;
 }
 
 // Dealer financing / lease / payment bait: a "$999" 2024 truck isn't a sale price — it's a down
@@ -371,14 +376,31 @@ export function analyzeDeal(deal: Partial<Deal>): DealAnalysis {
   // the PASS verdict on the same card.
   const priceBait = isPriceImplausible(deal, baseline);
   const unknownMake = !!deal.make && !isKnownMake(deal.make);
-  const priceImplausible = priceBait || unknownMake;
+  // "Too good to be true": a clean late-model car priced at a fraction of its value is a dropped-digit
+  // typo or bait, NOT a +$40k steal. Catch it against the (condition-adjusted) sell estimate.
+  const sanity = checkPriceSanity(askPrice, sellEstimate, deal.condition);
+  const priceImplausible = priceBait || unknownMake || sanity.status !== "ok";
   if (priceImplausible) {
     verdict = "pass";
     score = Math.min(score, 20);
+    const sanityMsg =
+      sanity.status === "typo"
+        ? `⚠ ${sanity.reason}`
+        : sanity.status === "implausible"
+          ? `⚠ ${sanity.reason}`
+          : null;
     warnings = [
-      priceBait
-        ? "Listed price looks like a down payment / monthly / lease takeover — not a real sale price. Verify the actual buy price before bidding."
-        : `Unrecognized make "${deal.make}" — this isn't a valuation-grade vehicle listing (likely junk or mis-parsed), so it's not scored as a deal.`,
+      ...(sanityMsg ? [sanityMsg] : []),
+      ...(priceBait
+        ? [
+            "Listed price looks like a down payment / monthly / lease takeover — not a real sale price. Verify the actual buy price before bidding.",
+          ]
+        : []),
+      ...(unknownMake && !sanityMsg
+        ? [
+            `Unrecognized make "${deal.make}" — this isn't a valuation-grade vehicle listing (likely junk or mis-parsed), so it's not scored as a deal.`,
+          ]
+        : []),
       ...warnings,
     ];
   }
@@ -397,5 +419,7 @@ export function analyzeDeal(deal: Partial<Deal>): DealAnalysis {
     conditionTag,
     soldAnchored,
     wholesaleEstimate,
+    priceSanity: sanity.status,
+    inferredPrice: sanity.inferredPrice,
   };
 }

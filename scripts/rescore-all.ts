@@ -58,6 +58,9 @@ async function main() {
               conditionTag: a.conditionTag,
               soldAnchored: a.soldAnchored,
               wholesaleEstimate: a.wholesaleEstimate,
+              priceSanity: a.priceSanity,
+              inferredPrice: a.inferredPrice,
+              warnings: a.warnings,
             },
           })
           .eq("id", row.id);
