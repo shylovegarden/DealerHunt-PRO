@@ -123,97 +123,9 @@ async function enrichDeals(deals: Partial<Deal>[]): Promise<void> {
 }
 
 // ════════════════════════════════════════════════════════════
-//  COPART — salvage auction
+//  COPART — salvage auction (open JSON API; see ./copart.ts)
 // ════════════════════════════════════════════════════════════
-export const COPART_CONFIG: ScraperConfig = {
-  name: "Copart",
-  baseUrl: "https://www.copart.com",
-  renderMode: "browser",
-  requestDelay: 3000,
-  concurrency: 2,
-  useProxies: true,
-  stealth: true,
-  maxPages: 50,
-  headers: { "Accept-Language": "en-US,en;q=0.9" },
-};
-
-export async function scrapeCopart(
-  searchTerms: string[] = [],
-  states: string[] = [],
-) {
-  console.log("[Copart] Starting scrape...");
-  const allDeals: Partial<Deal>[] = [];
-
-  for (const state of states.length ? states : [...US_STATES]) {
-    const gen = paginate<Partial<Deal>>(
-      COPART_CONFIG,
-      (page) =>
-        `https://www.copart.com/lotSearchResults/?free=true&query=${encodeURIComponent(state)}&page=${page}&size=100`,
-      async (html) => {
-        const cheerio = await import("cheerio");
-        const $ = cheerio.load(typeof html === "string" ? html : "");
-        const items: Partial<Deal>[] = [];
-
-        // Copart renders a table — each row is a lot
-        $('tr[ng-repeat], .lot-row, [data-uname="lotRow"]').each((_, el) => {
-          const row = $(el);
-          const title = row
-            .find('[data-uname="lotsearchLotTitle"], .lot-title')
-            .text()
-            .trim();
-          const priceText = row
-            .find('[data-uname="bidValue"], .buy-now-price')
-            .text()
-            .trim();
-          const mileText = row.find('[data-uname="odometer"]').text().trim();
-          const lotUrl = row.find('a[href*="/lot/"]').attr("href");
-          const imgSrc = row.find("img").attr("src");
-          const locationText = row
-            .find('[data-uname="lotLocation"]')
-            .text()
-            .trim();
-          const damageText = row
-            .find('[data-uname="primaryDamage"]')
-            .text()
-            .trim();
-
-          if (!title || !priceText) return;
-
-          items.push({
-            source: "copart",
-            source_deal_id: lotUrl?.split("/lot/")[1]?.split("?")[0] || "",
-            source_url: lotUrl
-              ? normalizeUrl(lotUrl, COPART_CONFIG.baseUrl)
-              : "",
-            title,
-            year: extractYear(title),
-            make: title.split(" ")[1] || "",
-            model: title.split(" ").slice(2, 4).join(" ") || "",
-            ask_price: extractPrice(priceText) || 0,
-            mileage: extractMileage(mileText),
-            condition: "repairable",
-            damage_type: damageText,
-            location_state: state,
-            location_city: locationText.split(",")[0]?.trim(),
-            images: imgSrc ? [imgSrc] : [],
-          });
-        });
-
-        const hasMore =
-          $('[aria-label="Next page"], .next-btn:not(.disabled)').length > 0;
-        return { items, hasMore };
-      },
-    );
-
-    for await (const batch of gen) {
-      allDeals.push(...batch);
-    }
-  }
-
-  console.log(`[Copart] Found ${allDeals.length} deals`);
-  await upsertDeals(allDeals);
-  return allDeals.length;
-}
+export { scrapeCopart, parseCopartLots } from "./copart";
 
 // ════════════════════════════════════════════════════════════
 //  CRAIGSLIST — covers all US cities

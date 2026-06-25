@@ -21,7 +21,8 @@ import path from "path";
 // so adaptive selection (below) must set CL_CITIES first. Hence runScrapers is imported dynamically.
 dotenv.config({ path: path.resolve(process.cwd(), ".env.local") });
 
-// $0-friendly defaults: no dealer login, no paid proxy. Copart uses FlareSolverr (free).
+// $0-friendly defaults: no dealer login, no paid proxy. Carvana/Copart/PublicSurplus use open
+// JSON APIs (no FlareSolverr); cars_com/autotrader/cargurus escalate to FlareSolverr when blocked.
 const DEFAULT_SOURCES = [
   "craigslist",
   "carvana", // open JSON API (apik.carvana.io v2) — ~73k clean retail comps, NO FlareSolverr
@@ -210,7 +211,7 @@ async function main() {
   }
   if (!process.env.FLARESOLVERR_URL) {
     console.warn(
-      "⚠️  FLARESOLVERR_URL not set — Cloudflare-gated sources (Copart) may be blocked.",
+      "⚠️  FLARESOLVERR_URL not set — Cloudflare-gated sources (cars_com/autotrader/cargurus) may be blocked.",
     );
   }
 

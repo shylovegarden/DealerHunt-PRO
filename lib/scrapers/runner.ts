@@ -78,12 +78,12 @@ export function createScraperRegistry(
     name: "Copart",
     type: "auction",
     priority: "high",
-    frequencyMinutes: 15,
-    requiresAuth: true,
-    stealthRequired: true,
+    frequencyMinutes: 360,
+    requiresAuth: false, // open /public/lots/search-results JSON API — no login, no FlareSolverr
+    stealthRequired: false,
     fn: () => scrapeCopart(),
     enabled: true,
-    estimatedDealsPerRun: 250,
+    estimatedDealsPerRun: 300,
   });
 
   registry.register({
