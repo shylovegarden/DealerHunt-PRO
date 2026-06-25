@@ -134,12 +134,13 @@ async function fetchPage(
   q: { make: string; model?: string },
   zip: string,
   cursor: unknown[] | null,
+  radius = 13000,
 ): Promise<{ items: Partial<Deal>[]; cursor: unknown[] | null }> {
   const params = new URLSearchParams({
     make: q.make,
     ...(q.model ? { model: q.model } : {}),
     zip,
-    radius: "13000", // nationwide (API max)
+    radius: String(radius), // 13000 = nationwide (API max); smaller = state-local coverage
     rpp: "50",
     srpp: "50",
     sort: "date_desc",
@@ -172,11 +173,12 @@ async function harvestQuery(
   zip: string,
   byId: Map<string, Partial<Deal>>,
   maxPages: number,
+  radius = 13000,
 ): Promise<void> {
   let cursor: unknown[] | null = null;
   let prevKey = "";
   for (let page = 0; page < maxPages; page++) {
-    const { items, cursor: next } = await fetchPage(q, zip, cursor);
+    const { items, cursor: next } = await fetchPage(q, zip, cursor, radius);
     if (!items.length) break;
     for (const it of items) byId.set(it.source_deal_id!, it);
     const key = next ? JSON.stringify(next) : "";
@@ -187,25 +189,53 @@ async function harvestQuery(
   }
 }
 
-export async function scrapeAutotempest(maxPagesPerQuery = 4): Promise<number> {
+// Broad makes that exist in every state — used for the regional coverage pass.
+const REGIONAL_MAKES = ["ford", "chevrolet", "toyota"];
+const REGIONAL_RADIUS = 250; // miles — pulls state-local + neighboring inventory
+const ZIPS_PER_RUN = 12; // rotate a window of state zips so all 50 are covered every ~4 runs
+
+export async function scrapeAutotempest(maxPagesPerQuery = 3): Promise<number> {
   console.log("[Autotempest] Starting aggregator scrape...");
-  const zips = Object.values(STATE_SEED_ZIPS).filter(Boolean) as string[];
-  const zip = zips[Math.floor(Math.random() * zips.length)] || "75201";
+  const stateZips = Object.values(STATE_SEED_ZIPS).filter(Boolean) as string[];
+  const nationalZip =
+    stateZips[Math.floor(Math.random() * stateZips.length)] || "75201";
 
   const byId = new Map<string, Partial<Deal>>();
+
+  // Pass 1 — NATIONAL: deep-paginated make/model queries for comp volume (mostly Cars.com/eBay).
   for (const q of QUERIES) {
     try {
-      await harvestQuery(q, zip, byId, maxPagesPerQuery);
+      await harvestQuery(q, nationalZip, byId, maxPagesPerQuery, 13000);
     } catch (e) {
       console.warn(
-        `[Autotempest] ${q.make} ${q.model || ""} failed:`,
+        `[Autotempest] national ${q.make} ${q.model || ""} failed:`,
         (e as Error).message,
       );
     }
   }
 
+  // Pass 2 — REGIONAL: rotate a window of state seed zips with a tight radius so EVERY state
+  // (incl. sparse rural ones) gets local inventory. The window start rotates each run.
+  const start = Math.floor(Math.random() * stateZips.length);
+  for (let i = 0; i < ZIPS_PER_RUN; i++) {
+    const zip = stateZips[(start + i) % stateZips.length];
+    for (const make of REGIONAL_MAKES) {
+      try {
+        await harvestQuery({ make }, zip, byId, 1, REGIONAL_RADIUS);
+      } catch (e) {
+        console.warn(
+          `[Autotempest] regional ${make}@${zip} failed:`,
+          (e as Error).message,
+        );
+      }
+    }
+  }
+
   const deals = Array.from(byId.values());
-  console.log(`[Autotempest] Found ${deals.length} listings across sites`);
+  const withState = deals.filter((d) => d.location_state).length;
+  console.log(
+    `[Autotempest] Found ${deals.length} listings (${withState} with state)`,
+  );
   if (deals.length > 0) await upsertDeals(deals);
   return deals.length;
 }
