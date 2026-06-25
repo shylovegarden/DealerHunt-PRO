@@ -887,7 +887,7 @@ function CostRow({
             type="number"
             value={value || ""}
             onChange={(e) => onChange?.(Number(e.target.value))}
-            className="h-8 pl-7 font-[var(--fm)] font-bold bg-transparent border-transparent hover:border-[var(--b2)] focus:border-[var(--amber)] focus:bg-white text-right text-sm px-2 shadow-none rounded"
+            className="h-8 pl-7 font-[var(--fm)] font-bold bg-transparent border-transparent hover:border-[var(--b2)] focus:border-[var(--amber)] focus:bg-[var(--s0)] text-right text-sm px-2 shadow-none rounded"
           />
         )}
       </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 
 // Static plan display (amounts/features). Checkout resolves price IDs server-side from the plan id.
 const PLANS = [
@@ -152,9 +153,9 @@ export default function UpgradePage() {
 
       <p className="text-center text-xs text-[var(--t4)] mt-6">
         Billing activates once Stripe keys are configured. See your{" "}
-        <a href="/changelog" className="text-[var(--amber)]">
+        <Link href="/changelog" className="text-[var(--amber)]">
           changelog
-        </a>
+        </Link>
         .
       </p>
     </div>
