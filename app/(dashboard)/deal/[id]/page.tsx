@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { useDealStore } from "@/lib/store/dealStore";
+import { buyTerm } from "@/lib/deal-terms";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -371,7 +372,7 @@ export default function DealPage({
                     </div>
                     <div>
                       <p className="text-[10px] uppercase tracking-widest text-[var(--t4)] font-bold mb-1">
-                        Recommended max bid
+                        {`Recommended ${buyTerm(d.source ?? serverDeal?.source).label.toLowerCase()}`}
                       </p>
                       <Mono className="text-3xl md:text-4xl font-black text-[var(--t1)] leading-none">
                         {d.recommendedMaxBid != null

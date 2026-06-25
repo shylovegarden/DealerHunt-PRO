@@ -33,6 +33,14 @@ const TTL_MS = 10 * 60 * 1000;
 // Width of the year band used for grouping comps. A 3-year band keeps a 2021/2022/2023
 // Silverado together while separating a 2008 from a 2024 (the "$2.5k→$25k" bug).
 const YEAR_BAND = 3;
+// Payment/lease "prices" are NOT cash market value — a "$2,500 down" or "$399/mo" listing is a
+// financing teaser whose number runs far from the real cash price. Excluding these from the retail
+// comp median keeps it anchored to true cash value (financed deals price HIGH/teaser, not market).
+// Note: a plain "we finance" mention is NOT excluded — a legit dealer can list a real cash price and
+// also offer financing; only payment-denominated numbers are dropped.
+const PAYMENT_PRICE_RE =
+  /\$\s?\d[\d,]*\s*down|\bdown ?payment\b|\bper month\b|\ba month\b|\/mo\b|\bo\.?a\.?c\.?\b|lease ?(take ?over|takeover|transfer|assumption)|take ?over (the )?lease/i;
+
 // Salvage/parts/rebuilt conditions that must NOT pollute the clean-retail resale bucket.
 const SALVAGE_CONDITIONS = [
   "salvage",
@@ -154,7 +162,7 @@ export async function loadMarketIndex(
     const { data: pageRows, error } = await supabase
       .from("deals")
       .select(
-        "make, model, year, mileage, source, ask_price, condition, damage_type",
+        "make, model, year, mileage, source, ask_price, condition, damage_type, title",
       )
       .eq("active", true) // only live inventory feeds comps — don't price off dead stock
       .gt("ask_price", 1000)
@@ -194,7 +202,9 @@ export async function loadMarketIndex(
       const isSalvage =
         SALVAGE_CONDITIONS.some((s) => cond.includes(s)) ||
         (dmg !== "" && dmg !== "none");
-      if (!isSalvage) {
+      // Drop financing/lease teaser prices so the cash-market median isn't inflated/distorted.
+      const isPaymentPrice = PAYMENT_PRICE_RE.test(r.title || "");
+      if (!isSalvage && !isPaymentPrice) {
         b.retail.push(r.ask_price);
         if (r.year && r.year > 1950) {
           if (!byModel.has(sk)) byModel.set(sk, []);

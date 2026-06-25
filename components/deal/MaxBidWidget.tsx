@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Mono } from "@/components/shared/Mono";
 import { Ico } from "@/components/shared/Ico";
 import { computeMaxBid, type MaxBidCosts } from "@/lib/scoring/max-bid";
+import { buyTerm } from "@/lib/deal-terms";
 
 export interface MaxBidCalibration {
   sellMultiplier: number;
@@ -80,6 +81,9 @@ export function MaxBidWidget({
   const ask = Number(askPrice) || 0;
   const headroom = ask > 0 ? result.maxBid - ask : null; // positive = ask below max (good)
   const hasSell = sell > 0;
+  const term = buyTerm(source); // "Max bid" for auctions, "Max offer" for asking-price listings
+  const maxLabel = term.label.toLowerCase(); // "max bid" | "max offer"
+  const priceWord = term.priceLabel.toLowerCase(); // "current bid" | "asking price"
 
   return (
     <Card
@@ -112,13 +116,13 @@ export function MaxBidWidget({
           )}
         </div>
         <p className="text-sm text-[var(--t3)] mb-5">
-          Set the profit you want. We&apos;ll tell you the most you can bid and
-          still hit it.
+          Set the profit you want. We&apos;ll tell you the most you can{" "}
+          {term.verb} and still hit it.
         </p>
 
         {!hasSell ? (
           <p className="text-sm text-[var(--t4)]">
-            No resale estimate yet — max bid unavailable.
+            No resale estimate yet — {maxLabel} unavailable.
           </p>
         ) : (
           <>
@@ -159,7 +163,7 @@ export function MaxBidWidget({
             >
               <div className="absolute -inset-4 bg-[var(--green)] blur-[40px] opacity-10 pointer-events-none" />
               <p className="relative z-10 text-[10px] uppercase tracking-widest text-[var(--t4)] font-bold mb-1">
-                Your max bid
+                Your {maxLabel}
               </p>
               <Mono
                 className="relative z-10 text-4xl md:text-5xl font-black text-transparent bg-clip-text leading-none"
@@ -192,8 +196,8 @@ export function MaxBidWidget({
                     }}
                   >
                     <Ico name="check-circle" size={16} />
-                    {fmt(headroom)} of headroom — ask ({fmt(ask)}) is below your
-                    max bid
+                    {fmt(headroom)} of headroom — {priceWord} ({fmt(ask)}) is
+                    below your {maxLabel}
                   </div>
                 ) : (
                   <div
@@ -201,7 +205,8 @@ export function MaxBidWidget({
                     style={{ background: "var(--rlo)", color: "var(--red)" }}
                   >
                     <Ico name="alert-triangle" size={16} />
-                    Ask is {fmt(Math.abs(headroom))} ABOVE your max bid
+                    {term.priceLabel} is {fmt(Math.abs(headroom))} ABOVE your{" "}
+                    {maxLabel}
                   </div>
                 )}
               </div>
