@@ -24,6 +24,7 @@ import { AIBrief } from "@/components/deal/AIBrief";
 import { DealIQCard } from "@/components/deal/DealIQCard";
 import { LogOutcome } from "@/components/deal/LogOutcome";
 import { DealEconomics } from "@/components/deal/DealEconomics";
+import { RecentlySold } from "@/components/deal/RecentlySold";
 import { ImageGallery } from "@/components/shared/ImageGallery";
 import { PriceMilesScatter } from "@/components/deal/PriceMilesScatter";
 import { BestTimeToBuy } from "@/components/deal/BestTimeToBuy";
@@ -459,6 +460,15 @@ export default function DealPage({
           sell={serverDeal.sellEstimate ?? 0}
           profit={serverDeal.true_net_profit ?? engineNetProfit ?? 0}
           verdict={String(serverDeal.dealVerdict).toUpperCase()}
+        />
+      )}
+
+      {/* REAL SOLD — actual recent transaction prices for this model (trust > asking prices) */}
+      {serverDeal && (
+        <RecentlySold
+          make={serverDeal.make ?? store.make}
+          model={serverDeal.model ?? store.model}
+          year={serverDeal.year ?? store.year}
         />
       )}
 
