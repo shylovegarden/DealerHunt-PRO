@@ -1,151 +1,95 @@
 // lib/scrapers/sources/carvana.ts
-// ─── Carvana scraper - Online-only dealer with nationwide delivery ────────────
+// Carvana exposes its ENTIRE inventory (~73k vehicles) via an open JSON API — no Cloudflare, no
+// FlareSolverr, no browser. POST to /merch/search/api/v2/search and read inventory.vehicles: clean
+// vin/year/make/model/trim/mileage/price/images. The single best free retail comp source we have.
 
 import type { Deal } from "@/types";
-import * as cheerio from "cheerio";
-import {
-  paginate,
-  extractPrice,
-  extractMileage,
-  extractYear,
-  normalizeUrl,
-  type ScraperConfig,
-} from "../engine";
 import { upsertDeals } from "../pipeline";
 
-export const CARVANA_CONFIG: ScraperConfig = {
-  name: "Carvana",
-  baseUrl: "https://www.carvana.com",
-  renderMode: "browser", // GraphQL API + React
-  requestDelay: 3000,
-  concurrency: 1,
-  useProxies: true,
-  stealth: true,
-  maxPages: 10,
-  headers: {
-    "Accept-Language": "en-US,en;q=0.9",
-    "User-Agent":
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-  },
-};
+const CARVANA_API = "https://apik.carvana.io/merch/search/api/v2/search";
+const UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+
+const s = (v: unknown): string | undefined =>
+  typeof v === "string" && v.trim() ? v.trim() : undefined;
+
+/** Map a Carvana search-API response (inventory.vehicles) into deal rows. */
+export function parseCarvanaVehicles(json: any): Partial<Deal>[] {
+  const vehicles = json?.inventory?.vehicles;
+  if (!Array.isArray(vehicles)) return [];
+  const items: Partial<Deal>[] = [];
+  for (const v of vehicles) {
+    if (!v || typeof v !== "object") continue;
+    const price = Number(
+      v.price?.total ?? v.price?.incentivizedPrice ?? v.price?.msrp ?? 0,
+    );
+    const vin = s(v.vin);
+    if (!price || !vin) continue;
+    const year = Number(v.year) || undefined;
+    const make = s(v.make);
+    const model = s(v.parentModel) || s(v.model);
+    const trim = s(v.trim) || s(v.kbbTrim);
+    const img = s(v.imageUrl) || s(v.jellyBeanDesktopUrl);
+    const id = String(v.vehicleId ?? v.stockNumber ?? vin);
+    items.push({
+      source: "carvana",
+      source_deal_id: vin || id,
+      source_url: v.vdpSlug
+        ? `https://www.carvana.com/vehicle/${v.vdpSlug}`
+        : `https://www.carvana.com/vehicle/${id}`,
+      title: `${year || ""} ${make || ""} ${model || ""} ${trim || ""}`
+        .replace(/\s+/g, " ")
+        .trim(),
+      year,
+      make,
+      model,
+      trim,
+      vin,
+      ask_price: price,
+      mileage: Number(v.mileage) || 0,
+      condition: "clean", // Carvana is reconditioned clean-title retail
+      images: img ? [img] : [],
+      seller_type: "dealer",
+      seller: "Carvana",
+      metadata: { delivery_available: true, seven_day_return: true },
+      scraped_at: new Date().toISOString(),
+    });
+  }
+  return items;
+}
 
 export async function scrapeCarvana(
-  searchTerm = "",
-  maxPages = CARVANA_CONFIG.maxPages,
-) {
-  console.log(`[Carvana] Starting scrape for "${searchTerm}"...`);
-  const allDeals: Partial<Deal>[] = [];
-
-  const config = { ...CARVANA_CONFIG, maxPages };
-  const gen = paginate<Partial<Deal>>(
-    config,
-    (page) => {
-      const baseUrl = "https://www.carvana.com/cars";
-      const params = new URLSearchParams({
-        ...(searchTerm && { search: searchTerm }),
-        page: String(page),
-      });
-      return `${baseUrl}?${params.toString()}`;
-    },
-    async (input) => {
-      const $ = typeof input === "string" ? cheerio.load(input) : input;
-      const items: Partial<Deal>[] = [];
-
-      // Carvana uses specific class names and data attributes
-      $('[data-testid="result-tile"], .result-tile, .vehicle-card').each(
-        (_: number, el: any) => {
-          const row = $(el);
-
-          // Extract title
-          const title = row
-            .find('[data-testid="vehicle-year-make-model"], .vehicle-title, h3')
-            .text()
-            .trim();
-          if (!title) return;
-
-          // Extract price
-          const priceText = row
-            .find('[data-testid="vehicle-price"], .price, .vehicle-price')
-            .text()
-            .trim();
-          const price = extractPrice(priceText);
-          if (!price) return;
-
-          // Extract mileage
-          const mileageText = row
-            .find('[data-testid="vehicle-mileage"], .mileage, .vehicle-mileage')
-            .text()
-            .trim();
-
-          // Extract trim/features
-          const trimText = row
-            .find('[data-testid="vehicle-trim"], .trim, .vehicle-trim')
-            .text()
-            .trim();
-
-          // Extract link
-          const link =
-            row.find('a[href*="/vehicle/"]').attr("href") ||
-            row.find("a").first().attr("href");
-
-          // Extract image
-          const imgSrc =
-            row
-              .find('img[data-testid="vehicle-image"], img')
-              .first()
-              .attr("src") || row.find("img").first().attr("data-src");
-
-          // Extract vehicle ID
-          const vehicleId = link?.match(/\/vehicle\/(\d+)/)?.[1] || "";
-
-          // Parse year/make/model
-          const titleParts = title.split(" ");
-          const year = extractYear(title);
-          const make = titleParts[year ? 1 : 0] || "";
-          const model =
-            titleParts.slice(year ? 2 : 1, year ? 4 : 3).join(" ") || "";
-
-          items.push({
-            source: "carvana",
-            source_deal_id: vehicleId,
-            source_url: link ? normalizeUrl(link, CARVANA_CONFIG.baseUrl) : "",
-            title,
-            year,
-            make,
-            model,
-            trim: trimText,
-            ask_price: price,
-            mileage: extractMileage(mileageText),
-            condition: "clean", // Carvana only sells clean title
-            images: imgSrc ? [imgSrc] : [],
-            seller_type: "dealer",
-            seller: "Carvana",
-            metadata: {
-              delivery_available: true,
-              seven_day_return: true,
-            },
-            scraped_at: new Date().toISOString(),
-          });
+  maxPages = 15,
+  pageSize = 50,
+): Promise<number> {
+  console.log("[Carvana] Starting API scrape...");
+  const all: Partial<Deal>[] = [];
+  for (let page = 1; page <= maxPages; page++) {
+    try {
+      const res = await fetch(CARVANA_API, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "User-Agent": UA,
+          Origin: "https://www.carvana.com",
+          Accept: "application/json",
         },
-      );
-
-      const hasMore =
-        $(
-          'button[aria-label="Next"], .pagination-next, [data-testid="next-page"]',
-        ).length > 0;
-      return { items, hasMore };
-    },
-  );
-
-  for await (const batch of gen) {
-    allDeals.push(...batch);
+        body: JSON.stringify({ pagination: { page, pageSize }, filters: {} }),
+      });
+      if (!res.ok) {
+        console.warn(`[Carvana] page ${page} HTTP ${res.status} — stopping`);
+        break;
+      }
+      const items = parseCarvanaVehicles(await res.json());
+      if (!items.length) break;
+      all.push(...items);
+      await new Promise((r) => setTimeout(r, 700)); // be polite
+    } catch (e) {
+      console.warn(`[Carvana] page ${page} failed:`, (e as Error).message);
+      break;
+    }
   }
-
-  console.log(`[Carvana] Found ${allDeals.length} deals`);
-
-  if (allDeals.length > 0) {
-    await upsertDeals(allDeals);
-  }
-
-  return allDeals.length;
+  console.log(`[Carvana] Found ${all.length} vehicles`);
+  if (all.length > 0) await upsertDeals(all);
+  return all.length;
 }

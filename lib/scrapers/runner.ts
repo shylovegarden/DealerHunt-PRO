@@ -269,13 +269,13 @@ export function createScraperRegistry(
     id: "carvana",
     name: "Carvana",
     type: "marketplace",
-    priority: "medium",
+    priority: "high", // open JSON API, ~73k clean retail comps, no FlareSolverr needed
     frequencyMinutes: 360,
     requiresAuth: false,
-    stealthRequired: true,
+    stealthRequired: false,
     fn: () => scrapeCarvana(),
     enabled: true,
-    estimatedDealsPerRun: 200,
+    estimatedDealsPerRun: 750,
   });
 
   registry.register({
