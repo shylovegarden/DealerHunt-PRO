@@ -58,29 +58,68 @@ export function parseCarvanaVehicles(json: any): Partial<Deal>[] {
   return items;
 }
 
+async function fetchCarvanaPage(
+  page: number,
+  pageSize: number,
+): Promise<any | null> {
+  const res = await fetch(CARVANA_API, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "User-Agent": UA,
+      Origin: "https://www.carvana.com",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ pagination: { page, pageSize }, filters: {} }),
+  });
+  if (!res.ok) {
+    console.warn(`[Carvana] page ${page} HTTP ${res.status}`);
+    return null;
+  }
+  return res.json();
+}
+
+// Default sort returns the same first N vehicles every run. To build real comp BREADTH over time,
+// each run samples a RANDOM contiguous window of the ~6k-page inventory — successive cron runs cover
+// different make/model/year buckets instead of re-fetching the same 1000 cars.
 export async function scrapeCarvana(
   maxPages = 15,
   pageSize = 50,
 ): Promise<number> {
   console.log("[Carvana] Starting API scrape...");
   const all: Partial<Deal>[] = [];
-  for (let page = 1; page <= maxPages; page++) {
+
+  // Page 1 tells us how many pages exist; pick a random window start from there. The API caps deep
+  // pagination at a ~10k-result offset, so the reachable window is bounded regardless of total.
+  const first = await fetchCarvanaPage(1, pageSize);
+  if (!first) return 0;
+  const totalPages: number = Math.max(
+    1,
+    Number(first?.inventory?.pagination?.totalMatchedPages) || 1,
+  );
+  const maxReachablePage = Math.floor(9900 / pageSize); // offset cap (~page 198 @ size 50)
+  const lastStart = Math.max(
+    1,
+    Math.min(totalPages, maxReachablePage) - maxPages,
+  );
+  const startPage =
+    lastStart > 1 ? 1 + Math.floor(Math.random() * lastStart) : 1;
+  console.log(
+    `[Carvana] ${totalPages} pages total (reachable ${Math.min(totalPages, maxReachablePage)}) — sampling window from page ${startPage}`,
+  );
+
+  if (startPage === 1) all.push(...parseCarvanaVehicles(first));
+
+  for (
+    let page = startPage;
+    page < startPage + maxPages && page <= totalPages;
+    page++
+  ) {
+    if (page === 1 && startPage === 1) continue; // already captured above
     try {
-      const res = await fetch(CARVANA_API, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "User-Agent": UA,
-          Origin: "https://www.carvana.com",
-          Accept: "application/json",
-        },
-        body: JSON.stringify({ pagination: { page, pageSize }, filters: {} }),
-      });
-      if (!res.ok) {
-        console.warn(`[Carvana] page ${page} HTTP ${res.status} — stopping`);
-        break;
-      }
-      const items = parseCarvanaVehicles(await res.json());
+      const json = await fetchCarvanaPage(page, pageSize);
+      if (!json) break;
+      const items = parseCarvanaVehicles(json);
       if (!items.length) break;
       all.push(...items);
       await new Promise((r) => setTimeout(r, 700)); // be polite
@@ -89,6 +128,7 @@ export async function scrapeCarvana(
       break;
     }
   }
+
   console.log(`[Carvana] Found ${all.length} vehicles`);
   if (all.length > 0) await upsertDeals(all);
   return all.length;
