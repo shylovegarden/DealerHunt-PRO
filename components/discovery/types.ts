@@ -40,6 +40,8 @@ export interface DiscoveryDeal {
   /** Optional context line shown on the card (e.g. "32 mi from you", win-pattern reason). */
   winReason?: string;
   distanceMiles?: number;
+  sellerPhone?: string;
+  sellerEmail?: string;
 }
 
 export interface DiscoveryRail {

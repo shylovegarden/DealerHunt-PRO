@@ -28,6 +28,8 @@ function mapDeal(d: any, reason: string) {
     id: d.id,
     source: d.source,
     sourceUrl: d.source_url,
+    sellerPhone: d.seller_phone,
+    sellerEmail: d.seller_email,
     title: d.title || `${d.year || ""} ${d.make || ""} ${d.model || ""}`.trim(),
     year: d.year,
     make: d.make,

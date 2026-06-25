@@ -264,6 +264,68 @@ export const DiscoveryCard = memo(function DiscoveryCard({
             </span>
           )}
 
+          {/* Quick Actions (Contact, Copy, Share) */}
+          <div className="flex flex-wrap gap-2 mt-1 z-10 relative">
+            {deal.vin && (
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  navigator.clipboard.writeText(deal.vin!);
+                }}
+                className="inline-flex items-center gap-1 rounded bg-[var(--s2)] hover:bg-[var(--s3)] px-2 py-1 text-[10px] font-bold text-[var(--t3)] transition-colors border border-[var(--b1)]"
+              >
+                📋 Copy VIN
+              </button>
+            )}
+
+            {(deal.sellerPhone || deal.sellerEmail) && (
+              <div className="inline-flex items-center gap-1">
+                {deal.sellerPhone && (
+                  <>
+                    <a
+                      href={`tel:${deal.sellerPhone}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="inline-flex items-center gap-1 rounded bg-[var(--blo)] hover:bg-[var(--bbd)] px-2 py-1 text-[10px] font-bold text-[var(--blue)] transition-colors"
+                    >
+                      📞 Call
+                    </a>
+                    <a
+                      href={`sms:${deal.sellerPhone}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="inline-flex items-center gap-1 rounded bg-[var(--glo)] hover:bg-[var(--gbd)] px-2 py-1 text-[10px] font-bold text-[var(--green)] transition-colors"
+                    >
+                      💬 Text
+                    </a>
+                  </>
+                )}
+                {deal.sellerEmail && (
+                  <a
+                    href={`mailto:${deal.sellerEmail}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="inline-flex items-center gap-1 rounded bg-[var(--s2)] hover:bg-[var(--s3)] px-2 py-1 text-[10px] font-bold text-[var(--t2)] transition-colors border border-[var(--b1)]"
+                  >
+                    ✉️ Email
+                  </a>
+                )}
+              </div>
+            )}
+
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                const url = deal.sourceUrl || window.location.href;
+                if (navigator.share) {
+                  navigator.share({ url });
+                } else {
+                  navigator.clipboard.writeText(url);
+                }
+              }}
+              className="inline-flex items-center gap-1 rounded bg-[var(--s2)] hover:bg-[var(--s3)] px-2 py-1 text-[10px] font-bold text-[var(--t3)] transition-colors border border-[var(--b1)]"
+            >
+              🔗 Share
+            </button>
+          </div>
+
           {/* Price + Est Profit grid */}
           <div className="mt-auto grid grid-cols-2 gap-2 pt-2 border-t border-[var(--b1)]">
             <div>
@@ -274,7 +336,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                 ${deal.askPrice.toLocaleString()}
               </span>
             </div>
-            
+
             <div className="text-right">
               <p className="text-[9px] font-bold uppercase tracking-widest text-[var(--t4)]">
                 Est. Net Profit
