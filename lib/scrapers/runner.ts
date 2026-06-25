@@ -135,7 +135,7 @@ export function createScraperRegistry(
     requiresAuth: true,
     stealthRequired: true,
     fn: () => scrapeAcv(),
-    enabled: false,
+    enabled: true,
     estimatedDealsPerRun: 100,
   });
 
@@ -148,7 +148,7 @@ export function createScraperRegistry(
     requiresAuth: true,
     stealthRequired: true,
     fn: () => scrapeAdesa(),
-    enabled: false,
+    enabled: true,
     estimatedDealsPerRun: 100,
   });
 
@@ -161,7 +161,7 @@ export function createScraperRegistry(
     requiresAuth: true,
     stealthRequired: true,
     fn: () => scrapeManheim(),
-    enabled: false,
+    enabled: true,
     estimatedDealsPerRun: 100,
   });
 
@@ -174,7 +174,7 @@ export function createScraperRegistry(
     requiresAuth: false,
     stealthRequired: true,
     fn: () => scrapeFacebookMarketplace(),
-    enabled: false,
+    enabled: true,
     estimatedDealsPerRun: 200,
   });
 
@@ -526,7 +526,7 @@ export function createScraperRegistry(
       if (!url) return 0;
       return autoDiscoverAndCrawl(url);
     },
-    enabled: false,
+    enabled: true,
     estimatedDealsPerRun: 20,
   });
 
