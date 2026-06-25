@@ -87,6 +87,45 @@ async function enrichGoBacklog(limit: number): Promise<void> {
   if (n) console.log(`🖼️  topped up ${n} GO deals with real photos/VIN`);
 }
 
+// CL listing cards don't carry odometer — the real mileage lives on each detail page. This bounded
+// pass pulls mileage (+ VIN) for active CL deals that still lack it, best deals first, so mileage-
+// aware valuation + the price-vs-mileage visualizer light up across our biggest source over runs.
+async function enrichMileageBacklog(limit: number): Promise<void> {
+  const { createClient } = await import("@supabase/supabase-js");
+  const { enrichCraigslistDetail } =
+    await import("../lib/scrapers/sources/index");
+  const sb = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  );
+  const { data } = await sb
+    .from("deals")
+    .select("id, source_url, vin")
+    .eq("active", true)
+    .in("source", ["craigslist", "craigslist_dealer"])
+    .not("source_url", "is", null)
+    .or("mileage.is.null,mileage.eq.0")
+    .order("profit_score", { ascending: false, nullsFirst: false })
+    .limit(limit);
+  let n = 0;
+  for (const d of data || []) {
+    try {
+      const extra = await enrichCraigslistDetail(d.source_url as string);
+      const patch: any = {};
+      if (extra.mileage) patch.mileage = extra.mileage;
+      if (extra.vin && !d.vin) patch.vin = extra.vin;
+      if (Object.keys(patch).length) {
+        await sb.from("deals").update(patch).eq("id", d.id);
+        n++;
+      }
+    } catch {
+      /* skip */
+    }
+    await new Promise((r) => setTimeout(r, 400));
+  }
+  if (n) console.log(`📏 filled mileage on ${n} CL deals from detail pages`);
+}
+
 // Decode + canonicalize active deals whose VINs haven't been decoded yet — cleans make/model and
 // adds the real trim from NHTSA (VIN = ground truth). Bounded per cycle; converges over time.
 async function canonicalizeNew(limit: number): Promise<void> {
@@ -270,6 +309,13 @@ async function main() {
       await enrichGoBacklog(parseInt(process.env.GO_ENRICH_MAX || "30", 10));
     } catch (e) {
       console.warn("GO photo top-up skipped:", (e as Error).message);
+    }
+    try {
+      await enrichMileageBacklog(
+        parseInt(process.env.CL_MILEAGE_MAX || "150", 10),
+      );
+    } catch (e) {
+      console.warn("mileage backfill skipped:", (e as Error).message);
     }
     try {
       await canonicalizeNew(parseInt(process.env.CANON_MAX || "40", 10));
