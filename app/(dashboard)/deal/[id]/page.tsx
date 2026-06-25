@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { useDealStore } from "@/lib/store/dealStore";
-import { buyTerm } from "@/lib/deal-terms";
+import { buyTerm, isAuctionSource } from "@/lib/deal-terms";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -722,13 +722,16 @@ export default function DealPage({
           </CardHeader>
           <CardContent className="p-0">
             <div className="divide-y divide-[var(--b1)]">
-              {store.userType !== "private" && (
-                <CostRow
-                  label="Auction Fee"
-                  value={store.auctionFee}
-                  onChange={(val) => store.updateField("auctionFee", val)}
-                />
-              )}
+              {store.userType !== "private" &&
+                isAuctionSource(
+                  dealData?.deal?.source ?? serverDeal?.source,
+                ) && (
+                  <CostRow
+                    label="Auction Fee"
+                    value={store.auctionFee}
+                    onChange={(val) => store.updateField("auctionFee", val)}
+                  />
+                )}
               <CostRow
                 label="Transport"
                 value={store.transportCost}
