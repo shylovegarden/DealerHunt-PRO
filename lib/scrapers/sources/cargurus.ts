@@ -1,167 +1,141 @@
 // lib/scrapers/sources/cargurus.ts
-// ─── CarGurus scraper - Deal ratings and price analysis ───────────────────────
+// CarGurus is a React SPA whose CSS selectors rot. Its inventory AJAX endpoint
+// (ajaxFetchSubsetInventoryListing.action) returns a clean JSON `listings` array — we read THAT via
+// FlareSolverr (renderMode static). Field names are handled defensively (CarGurus varies them), so
+// the parser survives minor shape changes. Best-effort until verified against a live fetch, but it
+// fails safe (returns [] if the shape doesn't match — never crashes the run).
 
 import type { Deal } from "@/types";
-import * as cheerio from "cheerio";
-import {
-  paginate,
-  extractPrice,
-  extractMileage,
-  extractYear,
-  normalizeUrl,
-  type ScraperConfig,
-} from "../engine";
+import { paginate, type ScraperConfig } from "../engine";
 import { upsertDeals } from "../pipeline";
+import { STATE_SEED_ZIPS } from "@/lib/geo";
 
 export const CARGURUS_CONFIG: ScraperConfig = {
   name: "CarGurus",
   baseUrl: "https://www.cargurus.com",
-  renderMode: "browser", // React SPA
-  requestDelay: 3500,
+  renderMode: "static", // direct → FlareSolverr escalation on Cloudflare block
+  requestDelay: 2500,
   concurrency: 1,
   useProxies: true,
-  stealth: true,
-  maxPages: 12,
+  stealth: false,
+  maxPages: 10,
   headers: {
     "Accept-Language": "en-US,en;q=0.9",
+    Accept: "application/json, text/plain, */*",
     "User-Agent":
       "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
   },
 };
 
+const num = (v: unknown): number =>
+  Number(String(v ?? "").replace(/[^0-9.]/g, "")) || 0;
+const str = (v: unknown): string | undefined =>
+  typeof v === "string" && v.trim() ? v.trim() : undefined;
+
+/** Parse a CarGurus inventory response (JSON from the AJAX endpoint, or embedded JSON in HTML). */
+export function parseCargurusListings(raw: string): Partial<Deal>[] {
+  let listings: any[] = [];
+  try {
+    const j = JSON.parse(raw);
+    listings = Array.isArray(j)
+      ? j
+      : j.listings || j.results || j.tilesData || j.inventory || [];
+  } catch {
+    // Fall back to pulling a "listings":[ … ] array out of embedded HTML JSON.
+    const m = raw.match(/"listings"\s*:\s*(\[[\s\S]*?\])\s*[,}]/);
+    if (m) {
+      try {
+        listings = JSON.parse(m[1]);
+      } catch {
+        listings = [];
+      }
+    }
+  }
+
+  const items: Partial<Deal>[] = [];
+  for (const l of Array.isArray(listings) ? listings : []) {
+    if (!l || typeof l !== "object") continue;
+    const price = num(
+      l.price ?? l.expectedPrice ?? l.priceNumber ?? l.listPrice,
+    );
+    const vin = str(l.vin) || str(l.vinNumber);
+    const id = String(l.id ?? l.listingId ?? vin ?? "");
+    if (!price || !id) continue;
+
+    const make = str(l.makeName) || str(l.make);
+    const model = str(l.modelName) || str(l.model);
+    const trim = str(l.trimName) || str(l.trim);
+    const year = num(l.carYear ?? l.year);
+    const mileage = num(l.mileage ?? l.localizedExposedMileage ?? l.odometer);
+    const images = Array.isArray(l.originalPhotoUrls)
+      ? l.originalPhotoUrls.filter(Boolean).slice(0, 8)
+      : str(l.originalPictureUrl)
+        ? [l.originalPictureUrl]
+        : [];
+    const rating = String(l.dealRating || l.priceRating || "").toLowerCase();
+
+    items.push({
+      source: "cargurus",
+      source_deal_id: id,
+      source_url: `https://www.cargurus.com/Cars/link/${id}`,
+      title:
+        str(l.listingTitle) ||
+        `${year || ""} ${make || ""} ${model || ""} ${trim || ""}`
+          .replace(/\s+/g, " ")
+          .trim(),
+      year: year || undefined,
+      make,
+      model,
+      trim,
+      vin,
+      ask_price: price,
+      mileage,
+      condition: "clean",
+      images,
+      seller_type: "dealer",
+      seller: str(l.sellerName) || "CarGurus",
+      metadata: { deal_rating: rating || undefined },
+      scraped_at: new Date().toISOString(),
+    });
+  }
+  return items;
+}
+
 export async function scrapeCarGurus(
   searchTerm = "",
-  zip = "75201",
+  zip = "",
   maxPages = CARGURUS_CONFIG.maxPages,
 ) {
-  console.log(`[CarGurus] Starting scrape for "${searchTerm}" near ${zip}...`);
+  if (!zip) {
+    const zips = Object.values(STATE_SEED_ZIPS).filter(Boolean) as string[];
+    zip = zips[Math.floor(Math.random() * zips.length)] || "75201";
+  }
+  console.log(`[CarGurus] Starting scrape near ${zip}...`);
   const allDeals: Partial<Deal>[] = [];
 
   const config = { ...CARGURUS_CONFIG, maxPages };
   const gen = paginate<Partial<Deal>>(
     config,
     (page) => {
-      const baseUrl =
-        "https://www.cargurus.com/Cars/inventorylisting/viewDetailsFilterViewInventoryListing.action";
       const params = new URLSearchParams({
         zip,
-        distance: "500",
+        distance: "100",
         ...(searchTerm && { searchTerm }),
         startYear: "2010",
-        offset: String((page - 1) * 15),
+        maxResults: "25",
+        offset: String((page - 1) * 25),
+        inventorySearchWidgetType: "AUTO",
+        sortType: "DEAL_SCORE",
       });
-      return `${baseUrl}?${params.toString()}`;
+      return `https://www.cargurus.com/Cars/inventorylisting/ajaxFetchSubsetInventoryListing.action?${params.toString()}`;
     },
     async (input) => {
-      const $ = typeof input === "string" ? cheerio.load(input) : input;
-      const items: Partial<Deal>[] = [];
-
-      // CarGurus uses specific data attributes
-      $(
-        '[data-testid="listing-card"], .listing-row, .cg-dealFinder-result',
-      ).each((_: number, el: any) => {
-        const row = $(el);
-
-        // Extract title
-        const title = row
-          .find('[data-testid="listing-title"], h4, .listing-title')
-          .text()
-          .trim();
-        if (!title) return;
-
-        // Extract price
-        const priceText = row
-          .find('[data-testid="listing-price"], .price-section, .listing-price')
-          .text()
-          .trim();
-        const price = extractPrice(priceText);
-        if (!price) return;
-
-        // Extract deal rating (CarGurus specialty)
-        const dealRating = row
-          .find('[data-testid="deal-rating"], .deal-badge, .deal-rating')
-          .text()
-          .trim()
-          .toLowerCase();
-
-        // Extract mileage
-        const mileageText = row
-          .find('[data-testid="listing-mileage"], .mileage, .listing-mileage')
-          .text()
-          .trim();
-
-        // Extract location
-        const locationText = row
-          .find('[data-testid="dealer-location"], .dealer-distance, .location')
-          .text()
-          .trim();
-
-        // Extract dealer
-        const dealerText = row
-          .find('[data-testid="dealer-name"], .dealer-name')
-          .text()
-          .trim();
-
-        // Extract link
-        const link =
-          row.find('a[href*="/Cars/"]').attr("href") ||
-          row.find("a").first().attr("href");
-
-        // Extract image
-        const imgSrc =
-          row
-            .find('img[data-testid="listing-image"], img')
-            .first()
-            .attr("src") || row.find("img").first().attr("data-src");
-
-        // Extract listing ID
-        const listingId =
-          link?.match(/\/(\d+)$/)?.[1] ||
-          link?.match(/listingId=(\d+)/)?.[1] ||
-          "";
-
-        // Parse year/make/model
-        const titleParts = title.split(" ");
-        const year = extractYear(title);
-        const make = titleParts[year ? 1 : 0] || "";
-        const model =
-          titleParts.slice(year ? 2 : 1, year ? 4 : 3).join(" ") || "";
-
-        // Calculate bonus score based on deal rating
-        let dealScore = 0;
-        if (dealRating.includes("great")) dealScore = 15;
-        else if (dealRating.includes("good")) dealScore = 10;
-        else if (dealRating.includes("fair")) dealScore = 5;
-
-        items.push({
-          source: "cargurus",
-          source_deal_id: listingId,
-          source_url: link ? normalizeUrl(link, CARGURUS_CONFIG.baseUrl) : "",
-          title,
-          year,
-          make,
-          model,
-          ask_price: price,
-          mileage: extractMileage(mileageText),
-          condition: "clean",
-          location_city: locationText.split(",")[0]?.trim() || locationText,
-          location_state: locationText.split(",")[1]?.trim() || "",
-          images: imgSrc ? [imgSrc] : [],
-          seller_type: "dealer",
-          seller: dealerText || "CarGurus",
-          metadata: {
-            deal_rating: dealRating || undefined,
-            deal_score: dealScore,
-          },
-          scraped_at: new Date().toISOString(),
-        });
-      });
-
-      const hasMore =
-        $(
-          'button[aria-label="Next"], .pagination-next, [data-testid="next-page"]',
-        ).length > 0;
-      return { items, hasMore };
+      const raw =
+        typeof input === "string"
+          ? input
+          : ((input as any)?.html?.() ?? String(input));
+      const items = parseCargurusListings(raw);
+      return { items, hasMore: items.length >= 20 };
     },
   );
 
@@ -170,10 +144,6 @@ export async function scrapeCarGurus(
   }
 
   console.log(`[CarGurus] Found ${allDeals.length} deals`);
-
-  if (allDeals.length > 0) {
-    await upsertDeals(allDeals);
-  }
-
+  if (allDeals.length > 0) await upsertDeals(allDeals);
   return allDeals.length;
 }

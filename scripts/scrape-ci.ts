@@ -26,6 +26,7 @@ const DEFAULT_SOURCES = [
   "craigslist",
   "cars_com", // FlareSolverr — real retail comps (data-vehicle-details JSON)
   "autotrader", // FlareSolverr — real retail comps (__NEXT_DATA__)
+  "cargurus", // FlareSolverr — AJAX listings JSON (best-effort until live-verified)
   "ebay_motors",
   "independent_dealer",
   "copart",
