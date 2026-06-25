@@ -6,6 +6,7 @@ import {
   scrapeCraigslist,
   scrapeIndependentDealer,
   autoDiscoverAndCrawl,
+  scrapeCuratedSites,
   scrapeCarsCom,
   scrapeCarsComAllStates,
 } from "./sources/index";
@@ -311,6 +312,21 @@ export function createScraperRegistry(
 
   // Autotempest — meta-search aggregator (open API). One pass pulls Cars.com/CarGurus/Carvana/eBay/
   // AutoTrader/TrueCar/CarMax/Facebook/Hemmings listings, bypassing each site's bot wall at once.
+  // Curated salvage-rebuilder + independent dealer network (we maintain the list; AI/generic crawler
+  // ingests each from its URL). The dealer-to-dealer rebuildable-car moat. Browser-based → CI only.
+  registry.register({
+    id: "curated_dealers",
+    name: "Curated salvage/dealer network",
+    type: "dealer",
+    priority: "medium",
+    frequencyMinutes: 720,
+    requiresAuth: false,
+    stealthRequired: true,
+    fn: () => scrapeCuratedSites(),
+    enabled: true,
+    estimatedDealsPerRun: 200,
+  });
+
   registry.register({
     id: "autotempest",
     name: "Autotempest (aggregator)",

@@ -34,6 +34,7 @@ const DEFAULT_SOURCES = [
   "cargurus", // FlareSolverr — AJAX listings JSON (best-effort until live-verified)
   "ebay_motors",
   "independent_dealer",
+  "curated_dealers", // salvage-rebuilder + dealer network (we curate the list; AI/generic crawler ingests)
   "copart",
 ];
 

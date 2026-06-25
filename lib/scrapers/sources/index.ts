@@ -498,6 +498,7 @@ export async function scrapeIndependentDealer(
 // Given just a website URL, this auto-detects the inventory pattern
 export async function autoDiscoverAndCrawl(
   dealerWebsite: string,
+  hint?: { name?: string; city?: string; state?: string },
 ): Promise<number> {
   console.log(`[AutoDiscover] Analyzing ${dealerWebsite}`);
 
@@ -536,9 +537,9 @@ export async function autoDiscoverAndCrawl(
 
   const profile: DealerProfile = matchedProfile || {
     dealerId: `auto-${new URL(dealerWebsite).hostname}`,
-    name: $("title").text() || dealerWebsite,
-    city: "",
-    state: "",
+    name: hint?.name || $("title").text() || dealerWebsite,
+    city: hint?.city || "",
+    state: hint?.state || "",
     inventoryUrl,
     renderMode: "browser",
     selectors: {
@@ -557,6 +558,49 @@ export async function autoDiscoverAndCrawl(
   };
 
   return scrapeIndependentDealer(profile, dealerWebsite);
+}
+
+// ════════════════════════════════════════════════════════════
+//  CURATED SITES — the dealer-to-dealer salvage-rebuilder network nobody aggregates
+// ════════════════════════════════════════════════════════════
+// WE maintain this master list (no dealer submission needed — we find them all). Each entry is just a
+// homepage URL; autoDiscoverAndCrawl finds the inventory page and ingests it via a platform template
+// or AI-rescue, so ADDING A SITE = ADDING A LINE. These are salvage yards / rebuilders reselling
+// rebuildable cars — the key moat layer. State hints land them on the 50-state map. Extend freely.
+export const CURATED_SITES: { url: string; name: string; state?: string }[] = [
+  { url: "https://www.damage.com", name: "Damage.com", state: "FL" },
+  { url: "https://www.x2builders.com", name: "X2 Builders" },
+  { url: "https://www.salvageautosauction.com", name: "Salvage Autos Auction" },
+  { url: "https://www.repairablevehicles.com", name: "Repairable Vehicles" },
+  { url: "https://www.crashedtoys.com", name: "CrashedToys", state: "MN" },
+  { url: "https://www.rebuildables.com", name: "Rebuildables" },
+  { url: "https://www.erepairables.com", name: "eRepairables" },
+  { url: "https://www.aeofmiami.com", name: "A&E of Miami", state: "FL" },
+];
+
+/** Crawl the curated salvage/dealer network — bounded + polite. Each site ingested from its URL. */
+export async function scrapeCuratedSites(
+  maxSites = CURATED_SITES.length,
+): Promise<number> {
+  console.log(
+    `[CuratedSites] Crawling ${maxSites} curated salvage/dealer sites...`,
+  );
+  let total = 0;
+  for (const site of CURATED_SITES.slice(0, maxSites)) {
+    try {
+      const n = await autoDiscoverAndCrawl(site.url, {
+        name: site.name,
+        state: site.state,
+      });
+      console.log(`[CuratedSites] ${site.name}: ${n} listings`);
+      total += n;
+    } catch (e) {
+      console.warn(`[CuratedSites] ${site.name} failed:`, (e as Error).message);
+    }
+    await new Promise((r) => setTimeout(r, 2000)); // be polite between sites
+  }
+  console.log(`[CuratedSites] ${total} listings from the curated network`);
+  return total;
 }
 
 // Re-export other source modules
