@@ -172,6 +172,8 @@ export interface DealAnalysis extends ProfitResult {
   // it was anchored to real completed-sale prices (eBay sold) for the damaged/budget segment.
   conditionTag: string;
   soldAnchored: boolean;
+  // Wholesale / MMR-equivalent buy-side benchmark — what this unit is worth at auction/wholesale.
+  wholesaleEstimate: number;
 }
 
 // Dealer financing / lease / payment bait: a "$999" 2024 truck isn't a sale price — it's a down
@@ -279,6 +281,18 @@ export function analyzeDeal(deal: Partial<Deal>): DealAnalysis {
     sellBasis = "baseline";
   }
 
+  // WHOLESALE / MMR-equivalent — the buy-side benchmark (what this unit is worth at auction/wholesale).
+  // Prefer our real wholesale-channel median (Copart/private transactions) when it's deep enough; else
+  // derive from the condition-adjusted sell estimate (wholesale runs ~17% under retail). Inherits the
+  // multi-source, title/mileage/sold-anchored sell number, so it's condition-aware by construction.
+  const WHOLESALE_RATIO = 0.83;
+  const wholesaleEstimate =
+    comps?.wholesale && comps.nWholesale >= 6 && sane(comps.wholesale)
+      ? Math.round((comps.wholesale + sellEstimate * WHOLESALE_RATIO) / 2)
+      : sellEstimate > 0
+        ? Math.round(sellEstimate * WHOLESALE_RATIO)
+        : 0;
+
   // TRANSPORT: listing state → home base. When location is missing (miles null), don't
   // book $0 — use a conservative national-average so deals aren't falsely cheap to move.
   const miles = milesBetweenStates(
@@ -382,5 +396,6 @@ export function analyzeDeal(deal: Partial<Deal>): DealAnalysis {
     priceImplausible,
     conditionTag,
     soldAnchored,
+    wholesaleEstimate,
   };
 }

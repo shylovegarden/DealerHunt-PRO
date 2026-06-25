@@ -55,6 +55,9 @@ async function main() {
               ...(row.deal_analysis || {}),
               sellBasis: a.sellBasis,
               priceImplausible: a.priceImplausible,
+              conditionTag: a.conditionTag,
+              soldAnchored: a.soldAnchored,
+              wholesaleEstimate: a.wholesaleEstimate,
             },
           })
           .eq("id", row.id);

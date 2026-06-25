@@ -404,6 +404,14 @@ export default function DealPage({
                         {a.soldAnchored ? " · real-sold anchored" : ""}
                       </p>
                     )}
+                    {a.wholesaleEstimate > 0 && (
+                      <p className="text-[10px] text-[var(--t4)] mt-1.5">
+                        Wholesale ~
+                        <span className="font-bold text-[var(--t2)]">
+                          {formatMoney(a.wholesaleEstimate)}
+                        </span>
+                      </p>
+                    )}
                   </div>
                 </div>
                 {(a.warnings?.length > 0 || a.recommendations?.length > 0) && (
