@@ -44,7 +44,7 @@ export function normalizeCondition(raw?: string | null): string | undefined {
   if (/\b(repairable|rebuildable|fixable|damaged)\b/.test(x))
     return "repairable";
   if (/\bsalvage|total(ed)? loss|wreck/.test(x)) return "salvage_title";
-  if (/\bclean\b/.test(x)) return "clean_title";
+  if (/\b(clean|clear)\b/.test(x)) return "clean_title";
   if (/\b(runs?( and | & |\/)drives?|run drive|drives|operable|starts)\b/.test(x))
     return "run_drive";
 

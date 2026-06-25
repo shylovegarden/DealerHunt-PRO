@@ -22,6 +22,7 @@ describe("normalizeCondition — coerce free text to the listing_condition enum"
     expect(normalizeCondition("Hail")).toBe("hail");
     expect(normalizeCondition("Totaled Loss")).toBe("salvage_title");
     expect(normalizeCondition("Repairable")).toBe("repairable");
+    expect(normalizeCondition("Clear")).toBe("clean_title"); // damage.com's clean-title badge
   });
 
   it("returns undefined for empty/unknown rather than an invalid enum", () => {

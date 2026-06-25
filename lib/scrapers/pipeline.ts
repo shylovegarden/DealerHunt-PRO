@@ -95,7 +95,8 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
         mileage: deal.mileage,
         // Coerce to the listing_condition enum — AI-rescue / bespoke salvage sites emit free text
         // ("Clean Title", "Non-Repairable") that the enum rejects, which silently dropped every row.
-        condition: normalizeCondition(deal.condition),
+        // condition is NOT NULL, so fall back to run_drive when nothing maps rather than drop the row.
+        condition: normalizeCondition(deal.condition) ?? "run_drive",
         damage_type: deal.damage_type,
         availability_status: detectAvailability(
           deal.title,

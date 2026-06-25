@@ -381,6 +381,8 @@ function conditionFromTitle(title?: string): string | undefined {
   if (/\bflood\b/.test(x)) return "flood";
   if (/\b(parts only|parts car|non[-\s]?run|wrecked|junk)\b/.test(x))
     return "salvage_title";
+  // "Clear"/"Clean" is how salvage sites (e.g. damage.com) badge a clean-title car.
+  if (/\b(clean|clear)\b/.test(x)) return "clean_title";
   return undefined;
 }
 
@@ -496,10 +498,13 @@ export async function scrapeIndependentDealer(
               model: v.model || "",
               ask_price: v.price,
               mileage: v.mileage,
+              // Title brand first (damage.com etc. put "Salvage"/"Clear"/"Rebuilt" in the heading the
+              // AI returns as title), then the site's type default; the AI's free-text condition is
+              // often just a run-status ("Run & Drive") so it's the last hint (pipeline normalizes it).
               condition:
-                (v as any).condition ||
                 conditionFromTitle(v.title) ||
                 profile.conditionDefault ||
+                (v as any).condition ||
                 "run_drive",
               damage_type: profile.damageDefault,
               location_city: v.location_city || profile.city,
