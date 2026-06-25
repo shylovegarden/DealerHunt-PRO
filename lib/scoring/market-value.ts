@@ -8,6 +8,7 @@
 // them is the real arbitrage signal — and it sharpens automatically as coverage grows.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { estimateBaselineValue } from "./baseline-value";
 
 const RETAIL_SOURCES = new Set([
   "cars_com",
@@ -62,6 +63,15 @@ let loadedAt = 0;
 // analyzer's demand/competition signal so scoring reflects ACTUAL supply scarcity instead of a
 // hardcoded body-type guess. Few listings = scarce = moves faster; flooded = more competition.
 let supplyByModel: Map<string, number> | null = null;
+
+// Retail comps tagged with their year, keyed make|model (no year band). Powers a year-adjusted
+// fallback tier: when a deal's exact year-band bucket is thin, we age-adjust same-model comps from
+// other years (via the baseline depreciation curve) so it still gets a REAL number instead of the
+// pure offline baseline. ~90% of make/model/year buckets are otherwise too thin for direct comps.
+let retailByModel: Map<string, { year: number; price: number }[]> | null = null;
+
+const modelKey = (make?: string | null, model?: string | null) =>
+  `${(make || "").toLowerCase().trim()}|${normalizeModel(model)}`;
 
 // The nightly `market_aggregates` rollup (pg_cron, avg of mmr_value per make/model/year/state/
 // period) compounds every day. We fold it into a parallel index so a deal with thin live comps
@@ -131,24 +141,40 @@ export async function loadMarketIndex(
 ): Promise<void> {
   if (computed && !force && Date.now() - loadedAt < TTL_MS) return;
 
-  const { data, error } = await supabase
-    .from("deals")
-    .select(
-      "make, model, year, mileage, source, ask_price, condition, damage_type",
-    )
-    .eq("active", true) // only live inventory feeds comps — don't price off dead stock
-    .gt("ask_price", 1000)
-    .lt("ask_price", 200000)
-    .limit(50000);
+  // PostgREST caps a single response at ~1000 rows, so .limit(50000) silently returned only 1000 —
+  // the comp index saw 1/6 of inventory. Paginate to load all active comps.
+  const PAGE = 1000;
+  const MAX = 60000;
+  const data: any[] = [];
+  let loadErr: { message: string } | null = null;
+  for (let from = 0; from < MAX; from += PAGE) {
+    const { data: pageRows, error } = await supabase
+      .from("deals")
+      .select(
+        "make, model, year, mileage, source, ask_price, condition, damage_type",
+      )
+      .eq("active", true) // only live inventory feeds comps — don't price off dead stock
+      .gt("ask_price", 1000)
+      .lt("ask_price", 200000)
+      .range(from, from + PAGE - 1);
+    if (error) {
+      loadErr = error;
+      break;
+    }
+    if (!pageRows || pageRows.length === 0) break;
+    data.push(...pageRows);
+    if (pageRows.length < PAGE) break;
+  }
 
-  if (error) {
-    console.warn("[market-value] index load failed:", error.message);
+  if (loadErr && data.length === 0) {
+    console.warn("[market-value] index load failed:", loadErr.message);
     if (!computed) computed = new Map();
     return;
   }
 
   const buckets = new Map<string, { retail: number[]; wholesale: number[] }>();
   const supply = new Map<string, number>();
+  const byModel = new Map<string, { year: number; price: number }[]>();
   for (const r of data || []) {
     const k = key(r.make, r.model, r.year);
     // Require make + model present (year may be 'na'); skip empty rows.
@@ -165,7 +191,13 @@ export async function loadMarketIndex(
       const isSalvage =
         SALVAGE_CONDITIONS.some((s) => cond.includes(s)) ||
         (dmg !== "" && dmg !== "none");
-      if (!isSalvage) b.retail.push(r.ask_price);
+      if (!isSalvage) {
+        b.retail.push(r.ask_price);
+        if (r.year && r.year > 1950) {
+          if (!byModel.has(sk)) byModel.set(sk, []);
+          byModel.get(sk)!.push({ year: r.year, price: r.ask_price });
+        }
+      }
     } else {
       b.wholesale.push(r.ask_price);
     }
@@ -184,6 +216,7 @@ export async function loadMarketIndex(
   });
   computed = next;
   supplyByModel = supply;
+  retailByModel = byModel;
   loadedAt = Date.now();
   console.log(
     `[market-value] index: ${next.size} make/model/year groups from ${(data || []).length} comps`,
@@ -266,17 +299,75 @@ export function lookupSupply(
 }
 
 /** Synchronous lookup from the loaded index. Returns null if not enough comparable data. */
+/**
+ * Year-adjusted retail comps for a make|model across ALL years: each same-model comp is aged to the
+ * target year via the baseline depreciation curve, then median'd. The fallback that gives a deal a
+ * REAL number when its exact year-band bucket is thin. Confidence is capped (cross-year approximation).
+ */
+function lookupModelAdjusted(
+  make?: string | null,
+  model?: string | null,
+  year?: number | null,
+): MarketComps | null {
+  if (!retailByModel || !year || year < 1950) return null;
+  const comps = retailByModel.get(modelKey(make, model));
+  if (!comps || comps.length < MIN_SAMPLES) return null;
+  const targetBase = estimateBaselineValue(year, make, model);
+  if (targetBase <= 0) return null;
+
+  const adjusted: number[] = [];
+  for (const c of comps) {
+    if (c.year === year) {
+      adjusted.push(c.price); // same year — no adjustment
+      continue;
+    }
+    const compBase = estimateBaselineValue(c.year, make, model);
+    if (compBase <= 0) continue;
+    const adj = c.price * (targetBase / compBase);
+    if (adj > 500 && adj < 300000) adjusted.push(adj);
+  }
+  if (adjusted.length < MIN_SAMPLES) return null;
+  const med = median(adjusted);
+  if (med == null) return null;
+
+  // Knock confidence down one notch (never above medium) since it's a cross-year approximation.
+  const raw = confidenceFor(adjusted.length);
+  const capped: MarketComps["confidence"] =
+    raw === "high" ? "medium" : raw === "medium" ? "low" : "low";
+  return {
+    retail: Math.round(med * ASK_TO_SOLD),
+    wholesale: null,
+    nRetail: adjusted.length,
+    nWholesale: 0,
+    confidence: capped,
+  };
+}
+
 export function lookupMarketValue(
   make?: string | null,
   model?: string | null,
   year?: number | null,
 ): MarketComps | null {
   if (!computed) return null;
-  const c = computed.get(key(make, model, year));
-  if (!c) return null;
-  // Only return a retail figure we actually trust.
-  if (c.retail != null && c.nRetail < MIN_SAMPLES) {
-    return { ...c, retail: null, confidence: "none" };
-  }
-  return c;
+  const exact = computed.get(key(make, model, year)) || null;
+  // A solid exact-bucket figure (medium+) is the most trustworthy — use it directly.
+  if (exact && exact.retail != null && exact.nRetail >= 6) return exact;
+
+  // Thin or missing exact bucket → try the year-adjusted same-model tier.
+  const adj = lookupModelAdjusted(make, model, year);
+  const exactUsable =
+    exact && exact.retail != null && exact.nRetail >= MIN_SAMPLES
+      ? exact
+      : null;
+  // Prefer whichever real retail figure has more support.
+  if (exactUsable && (!adj || exactUsable.nRetail >= adj.nRetail))
+    return exactUsable;
+  if (adj) return adj;
+
+  // Nothing trustworthy — strip an untrusted thin retail (keep any wholesale), else null.
+  if (exact)
+    return exact.retail != null && exact.nRetail < MIN_SAMPLES
+      ? { ...exact, retail: null, confidence: "none" }
+      : exact;
+  return null;
 }
