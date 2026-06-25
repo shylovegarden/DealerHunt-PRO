@@ -64,7 +64,14 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
         source: deal.source,
         source_deal_id,
         source_url: deal.source_url,
-        dealer_id: deal.dealer_id,
+        // dealer_id is a UUID FK — coerce anything that isn't a real UUID to null so one bad value
+        // (e.g. a hostname slug from auto-discovery) can't fail the type and drop the whole batch.
+        dealer_id:
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+            String(deal.dealer_id || ""),
+          )
+            ? deal.dealer_id
+            : null,
         title: deal.title,
         year: deal.year || 0,
         make: deal.make,

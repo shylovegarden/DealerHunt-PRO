@@ -476,12 +476,21 @@ export async function scrapeIndependentDealer(
             if (!v.make && !v.title) continue;
             items.push({
               source: "independent_dealer",
+              // A unique id per car. Many bespoke salvage sites give the AI no per-listing URL (the
+              // url is the homepage), so a url-derived id collides across every car — fall back to a
+              // content key (year/make/model/price/mileage), NOT the title-brand word ("Salvage").
               source_deal_id:
-                v.url?.split("/").filter(Boolean).pop() ||
-                `${profile.dealerId}-${(v.title || "").slice(0, 40)}`,
+                (v.url && v.url !== baseUrl
+                  ? v.url.split("/").filter(Boolean).pop()
+                  : "") ||
+                `${profile.dealerId}-${[v.year, v.make, v.model, v.price, v.mileage].filter(Boolean).join("-")}`,
               source_url: v.url ? normalizeUrl(v.url, baseUrl) : baseUrl,
+              // Real vehicle identity first; v.title is often just the title-brand badge ("Salvage"),
+              // which we already fold into condition via conditionFromTitle below.
               title:
-                v.title || [v.year, v.make, v.model].filter(Boolean).join(" "),
+                [v.year, v.make, v.model].filter(Boolean).join(" ") ||
+                v.title ||
+                "",
               year: v.year,
               make: v.make || "",
               model: v.model || "",
@@ -517,9 +526,9 @@ export async function scrapeIndependentDealer(
   for await (const batch of gen) allDeals.push(...batch);
 
   console.log(`[IndiDealer] ${profile.name}: Found ${allDeals.length} deals`);
-  await upsertDeals(
-    allDeals.map((l) => ({ ...l, dealer_id: profile.dealerId })),
-  );
+  // dealer_id is a UUID FK; these auto-discovered sites have no dealers-table row, so leave it null.
+  // A hostname slug ("auto-www.damage.com") fails the uuid type and silently drops every row.
+  await upsertDeals(allDeals);
   return allDeals.length;
 }
 
