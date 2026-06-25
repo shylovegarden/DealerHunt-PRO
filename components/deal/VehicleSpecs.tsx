@@ -4,6 +4,7 @@ import React from "react";
 import useSWR from "swr";
 import { Mono } from "@/components/shared/Mono";
 import { isValidVin } from "@/lib/vehicle/vin";
+import { WindowStickerButton } from "./WindowStickerButton";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -17,7 +18,13 @@ function Stars({ n }: { n: number }) {
 }
 
 /** Modern vehicle-intelligence panel — free NHTSA (specs, crash stars, recalls) + EPA MPG. Hides w/o VIN. */
-export function VehicleSpecs({ vin }: { vin?: string | null }) {
+export function VehicleSpecs({
+  vin,
+  make,
+}: {
+  vin?: string | null;
+  make?: string | null;
+}) {
   const valid = vin && isValidVin(vin);
   const { data } = useSWR(valid ? `/api/vin/${vin}/specs` : null, fetcher, {
     revalidateOnFocus: false,
@@ -55,7 +62,7 @@ export function VehicleSpecs({ vin }: { vin?: string | null }) {
         <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--t4)] font-bold">
           Vehicle Intelligence · NHTSA + EPA
         </p>
-        <span className="text-[10px] text-[var(--t5)]">free public data</span>
+        <WindowStickerButton vin={vin} make={make} />
       </div>
 
       {/* Highlight metrics */}

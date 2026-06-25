@@ -807,7 +807,10 @@ export default function DealPage({
         widgets={[
           { id: "deal-iq", content: <DealIQCard dealId={id} /> },
           { id: "market-context", content: <MarketContext dealId={id} /> },
-          { id: "vehicle-specs", content: <VehicleSpecs vin={store.vin} /> },
+          {
+            id: "vehicle-specs",
+            content: <VehicleSpecs vin={store.vin} make={store.make} />,
+          },
           { id: "price-timeline", content: <PriceTimeline dealId={id} /> },
           { id: "ai-brief", content: <AIBrief dealId={id} /> },
           { id: "similar-deals", content: <SimilarDeals dealId={id} /> },
