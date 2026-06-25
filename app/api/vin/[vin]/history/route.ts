@@ -28,7 +28,7 @@ export async function GET(
     const sb = createServerComponentClient();
     const { data } = await sb
       .from("deals")
-      .select("source, condition, damage_type, created_at")
+      .select("source, condition, damage_type, mileage, created_at")
       .eq("vin", vin)
       .limit(25);
     graph = sightingsToHistory(data || []);

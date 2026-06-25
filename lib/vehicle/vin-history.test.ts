@@ -21,6 +21,24 @@ describe("sightingsToHistory (our VIN graph — washed-title catcher)", () => {
     expect(h!.titleBrands).toContain("Previously listed rebuilt");
   });
 
+  it("catches odometer rollback across sightings (a later listing with fewer miles)", () => {
+    const h = sightingsToHistory([
+      { source: "craigslist", mileage: 120000, created_at: "2026-01-01" },
+      { source: "cars_com", mileage: 82000, created_at: "2026-06-01" }, // rolled back
+    ]);
+    expect(h).not.toBeNull();
+    expect(h!.titleBrands.some((b) => /rollback/i.test(b))).toBe(true);
+  });
+
+  it("does NOT flag normal mileage accrual or small noise", () => {
+    expect(
+      sightingsToHistory([
+        { source: "craigslist", mileage: 80000, created_at: "2026-01-01" },
+        { source: "cars_com", mileage: 84000, created_at: "2026-06-01" },
+      ]),
+    ).toBeNull();
+  });
+
   it("returns null when every sighting is clean", () => {
     expect(
       sightingsToHistory([

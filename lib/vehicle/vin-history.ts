@@ -35,10 +35,15 @@ export interface VinSighting {
   source?: string | null;
   condition?: string | null;
   damage_type?: string | null;
+  mileage?: number | null;
   created_at?: string | null;
 }
 
-/** Cross-reference a VIN against our own multi-channel sightings → prior-salvage / branded flags. */
+const mi = (v: unknown) => Number(v) || 0;
+
+/** Cross-reference a VIN against our own multi-channel sightings → prior-salvage / branded flags +
+ *  ODOMETER ROLLBACK (a later sighting reporting fewer miles than an earlier one). Only our
+ *  multi-sighting data catches rollback for free. */
 export function sightingsToHistory(rows: VinSighting[]): VinHistory | null {
   if (!rows?.length) return null;
   const flags = new Set<string>();
@@ -55,6 +60,26 @@ export function sightingsToHistory(rows: VinSighting[]): VinHistory | null {
     if (dmg && dmg !== "none" && dmg !== "unknown")
       flags.add(`Recorded damage: ${dmg}`);
   }
+
+  // Odometer rollback: order sightings by time; if a later one reports materially FEWER miles than an
+  // earlier one (>5k, beyond listing noise), the odometer was rolled back. A fraud catch competitors
+  // can't do free — it needs seeing the same VIN twice, which only our market-wide scraping does.
+  const timed = rows
+    .filter((r) => mi(r.mileage) > 0 && r.created_at)
+    .sort(
+      (a, b) =>
+        new Date(a.created_at!).getTime() - new Date(b.created_at!).getTime(),
+    );
+  let peak = 0;
+  for (const r of timed) {
+    const m = mi(r.mileage);
+    if (peak - m > 5000)
+      flags.add(
+        `Odometer rollback suspected (${peak.toLocaleString()} → ${m.toLocaleString()} mi)`,
+      );
+    peak = Math.max(peak, m);
+  }
+
   if (!flags.size) return null;
   return {
     source: "vin-graph",
