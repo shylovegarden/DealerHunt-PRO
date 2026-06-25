@@ -25,6 +25,7 @@ import { scrapeAutoTrader } from "./sources/autotrader";
 import { scrapeOfferUp } from "./sources/offerup";
 import { scrapePublicSurplus } from "./sources/publicsurplus";
 import { scrapeAutotempest } from "./sources/autotempest";
+import { scrapeEbaySold } from "./sources/ebay-sold";
 import { ScraperRegistry } from "./tools/registry";
 import {
   recordScrapeRuns,
@@ -291,6 +292,21 @@ export function createScraperRegistry(
     fn: () => scrapeVroom(),
     enabled: false, // Vroom halted all car sales Jan 22, 2024 — no inventory to scrape
     estimatedDealsPerRun: 0,
+  });
+
+  // eBay SOLD — real completed-sale prices (not asking) into sold_listings. Honest transaction data
+  // for the budget/salvage segment. Fetched via system curl (passes eBay's sold-page bot wall).
+  registry.register({
+    id: "ebay_sold",
+    name: "eBay Sold (real prices)",
+    type: "marketplace",
+    priority: "medium",
+    frequencyMinutes: 720,
+    requiresAuth: false,
+    stealthRequired: false,
+    fn: () => scrapeEbaySold(),
+    enabled: true,
+    estimatedDealsPerRun: 800,
   });
 
   // Autotempest — meta-search aggregator (open API). One pass pulls Cars.com/CarGurus/Carvana/eBay/
