@@ -65,6 +65,63 @@ export function titleClass(condition?: string | null): TitleClass {
   return "unknown";
 }
 
+// Acquisition lanes — the way a flipping dealer actually sorts inventory. One lane per deal
+// (prioritized): an auction lot is browsed as an auction even though it's usually salvage; a
+// non-auction salvage/parts car is its own lane; rebuilt/damaged-but-fixable is "repairable"; a
+// clean car splits into dealer retail vs private/classified. Powers the category view + filters.
+export type DealLane =
+  | "auction"
+  | "salvage"
+  | "repairable"
+  | "clean-retail"
+  | "private";
+
+const LANE_AUCTION = new Set([
+  "copart",
+  "iaa",
+  "adesa",
+  "manheim",
+  "acv",
+  "gov_auction",
+]);
+const LANE_RETAIL = new Set([
+  "carvana",
+  "cars_com",
+  "cargurus",
+  "autotrader",
+  "truecar",
+  "ebay_motors",
+  "vroom",
+  "carmax",
+]);
+
+export const DEAL_LANES: { lane: DealLane; label: string }[] = [
+  { lane: "auction", label: "Auction lots" },
+  { lane: "salvage", label: "Salvage" },
+  { lane: "repairable", label: "Repairable" },
+  { lane: "clean-retail", label: "Clean retail" },
+  { lane: "private", label: "Private / classifieds" },
+];
+
+export function dealLane(deal: {
+  source?: string | null;
+  condition?: string | null;
+  damage_type?: string | null;
+}): DealLane {
+  const src = (deal.source || "").toLowerCase().trim();
+  const cond = (deal.condition || "").toLowerCase();
+  const dmg = (deal.damage_type || "").toLowerCase();
+  if (LANE_AUCTION.has(src)) return "auction"; // auction channel first (mostly salvage, but browsed as lots)
+  if (/salvage|parts|flood|fire|junk|non[-\s]?run|wrecked/.test(cond))
+    return "salvage";
+  const damaged =
+    /rebuilt|repairable|hail|damage/.test(cond) ||
+    (dmg !== "" && dmg !== "none");
+  if (damaged) return "repairable";
+  if (LANE_RETAIL.has(src)) return "clean-retail";
+  return "private";
+}
+
 export interface GradeResult {
   grade: DealGrade;
   discountPct: number; // % below estimated market (negative = above market)

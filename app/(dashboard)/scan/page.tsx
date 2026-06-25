@@ -482,6 +482,7 @@ export default function ScanPage() {
   // Filters
   const [sourceFilter, setSourceFilter] = useState("all");
   const [titleType, setTitleType] = useState("all");
+  const [lane, setLane] = useState("all"); // acquisition lane segment (auction/salvage/…)
   const [minProfit, setMinProfit] = useState("any");
   const [state, setState] = useState("all");
   const [make, setMake] = useState("all");
@@ -533,6 +534,7 @@ export default function ScanPage() {
     setMaxYear("any");
     setMaxMileage("any");
     setTitleType("all");
+    setLane("all");
     setAvailability("all");
     setMadeInUsa(false);
     setDrivetrain("all");
@@ -558,6 +560,7 @@ export default function ScanPage() {
     if (search) params.set("q", search);
     if (sourceFilter !== "all") params.set("source", sourceFilter);
     if (titleType !== "all") params.set("titleType", titleType);
+    if (lane !== "all") params.set("lane", lane);
     if (state !== "all") params.set("state", state);
     if (make !== "all") params.set("make", make);
     if (minProfit !== "any")
@@ -581,6 +584,7 @@ export default function ScanPage() {
     search,
     sourceFilter,
     titleType,
+    lane,
     state,
     make,
     minProfit,
@@ -1229,6 +1233,31 @@ export default function ScanPage() {
             )}
           </div>
         )}
+      </div>
+
+      {/* ── Acquisition lane segments — browse the way a flipper sorts inventory ── */}
+      <div className="flex flex-wrap items-center gap-2">
+        {[
+          { v: "all", l: "All deals" },
+          { v: "auction", l: "Auction lots" },
+          { v: "salvage", l: "Salvage" },
+          { v: "repairable", l: "Repairable" },
+          { v: "clean-retail", l: "Clean retail" },
+          { v: "private", l: "Private" },
+        ].map((seg) => (
+          <button
+            key={seg.v}
+            type="button"
+            onClick={() => setLane(seg.v)}
+            className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-colors ${
+              lane === seg.v
+                ? "bg-[var(--t1)] text-[var(--s0)]"
+                : "bg-[var(--s1)] text-[var(--t3)] hover:text-[var(--t1)]"
+            }`}
+          >
+            {seg.l}
+          </button>
+        ))}
       </div>
 
       {/* ── Results grid ── */}

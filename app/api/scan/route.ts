@@ -102,6 +102,7 @@ export async function GET(req: NextRequest) {
   const make = searchParams.get("make") || "";
   const source = searchParams.get("source") || "";
   const titleType = searchParams.get("titleType") || "";
+  const lane = (searchParams.get("lane") || "").toLowerCase();
   const category = searchParams.get("cat") || "";
   const minProfit = parseInt(searchParams.get("minProfit") || "0");
   // Range filters — remove the "borders" so any buyer can scope by era, budget, and odometer.
@@ -169,6 +170,40 @@ export async function GET(req: NextRequest) {
     };
     const mappedCondition = conditionMapping[titleType] || titleType;
     query = query.eq("condition", mappedCondition);
+  }
+
+  // Acquisition LANES — quick lenses matching how a flipper browses. These overlap by design
+  // (a Copart salvage car shows under both "auction" and "salvage"); they're filters, not partitions.
+  if (lane && lane !== "all") {
+    const AUCTION = ["copart", "iaa", "adesa", "manheim", "acv", "gov_auction"];
+    const RETAIL = [
+      "carvana",
+      "cars_com",
+      "cargurus",
+      "autotrader",
+      "truecar",
+      "ebay_motors",
+      "vroom",
+      "carmax",
+    ];
+    const PRIVATE = [
+      "craigslist",
+      "craigslist_dealer",
+      "facebook_marketplace",
+      "offerup",
+      "independent_dealer",
+    ];
+    if (lane === "auction") query = query.in("source", AUCTION);
+    else if (lane === "salvage")
+      query = query.or(
+        "condition.ilike.%salvage%,condition.ilike.%parts%,condition.ilike.%flood%,condition.ilike.%fire%,condition.ilike.%junk%",
+      );
+    else if (lane === "repairable")
+      query = query.or(
+        "condition.ilike.%rebuilt%,condition.ilike.%repairable%,condition.ilike.%hail%",
+      );
+    else if (lane === "clean-retail") query = query.in("source", RETAIL);
+    else if (lane === "private") query = query.in("source", PRIVATE);
   }
 
   if (category && !source && !titleType) {
