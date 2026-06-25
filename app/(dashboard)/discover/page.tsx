@@ -13,6 +13,7 @@ import { IntelRail } from "@/components/discovery/IntelRail";
 import { MarketSummary } from "@/components/discovery/MarketSummary";
 import { DealTicker } from "@/components/home/DealTicker";
 import { MarketPulse } from "@/components/home/MarketPulse";
+import { DiscoverHero } from "@/components/discovery/DiscoverHero";
 import type {
   DiscoverResponse,
   DiscoveryRail,
@@ -162,6 +163,9 @@ export default function DiscoverPage() {
           </span>
         </a>
       )}
+
+      {/* THE MONEY — count-up of profit on the table + today's best flip (the hero that lands) */}
+      <DiscoverHero state={state || undefined} />
 
       {/* Live ticker (Visor marquee) */}
       <DealTicker />
