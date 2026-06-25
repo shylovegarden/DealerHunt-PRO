@@ -309,6 +309,17 @@ export default function DealPage({
               .filter(Boolean)
               .join(" • ") || "Deal details"}
           </p>
+          {dealData?.deal?.sourceUrl && (
+            <a
+              href={dealData.deal.sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-[var(--amber)] hover:underline"
+            >
+              View original listing
+              <span aria-hidden>↗</span>
+            </a>
+          )}
         </div>
 
         {/* The 3-User Toggle */}
