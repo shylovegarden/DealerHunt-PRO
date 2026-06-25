@@ -128,10 +128,13 @@ export function parseAutotempest(json: any): Partial<Deal>[] {
   return items;
 }
 
-async function fetchQuery(
+// One page of a query. Returns the parsed rows + the Elasticsearch-style `searchAfter` cursor to
+// fetch the next page (null when there's nothing more to page through).
+async function fetchPage(
   q: { make: string; model?: string },
   zip: string,
-): Promise<Partial<Deal>[]> {
+  cursor: unknown[] | null,
+): Promise<{ items: Partial<Deal>[]; cursor: unknown[] | null }> {
   const params = new URLSearchParams({
     make: q.make,
     ...(q.model ? { model: q.model } : {}),
@@ -143,6 +146,8 @@ async function fetchQuery(
     sites: SITES,
     deduplicationSites: SITES,
   });
+  if (cursor) params.set("searchAfter", JSON.stringify(cursor));
+
   const res = await fetch(`${API}?${params.toString()}`, {
     headers: {
       "User-Agent": UA,
@@ -152,12 +157,37 @@ async function fetchQuery(
   });
   if (!res.ok) {
     console.warn(`[Autotempest] ${q.make} ${q.model || ""} HTTP ${res.status}`);
-    return [];
+    return { items: [], cursor: null };
   }
-  return parseAutotempest(await res.json());
+  const json = await res.json();
+  const next = Array.isArray(json?.searchAfter) ? json.searchAfter : null;
+  return { items: parseAutotempest(json), cursor: next };
 }
 
-export async function scrapeAutotempest(): Promise<number> {
+// Page through one query via searchAfter until it runs dry, the cursor stops advancing, or we hit
+// the page cap — this is what multiplies yield from the responsive sites (Cars.com/Carvana/CarGurus/
+// eBay). The slow live-fetch sites (TrueCar/Facebook/AutoTrader) still trickle in via the sites list.
+async function harvestQuery(
+  q: { make: string; model?: string },
+  zip: string,
+  byId: Map<string, Partial<Deal>>,
+  maxPages: number,
+): Promise<void> {
+  let cursor: unknown[] | null = null;
+  let prevKey = "";
+  for (let page = 0; page < maxPages; page++) {
+    const { items, cursor: next } = await fetchPage(q, zip, cursor);
+    if (!items.length) break;
+    for (const it of items) byId.set(it.source_deal_id!, it);
+    const key = next ? JSON.stringify(next) : "";
+    if (!next || key === prevKey) break; // cursor exhausted / not advancing
+    prevKey = key;
+    cursor = next;
+    await new Promise((r) => setTimeout(r, 900)); // be polite to the aggregator
+  }
+}
+
+export async function scrapeAutotempest(maxPagesPerQuery = 4): Promise<number> {
   console.log("[Autotempest] Starting aggregator scrape...");
   const zips = Object.values(STATE_SEED_ZIPS).filter(Boolean) as string[];
   const zip = zips[Math.floor(Math.random() * zips.length)] || "75201";
@@ -165,9 +195,7 @@ export async function scrapeAutotempest(): Promise<number> {
   const byId = new Map<string, Partial<Deal>>();
   for (const q of QUERIES) {
     try {
-      const items = await fetchQuery(q, zip);
-      for (const it of items) byId.set(it.source_deal_id!, it);
-      await new Promise((r) => setTimeout(r, 1200)); // be polite to the aggregator
+      await harvestQuery(q, zip, byId, maxPagesPerQuery);
     } catch (e) {
       console.warn(
         `[Autotempest] ${q.make} ${q.model || ""} failed:`,
