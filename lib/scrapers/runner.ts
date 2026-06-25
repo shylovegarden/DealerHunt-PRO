@@ -23,6 +23,7 @@ import { scrapeTrueCar } from "./sources/truecar";
 import { scrapeCarGurus } from "./sources/cargurus";
 import { scrapeAutoTrader } from "./sources/autotrader";
 import { scrapeOfferUp } from "./sources/offerup";
+import { scrapePublicSurplus } from "./sources/publicsurplus";
 import { ScraperRegistry } from "./tools/registry";
 import {
   recordScrapeRuns,
@@ -287,8 +288,23 @@ export function createScraperRegistry(
     requiresAuth: false,
     stealthRequired: true,
     fn: () => scrapeVroom(),
+    enabled: false, // Vroom halted all car sales Jan 22, 2024 — no inventory to scrape
+    estimatedDealsPerRun: 0,
+  });
+
+  // PublicSurplus — gov/municipal surplus auctions (open, no login). Police/fleet cars + trucks
+  // at a fraction of retail = prime cheap-acquisition leads. catid 403 Auto + 404 Truck.
+  registry.register({
+    id: "publicsurplus",
+    name: "PublicSurplus (gov surplus)",
+    type: "auction",
+    priority: "high",
+    frequencyMinutes: 360,
+    requiresAuth: false,
+    stealthRequired: false,
+    fn: () => scrapePublicSurplus(),
     enabled: true,
-    estimatedDealsPerRun: 150,
+    estimatedDealsPerRun: 130,
   });
 
   registry.register({

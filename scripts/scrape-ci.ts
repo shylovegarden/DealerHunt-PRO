@@ -25,6 +25,7 @@ dotenv.config({ path: path.resolve(process.cwd(), ".env.local") });
 const DEFAULT_SOURCES = [
   "craigslist",
   "carvana", // open JSON API (apik.carvana.io v2) — ~73k clean retail comps, NO FlareSolverr
+  "publicsurplus", // open gov-surplus auctions — cheap police/fleet flips, NO FlareSolverr
   "cars_com", // FlareSolverr — real retail comps (data-vehicle-details JSON)
   "autotrader", // FlareSolverr — real retail comps (__NEXT_DATA__)
   "cargurus", // FlareSolverr — AJAX listings JSON (best-effort until live-verified)
