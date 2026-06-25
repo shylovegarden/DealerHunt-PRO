@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { ADMIN_ROUTES, isAdminEmail } from "@/lib/auth/admin";
 
 // Protected routes that require authentication.
 // Note: '/' is intentionally PUBLIC — the landing page handles its own
@@ -92,10 +93,19 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // ADMIN GATE: dev/ops surfaces are for the single admin only. Anyone else (incl. logged-in
+  // dealers) is bounced — they never reach the developer API, system status, or the orchestrator.
+  const isAdminRoute = ADMIN_ROUTES.some((route) => pathname.startsWith(route));
+  if (isAdminRoute && !isAdminEmail(user?.email)) {
+    const url = request.nextUrl.clone();
+    url.pathname = user ? "/discover" : "/login";
+    return NextResponse.redirect(url);
+  }
+
   // Logged-in users shouldn't see the auth pages — send them into the app.
   if (isAuthRoute && user) {
     const url = request.nextUrl.clone();
-    url.pathname = "/find";
+    url.pathname = "/discover";
     return NextResponse.redirect(url);
   }
 

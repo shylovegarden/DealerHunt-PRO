@@ -19,7 +19,11 @@ import {
   FileText,
   ChevronDown,
   BellRing,
+  Code2,
+  Activity,
+  Cpu,
 } from "lucide-react";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
 
 // Clean primary nav — only real, dealer-relevant routes. Dead/ops/dev pages were pruned.
 const PRIMARY = [
@@ -42,7 +46,15 @@ const MORE_GROUPS = [
   },
 ];
 
-const MORE_HREFS = MORE_GROUPS.flatMap((g) => g.items.map((i) => i.href));
+// Admin-only group — appended to "More" only when the single admin is signed in (server-gated too).
+const ADMIN_GROUP = {
+  group: "Admin",
+  items: [
+    { name: "System status", href: "/status", icon: Activity },
+    { name: "Developer API", href: "/developer", icon: Code2 },
+    { name: "Orchestrator", href: "/orchestrator", icon: Cpu },
+  ],
+};
 
 function IconBtn({
   href,
@@ -77,6 +89,10 @@ function IconBtn({
 
 export function TopNav() {
   const pathname = usePathname();
+  const { isAdmin } = useIsAdmin();
+  // The admin sees everything — their "More" gains the Admin group with the dev/ops surfaces.
+  const moreGroups = isAdmin ? [...MORE_GROUPS, ADMIN_GROUP] : MORE_GROUPS;
+  const moreHrefs = moreGroups.flatMap((g) => g.items.map((i) => i.href));
   const [alertCount, setAlertCount] = useState(0);
   const [scrolled, setScrolled] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -119,7 +135,7 @@ export function TopNav() {
     return () => document.removeEventListener("mousedown", onClick);
   }, []);
 
-  const moreActive = MORE_HREFS.includes(pathname);
+  const moreActive = moreHrefs.includes(pathname);
 
   const tabStyle = (active: boolean): React.CSSProperties =>
     active
@@ -225,7 +241,7 @@ export function TopNav() {
                 boxShadow: "var(--shadow)",
               }}
             >
-              {MORE_GROUPS.map((g) => (
+              {moreGroups.map((g) => (
                 <div key={g.group} className="mb-1.5 last:mb-0">
                   <p className="px-2 py-1 text-[10px] uppercase tracking-wider font-bold text-[var(--t5)]">
                     {g.group}
