@@ -24,6 +24,7 @@ import { scrapeCarGurus } from "./sources/cargurus";
 import { scrapeAutoTrader } from "./sources/autotrader";
 import { scrapeOfferUp } from "./sources/offerup";
 import { scrapePublicSurplus } from "./sources/publicsurplus";
+import { scrapeAutotempest } from "./sources/autotempest";
 import { ScraperRegistry } from "./tools/registry";
 import {
   recordScrapeRuns,
@@ -290,6 +291,21 @@ export function createScraperRegistry(
     fn: () => scrapeVroom(),
     enabled: false, // Vroom halted all car sales Jan 22, 2024 — no inventory to scrape
     estimatedDealsPerRun: 0,
+  });
+
+  // Autotempest — meta-search aggregator (open API). One pass pulls Cars.com/CarGurus/Carvana/eBay/
+  // AutoTrader/TrueCar/CarMax/Facebook/Hemmings listings, bypassing each site's bot wall at once.
+  registry.register({
+    id: "autotempest",
+    name: "Autotempest (aggregator)",
+    type: "marketplace",
+    priority: "high",
+    frequencyMinutes: 360,
+    requiresAuth: false,
+    stealthRequired: false,
+    fn: () => scrapeAutotempest(),
+    enabled: true,
+    estimatedDealsPerRun: 400,
   });
 
   // PublicSurplus — gov/municipal surplus auctions (open, no login). Police/fleet cars + trucks
