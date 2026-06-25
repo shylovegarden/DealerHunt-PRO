@@ -103,6 +103,18 @@ export const DEAL_LANES: { lane: DealLane; label: string }[] = [
   { lane: "private", label: "Private / classifieds" },
 ];
 
+// Color coding so a dealer instantly reads the channel/risk at a glance: green = clean & safe,
+// red/orange = branded/auction risk, blue = private. Used on cards, table rows, lane chips.
+export const LANE_COLORS: Record<DealLane, string> = {
+  auction: "#f59e0b", // amber — auction lots
+  salvage: "#ef4444", // red — branded/total-loss
+  repairable: "#fb923c", // orange — fixable
+  "clean-retail": "#22c55e", // green — clean retail
+  private: "#3b82f6", // blue — private/classified
+};
+
+export const laneColor = (lane: DealLane): string => LANE_COLORS[lane];
+
 export function dealLane(deal: {
   source?: string | null;
   condition?: string | null;

@@ -3,7 +3,7 @@
 import React from "react";
 import { useRouter } from "next/navigation";
 import { Mono } from "@/components/shared/Mono";
-import { dealLane } from "@/lib/discovery/categorize";
+import { dealLane, LANE_COLORS } from "@/lib/discovery/categorize";
 import { buyTerm } from "@/lib/deal-terms";
 
 // Dense, sortable table view — the fastest way to scan many lots (Visor "table view", done better:
@@ -180,9 +180,16 @@ export function DealTable({ rows }: { rows: TableRow[] }) {
                 </td>
                 <td className="px-3 py-2.5">
                   <span
-                    className="rounded-full px-2 py-0.5 text-[10px] font-bold"
-                    style={{ background: "var(--s2)", color: "var(--t3)" }}
+                    className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-bold"
+                    style={{
+                      background: `${LANE_COLORS[lane]}1f`, // ~12% tint
+                      color: LANE_COLORS[lane],
+                    }}
                   >
+                    <span
+                      className="inline-block h-1.5 w-1.5 rounded-full"
+                      style={{ background: LANE_COLORS[lane] }}
+                    />
                     {LANE_LABEL[lane] || lane}
                   </span>
                 </td>

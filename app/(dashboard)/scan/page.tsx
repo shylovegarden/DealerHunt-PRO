@@ -1261,25 +1261,35 @@ export default function ScanPage() {
       {/* ── Acquisition lane segments — browse the way a flipper sorts inventory ── */}
       <div className="flex flex-wrap items-center gap-2">
         {[
-          { v: "all", l: "All deals" },
-          { v: "auction", l: "Auction lots" },
-          { v: "damaged", l: "Salvage & Repairable" },
-          { v: "clean-retail", l: "Clean retail" },
-          { v: "private", l: "Private" },
-        ].map((seg) => (
-          <button
-            key={seg.v}
-            type="button"
-            onClick={() => setLane(seg.v)}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-colors ${
-              lane === seg.v
-                ? "bg-[var(--t1)] text-[var(--s0)]"
-                : "bg-[var(--s1)] text-[var(--t3)] hover:text-[var(--t1)]"
-            }`}
-          >
-            {seg.l}
-          </button>
-        ))}
+          { v: "all", l: "All deals", c: "var(--t3)" },
+          { v: "auction", l: "Auction lots", c: "#f59e0b" },
+          { v: "damaged", l: "Salvage & Repairable", c: "#ef4444" },
+          { v: "clean-retail", l: "Clean retail", c: "#22c55e" },
+          { v: "private", l: "Private", c: "#3b82f6" },
+        ].map((seg) => {
+          const on = lane === seg.v;
+          return (
+            <button
+              key={seg.v}
+              type="button"
+              onClick={() => setLane(seg.v)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold transition-colors"
+              style={
+                on
+                  ? { background: seg.c, color: "#fff" }
+                  : { background: "var(--s1)", color: "var(--t3)" }
+              }
+            >
+              {seg.v !== "all" && (
+                <span
+                  className="inline-block h-1.5 w-1.5 rounded-full"
+                  style={{ background: on ? "#fff" : seg.c }}
+                />
+              )}
+              {seg.l}
+            </button>
+          );
+        })}
       </div>
 
       {/* ── Results grid ── */}
