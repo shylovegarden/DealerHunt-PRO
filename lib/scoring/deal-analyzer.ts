@@ -16,8 +16,13 @@ import {
   lookupMarketValue,
   lookupMarketAggregate,
   lookupSupply,
+  lookupRealSold,
 } from "./market-value";
 import { estimateBaselineValue } from "./baseline-value";
+import {
+  conditionAdjustedSell,
+  titleSeverityMultiplier,
+} from "./condition-value";
 import { isKnownMake } from "@/lib/scrapers/tools/deal-normalizer";
 
 // Home base used for transport-distance math (where you recondition/sell). Override via env.
@@ -163,6 +168,10 @@ export interface DealAnalysis extends ProfitResult {
   recommendedMaxBid: number;
   miles: number | null;
   priceImplausible: boolean;
+  // Why the sell estimate is what it is: the title/damage class applied to clean retail, and whether
+  // it was anchored to real completed-sale prices (eBay sold) for the damaged/budget segment.
+  conditionTag: string;
+  soldAnchored: boolean;
 }
 
 // Dealer financing / lease / payment bait: a "$999" 2024 truck isn't a sale price — it's a down
@@ -219,30 +228,50 @@ export function analyzeDeal(deal: Partial<Deal>): DealAnalysis {
   const sane = (v: number) =>
     baseline <= 0 ? v > 0 : v >= baseline * 0.4 && v <= baseline * 1.9;
 
+  // THE MOAT: a clean-market comp is not what THIS car is worth. Convert each clean value (comps,
+  // mmr, aggregate) into the car's real value via title/damage + mileage, anchored to real completed
+  // sales for the damaged/budget segment. A flooded/salvage 2023 model no longer books clean retail.
+  const realSold = lookupRealSold(deal.make, deal.model, deal.year);
+  const conditionTag = titleSeverityMultiplier(deal).tag;
+  const compAdj = comps?.retail
+    ? conditionAdjustedSell(comps.retail, deal, realSold)
+    : null;
+  const mmrAdj = hasMarket
+    ? conditionAdjustedSell(deal.mmr_value as number, deal, realSold)
+    : null;
+  const aggAdj =
+    aggregate && aggregate.value > 0
+      ? conditionAdjustedSell(aggregate.value, deal, realSold)
+      : null;
+
   let sellEstimate: number;
   let sellBasis: "comps" | "market" | "baseline";
-  if (comps?.retail && sane(comps.retail)) {
+  let soldAnchored = false;
+  if (compAdj && sane(compAdj.sell)) {
     // Confidence-blend: deep buckets trust the comps; thin/mixed-trim buckets get pulled toward the
-    // trim-aware baseline so one premium-trim listing can't over-value a base unit.
+    // trim-aware baseline (which is itself condition-adjusted) so one outlier can't over-value a unit.
     const w =
-      comps.confidence === "high"
+      comps!.confidence === "high"
         ? 1
-        : comps.confidence === "medium"
+        : comps!.confidence === "medium"
           ? 0.7
           : 0.45;
     sellEstimate =
       baseline > 0
-        ? Math.round(comps.retail * w + baseline * (1 - w))
-        : comps.retail;
+        ? Math.round(compAdj.sell * w + baseline * (1 - w))
+        : compAdj.sell;
     sellBasis = "comps";
-  } else if (hasMarket && sane(deal.mmr_value as number)) {
-    sellEstimate = deal.mmr_value as number;
+    soldAnchored = compAdj.soldAnchored;
+  } else if (mmrAdj && sane(mmrAdj.sell)) {
+    sellEstimate = mmrAdj.sell;
     sellBasis = "market";
-  } else if (aggregate && aggregate.value > 0 && sane(aggregate.value)) {
-    sellEstimate = aggregate.value;
+    soldAnchored = mmrAdj.soldAnchored;
+  } else if (aggAdj && sane(aggAdj.sell)) {
+    sellEstimate = aggAdj.sell;
     sellBasis = "market";
+    soldAnchored = aggAdj.soldAnchored;
   } else if (baseline > 0) {
-    // No trustworthy comp → realistic depreciation estimate (not a circular markup on ask).
+    // No trustworthy comp → realistic depreciation estimate (already title/mileage-adjusted).
     sellEstimate = baseline;
     sellBasis = "baseline";
   } else {
@@ -351,5 +380,7 @@ export function analyzeDeal(deal: Partial<Deal>): DealAnalysis {
     recommendedMaxBid,
     miles,
     priceImplausible,
+    conditionTag,
+    soldAnchored,
   };
 }

@@ -69,6 +69,9 @@ let supplyByModel: Map<string, number> | null = null;
 // other years (via the baseline depreciation curve) so it still gets a REAL number instead of the
 // pure offline baseline. ~90% of make/model/year buckets are otherwise too thin for direct comps.
 let retailByModel: Map<string, { year: number; price: number }[]> | null = null;
+// Real completed-sale prices (eBay sold etc.) keyed make|model|yearBucket — the truth anchor for the
+// damaged/budget segment. Populated by loadMarketIndex from public.sold_listings.
+let soldIndex: Map<string, { median: number; n: number }> | null = null;
 
 const modelKey = (make?: string | null, model?: string | null) =>
   `${(make || "").toLowerCase().trim()}|${normalizeModel(model)}`;
@@ -222,8 +225,59 @@ export async function loadMarketIndex(
     `[market-value] index: ${next.size} make/model/year groups from ${(data || []).length} comps`,
   );
 
+  // Build the REAL-SOLD index from completed-sale prices (eBay sold etc.) — the truth anchor used to
+  // value damaged/budget cars. Best-effort; never blocks scoring.
+  await loadSoldIndex(supabase);
+
   // Fold in the nightly market_aggregates rollup (best-effort; never blocks scoring).
   await loadAggregateIndex(supabase);
+}
+
+async function loadSoldIndex(supabase: SupabaseClient): Promise<void> {
+  try {
+    const soldBuckets = new Map<string, number[]>();
+    const PAGE = 1000;
+    for (let from = 0; from < 40000; from += PAGE) {
+      const { data: rows, error } = await supabase
+        .from("sold_listings")
+        .select("make, model, year, sold_price")
+        .gt("sold_price", 0)
+        .range(from, from + PAGE - 1);
+      if (error || !rows || rows.length === 0) break;
+      for (const r of rows) {
+        if (!(r.make && r.model && r.sold_price)) continue;
+        const k = key(r.make, r.model, r.year);
+        if (!soldBuckets.has(k)) soldBuckets.set(k, []);
+        soldBuckets.get(k)!.push(Number(r.sold_price));
+      }
+      if (rows.length < PAGE) break;
+    }
+    const idx = new Map<string, { median: number; n: number }>();
+    soldBuckets.forEach((prices, k) => {
+      const m = median(prices);
+      if (m != null) idx.set(k, { median: Math.round(m), n: prices.length });
+    });
+    soldIndex = idx;
+    console.log(
+      `[market-value] sold index: ${idx.size} groups from real completed sales`,
+    );
+  } catch (e) {
+    console.warn(
+      "[market-value] sold index load failed:",
+      (e as Error).message,
+    );
+    if (!soldIndex) soldIndex = new Map();
+  }
+}
+
+/** Real completed-sale median for a make/model/year bucket (null if too few real sales). */
+export function lookupRealSold(
+  make?: string | null,
+  model?: string | null,
+  year?: number | null,
+): { median: number; n: number } | null {
+  if (!soldIndex) return null;
+  return soldIndex.get(key(make, model, year)) || null;
 }
 
 /**
