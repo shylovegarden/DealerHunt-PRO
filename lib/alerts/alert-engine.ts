@@ -67,7 +67,9 @@ export async function checkAlerts() {
             alert_id: alert.id,
             deal_id: deal.id,
             dealer_id: alert.dealer_id,
-            profit_estimate: deal.profit_estimate,
+            // Store the ACCURATE net profit (the engine's number) so the notification shows the real
+            // figure, not the crude mmr−ask generated column.
+            profit_estimate: deal.true_net_profit ?? deal.profit_estimate,
             notified: false,
           });
 
@@ -108,9 +110,18 @@ function vehicleMatchesAlert(vehicle: any, alert: any): boolean {
   // odometer -> mileage
   if (f.max_odometer && vehicle.mileage > f.max_odometer) return false;
 
-  // estimated_profit -> profit_estimate
-  if (f.min_profit && (vehicle.profit_estimate || 0) < f.min_profit)
-    return false;
+  // NEVER alert on a deal the engine rejected — a PASS verdict or an implausible/teaser price means
+  // it's not a real, positive opportunity. Sending it would be inaccurate (the whole moat is trust).
+  if (vehicle.deal_verdict === "pass") return false;
+  if (vehicle.deal_analysis?.priceImplausible) return false;
+
+  // Profit threshold against the ACCURATE net profit (after transport/recon/fees + condition), not
+  // the crude generated profit_estimate (mmr − ask). Fall back only when the engine hasn't run.
+  const netProfit =
+    vehicle.true_net_profit != null
+      ? Number(vehicle.true_net_profit)
+      : Number(vehicle.profit_estimate || 0);
+  if (f.min_profit && netProfit < f.min_profit) return false;
 
   // states -> target_states
   if (f.states?.length && !f.states.includes(vehicle.location_state))
