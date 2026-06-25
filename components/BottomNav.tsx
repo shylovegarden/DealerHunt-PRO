@@ -3,19 +3,13 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  Search,
-  Compass,
-  TrendingUp,
-  MapPin,
-  Home as HomeIcon,
-} from "lucide-react";
+import { Compass, FileCheck, Clock, TrendingUp, MapPin } from "lucide-react";
 
 // Core 5 tabs only — everything else lives in the desktop "More" menu / Settings.
 const NAV_ITEMS = [
-  { name: "Today", href: "/today", icon: HomeIcon },
   { name: "Discover", href: "/discover", icon: Compass },
-  { name: "Scan", href: "/scan", icon: Search },
+  { name: "Deal Check", href: "/deal-check", icon: FileCheck },
+  { name: "Fleet", href: "/fleet", icon: Clock },
   { name: "Map", href: "/map", icon: MapPin },
   { name: "Intel", href: "/insights", icon: TrendingUp },
 ];
@@ -37,7 +31,7 @@ export function BottomNav() {
       {NAV_ITEMS.map((item) => {
         const isActive =
           pathname === item.href ||
-          (item.href === "/today" && pathname === "/");
+          (item.href === "/discover" && pathname === "/");
         return (
           <Link
             key={item.name}
