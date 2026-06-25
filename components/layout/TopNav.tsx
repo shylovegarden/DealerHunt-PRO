@@ -5,73 +5,39 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import {
-  Map,
   Search,
-  Truck,
   Clock,
-  Wallet,
-  Wrench,
   Settings,
   Bell,
   Bookmark,
   BarChart3,
-  Activity,
   Compass,
-  Layers,
   TrendingUp,
-  GitCompare,
   FileCheck,
-  Code2,
   Sparkles,
   MapPin,
-  Activity as ActivityIcon,
-  Home as HomeIcon,
-  List as ListIcon,
   FileText,
   ChevronDown,
-  Zap,
   BellRing,
 } from "lucide-react";
 
-// Clean primary nav — the core demo path. Everything else lives under "More".
+// Clean primary nav — only real, dealer-relevant routes. Dead/ops/dev pages were pruned.
 const PRIMARY = [
-  { name: "Today", href: "/today", icon: HomeIcon },
-  { name: "Flash Deals", href: "/flash-deals", icon: Zap },
   { name: "Discover", href: "/discover", icon: Compass },
   { name: "Scan", href: "/scan", icon: Search },
+  { name: "Deal Check", href: "/deal-check", icon: FileCheck },
   { name: "Map", href: "/map", icon: MapPin },
   { name: "Intel", href: "/insights", icon: TrendingUp },
+  { name: "Fleet", href: "/fleet", icon: Clock },
 ];
 
 const MORE_GROUPS = [
   {
-    group: "Source & analyze",
+    group: "More",
     items: [
-      { name: "Find", href: "/find", icon: Map },
       { name: "Saved searches", href: "/searches", icon: BellRing },
-      { name: "Bulk sourcing", href: "/bulk", icon: Layers },
-      { name: "Compare", href: "/compare", icon: GitCompare },
-      { name: "Deal Check", href: "/deal-check", icon: FileCheck },
-    ],
-  },
-  {
-    group: "Manage pipeline",
-    items: [
-      { name: "Fleet", href: "/fleet", icon: Clock },
-      { name: "Recon", href: "/recon", icon: Activity },
-      { name: "Finance", href: "/finance", icon: Wallet },
-      { name: "Transport", href: "/move", icon: Truck },
-      { name: "Parts", href: "/parts", icon: Wrench },
-      { name: "List", href: "/list", icon: ListIcon },
-    ],
-  },
-  {
-    group: "System",
-    items: [
-      { name: "System status", href: "/status", icon: ActivityIcon },
-      { name: "Developer API", href: "/developer", icon: Code2 },
-      { name: "Changelog", href: "/changelog", icon: FileText },
       { name: "Upgrade", href: "/upgrade", icon: Sparkles },
+      { name: "What's new", href: "/changelog", icon: FileText },
     ],
   },
 ];
@@ -174,7 +140,7 @@ export function TopNav() {
     >
       {/* LEFT: Logo */}
       <div className="flex items-center gap-3 flex-shrink-0">
-        <Link href="/today" className="flex items-center gap-2.5 group">
+        <Link href="/discover" className="flex items-center gap-2.5 group">
           <div
             className="w-8 h-8 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105"
             style={{ background: "var(--grad)" }}
@@ -192,7 +158,7 @@ export function TopNav() {
         {PRIMARY.map((item) => {
           const active =
             pathname === item.href ||
-            (item.href === "/today" && pathname === "/");
+            (item.href === "/discover" && pathname === "/");
           return (
             <Link
               key={item.name}

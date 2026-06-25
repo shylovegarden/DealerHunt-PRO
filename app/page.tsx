@@ -24,7 +24,7 @@ const features = [
 export default async function Home() {
   try {
     const { data } = await getServerUser();
-    if (data?.user) redirect("/today");
+    if (data?.user) redirect("/discover");
   } catch {
     // Not configured or no session — show the public landing page.
   }
