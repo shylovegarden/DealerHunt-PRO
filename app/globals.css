@@ -146,8 +146,30 @@ body {
   font-size: 14px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
   min-height: 100vh;
   overscroll-behavior: none;
+}
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+/* High-FPS motion: keep animated surfaces on their own GPU layer so scroll/hover stay 60fps. */
+.glass-panel,
+[style*="backdrop-filter"] {
+  transform: translateZ(0);
+}
+/* Respect reduced-motion — and it's a perf win on weak devices. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 ::selection {
   background: rgba(242, 91, 154, 0.18);
