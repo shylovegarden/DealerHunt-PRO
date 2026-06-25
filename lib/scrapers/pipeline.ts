@@ -9,6 +9,7 @@ import { analyzeDeal } from "@/lib/scoring/deal-analyzer";
 import { loadMarketIndex } from "@/lib/scoring/market-value";
 import { detectAvailability } from "@/lib/discovery/categorize";
 import { extractOptions } from "./extract-options";
+import { extractContactInfo } from "./tools/extract-contact";
 import { sendAlertMatchEmail } from "@/lib/notifications/email";
 import { sendAlertMatchSMS } from "@/lib/notifications/sms";
 import { resolvePlaces } from "@/lib/geo/geocode";
@@ -57,6 +58,15 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
         deal.id ||
         `${deal.source}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
+      // Smart intelligence: extract hidden contact info/VINs from free text
+      const extractedContact = extractContactInfo(
+        `${deal.title || ""} ${(deal as any).description || ""}`,
+      );
+
+      const phone = deal.seller_phone || extractedContact.phone;
+      const email = deal.seller_email || extractedContact.email;
+      const vin = deal.vin || extractedContact.vin;
+
       // Omit `id` to allow Supabase to generate UUID, but include source_deal_id
       return {
         source: deal.source,
@@ -68,7 +78,7 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
         make: deal.make,
         model: deal.model,
         trim: deal.trim,
-        vin: deal.vin,
+        vin: vin,
         // Structured options (drivetrain / transmission / fuel / features) parsed from the listing
         // text, so the scan filters can offer real "AWD", "Diesel", "Sunroof", etc. facets (A4/B2).
         options: extractOptions(
@@ -96,6 +106,8 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
         // seller_type: deal.seller_type,
         // auction_end: deal.auction_end,
         // bid_count: deal.bid_count,
+        seller_phone: phone,
+        seller_email: email,
         estimated_transport_cost: analysis.transportCost,
         estimated_repair_cost: analysis.repairCost,
         true_net_profit: analysis.profit,
