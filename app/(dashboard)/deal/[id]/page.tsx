@@ -398,6 +398,12 @@ export default function DealPage({
                     <p className="text-[10px] text-[var(--t4)]">
                       via {basisLabel}
                     </p>
+                    {a.conditionTag && a.conditionTag !== "clean" && (
+                      <p className="text-[10px] font-bold text-[var(--amber-d)] mt-0.5">
+                        {a.conditionTag} pricing
+                        {a.soldAnchored ? " · real-sold anchored" : ""}
+                      </p>
+                    )}
                   </div>
                 </div>
                 {(a.warnings?.length > 0 || a.recommendations?.length > 0) && (
