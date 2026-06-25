@@ -12,7 +12,8 @@ import useSWR from "swr";
 import { Ico } from "@/components/shared/Ico";
 import { useRecentSearches } from "@/components/shared/useRecentSearches";
 
-import { LayoutGrid, Rows3 } from "lucide-react";
+import { LayoutGrid, Rows3, Table2 } from "lucide-react";
+import { DealTable } from "@/components/scan/DealTable";
 import { DealCard, DealCardSkeleton } from "@/components/shared/DealCard";
 import { isValidVin } from "@/lib/vehicle/vin";
 import { ErrorState as SharedErrorState } from "@/components/shared/ErrorState";
@@ -411,6 +412,7 @@ export default function ScanPage() {
   const [density, setDensity] = useState<"comfortable" | "compact">(
     "comfortable",
   );
+  const [view, setView] = useState<"grid" | "table">("grid");
   const { recents, addRecent, removeRecent, clearRecents } =
     useRecentSearches();
 
@@ -418,6 +420,16 @@ export default function ScanPage() {
   useEffect(() => {
     const d = localStorage.getItem("dhp_density");
     if (d === "compact" || d === "comfortable") setDensity(d);
+    const v = localStorage.getItem("dhp_view");
+    if (v === "grid" || v === "table") setView(v);
+  }, []);
+  const changeView = useCallback((v: "grid" | "table") => {
+    setView(v);
+    try {
+      localStorage.setItem("dhp_view", v);
+    } catch {
+      /* ignore */
+    }
   }, []);
   const changeDensity = useCallback((d: "comfortable" | "compact") => {
     setDensity(d);
@@ -1065,30 +1077,41 @@ export default function ScanPage() {
               <div
                 className="flex items-center gap-0.5 p-0.5 rounded-[var(--r2)]"
                 style={{ background: "var(--s2)" }}
-                title="Display density"
+                title="View"
               >
                 {(
                   [
-                    { key: "comfortable", Icon: LayoutGrid },
-                    { key: "compact", Icon: Rows3 },
+                    { key: "comfortable", Icon: LayoutGrid, mode: "grid" },
+                    { key: "compact", Icon: Rows3, mode: "grid" },
+                    { key: "table", Icon: Table2, mode: "table" },
                   ] as const
-                ).map((opt) => (
-                  <button
-                    key={opt.key}
-                    onClick={() => changeDensity(opt.key)}
-                    aria-label={`${opt.key} view`}
-                    className="flex items-center justify-center h-6 w-6 rounded-[var(--r1)] transition-colors"
-                    style={{
-                      background:
-                        density === opt.key ? "var(--s0)" : "transparent",
-                      color: density === opt.key ? "var(--t1)" : "var(--t4)",
-                      boxShadow:
-                        density === opt.key ? "var(--shadow2)" : "none",
-                    }}
-                  >
-                    <opt.Icon size={13} />
-                  </button>
-                ))}
+                ).map((opt) => {
+                  const active =
+                    opt.mode === "table"
+                      ? view === "table"
+                      : view === "grid" && density === opt.key;
+                  return (
+                    <button
+                      key={opt.key}
+                      onClick={() => {
+                        if (opt.mode === "table") changeView("table");
+                        else {
+                          changeView("grid");
+                          changeDensity(opt.key as "comfortable" | "compact");
+                        }
+                      }}
+                      aria-label={`${opt.key} view`}
+                      className="flex items-center justify-center h-6 w-6 rounded-[var(--r1)] transition-colors"
+                      style={{
+                        background: active ? "var(--s0)" : "transparent",
+                        color: active ? "var(--t1)" : "var(--t4)",
+                        boxShadow: active ? "var(--shadow2)" : "none",
+                      }}
+                    >
+                      <opt.Icon size={13} />
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -1277,7 +1300,11 @@ export default function ScanPage() {
         <EmptyState onRetry={() => mutate()} />
       )}
 
-      {!loading && !error && filteredResults.length > 0 && (
+      {!loading && !error && filteredResults.length > 0 && view === "table" && (
+        <DealTable rows={filteredResults as any} />
+      )}
+
+      {!loading && !error && filteredResults.length > 0 && view === "grid" && (
         <div className={gridClass}>
           {filteredResults.map((car: ScanResult, idx: number) => (
             <div
