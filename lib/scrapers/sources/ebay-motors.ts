@@ -1,139 +1,149 @@
 // lib/scrapers/sources/ebay-motors.ts
-// ─── eBay Motors scraper using the shared paginate engine ─────────────────────
+// eBay Motors (category 6001) — NOT Cloudflare-walled, so it fetches directly (no FlareSolverr).
+// eBay redesigned the SRP away from .s-item to .s-card / .su-card-container; we parse THAT. eBay's
+// search cards are thin (title + price; VIN/mileage live on the item page) and mix in promos/parts,
+// so we filter hard: a real vehicle has a 4-digit year in the title + a vehicle-range price. The
+// pipeline's normalizeDeal re-derives make/model from the title and gates unknown makes.
 
-import type { Deal } from '@/types'
-import * as cheerio from 'cheerio'
+import type { Deal } from "@/types";
+import * as cheerio from "cheerio";
 import {
   paginate,
-  extractPrice, extractMileage, extractYear, normalizeUrl,
-  type ScraperConfig
-} from '../engine'
-import { upsertDeals } from '../pipeline'
+  extractPrice,
+  extractMileage,
+  type ScraperConfig,
+} from "../engine";
+import { upsertDeals } from "../pipeline";
 
 export const EBAY_MOTORS_CONFIG: ScraperConfig = {
-  name: 'eBay Motors',
-  baseUrl: 'https://www.ebay.com',
-  renderMode: 'static',
+  name: "eBay Motors",
+  baseUrl: "https://www.ebay.com",
+  renderMode: "static",
   requestDelay: 2000,
   concurrency: 3,
   useProxies: true,
   stealth: false,
-  maxPages: 15,
+  maxPages: 8,
   headers: {
-    'Accept-Language': 'en-US,en;q=0.9',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    "Accept-Language": "en-US,en;q=0.9",
+    Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "User-Agent":
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
   },
-}
+};
 
 const SEARCHES = [
-  'ford f150',
-  'chevrolet silverado',
-  'toyota camry',
-  'honda civic',
-  'bmw 3 series',
-  'mercedes benz',
-  'jeep wrangler',
-  'dodge ram',
-]
+  "ford f150",
+  "chevrolet silverado",
+  "ram 1500",
+  "toyota tacoma",
+  "jeep wrangler",
+  "honda accord",
+  "toyota camry",
+  "bmw 3 series",
+];
 
-export async function scrapeEbayMotors(maxPagesPerSearch = EBAY_MOTORS_CONFIG.maxPages) {
-  console.log('[eBay Motors] Starting scrape...')
-  const allDeals: Partial<Deal>[] = []
+/** Parse an eBay Motors SRP into vehicle listing rows from the .s-card structure. */
+export function parseEbayHtml(html: string): Partial<Deal>[] {
+  const $ = cheerio.load(html);
+  const items: Partial<Deal>[] = [];
+
+  $(".s-card, li.su-card-container").each((_: number, el: any) => {
+    const row = $(el);
+    // eBay glues badge text ("New Listing"/"Sponsored") onto the title with no space — strip it,
+    // and cut the "Opens in a new window…" accessibility suffix.
+    const title = row
+      .find(".s-card__title")
+      .first()
+      .text()
+      .trim()
+      .replace(/^(new listing|sponsored|top rated plus|featured)\s*/i, "")
+      .replace(/opens in a new window.*$/i, "")
+      .trim();
+    if (!title || /shop on ebay|sponsored/i.test(title)) return;
+
+    // Real vehicle: a 4-digit model year in the title (no \b — eBay concatenates tokens).
+    const ym = title.match(/(19[5-9]\d|20[0-4]\d)/);
+    if (!ym) return;
+    const year = parseInt(ym[0], 10);
+
+    const price = extractPrice(
+      row.find(".s-card__price").first().text().trim(),
+    );
+    if (!price || price < 1000 || price > 300000) return; // filters parts/accessories
+
+    const link =
+      row.find("a.s-card__link").attr("href") ||
+      row.find('a[href*="/itm/"]').first().attr("href") ||
+      "";
+    const itemId = link.match(/\/itm\/(\d+)/)?.[1] || "";
+    if (!itemId) return;
+
+    const subtitle = row
+      .find(".s-card__subtitle, .su-card-container__attributes")
+      .text()
+      .trim();
+    const img =
+      row.find("img").first().attr("src") ||
+      row.find("img").first().attr("data-src") ||
+      "";
+
+    // Rough year MAKE MODEL from the title; normalizeDeal re-derives authoritatively from the title.
+    const after = title
+      .slice((ym.index || 0) + 4)
+      .trim()
+      .split(/\s+/);
+    const make = after[0] || "";
+    const model = after.slice(1, 3).join(" ");
+
+    items.push({
+      source: "ebay_motors",
+      source_deal_id: itemId,
+      source_url: link.startsWith("http")
+        ? link.split("?")[0]
+        : `https://www.ebay.com${link}`,
+      title,
+      year,
+      make,
+      model,
+      ask_price: price,
+      mileage: extractMileage(subtitle),
+      condition: "clean",
+      images: img ? [img] : [],
+      seller_type: "dealer",
+      scraped_at: new Date().toISOString(),
+    });
+  });
+
+  return items;
+}
+
+export async function scrapeEbayMotors(
+  maxPagesPerSearch = EBAY_MOTORS_CONFIG.maxPages,
+) {
+  console.log("[eBay Motors] Starting scrape...");
+  const allDeals: Partial<Deal>[] = [];
 
   for (const query of SEARCHES) {
-    const config = { ...EBAY_MOTORS_CONFIG, maxPages: maxPagesPerSearch }
+    const config = { ...EBAY_MOTORS_CONFIG, maxPages: maxPagesPerSearch };
     const gen = paginate<Partial<Deal>>(
       config,
       (page) =>
-        `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(query)}` +
-        `&_sacat=6001&_pgn=${page}&_ipg=120`,
+        `https://www.ebay.com/sch/6001/i.html?_nkw=${encodeURIComponent(query)}` +
+        `&_pgn=${page}&_ipg=120&_sop=10`,
       async (input) => {
-        const cheerio = await import('cheerio')
-        const $ = typeof input === 'string' ? cheerio.load(input) : input
-        const items: Partial<Deal>[] = []
-
-        $('.s-item').each((_: number, el: any) => {
-          const row = $(el)
-          const title = row.find('h3.s-item__title').text().trim()
-
-          // eBay injects sponsored/placeholder rows with no real title
-          if (!title || title.toLowerCase().includes('shop on ebay')) return
-
-          const priceText = row.find('span.s-item__price').text().trim()
-          const price = extractPrice(priceText)
-          if (!price) return
-
-          const mileageText = row.find('div.s-item__subtitle').text().trim()
-          const locationText = row.find('span.s-item__location').text().trim()
-          const bidText = row.find('span.s-item__bids').text().trim()
-          const timeLeftText = row.find('span.s-item__time-left').text().trim()
-
-          const link = row.find('a.s-item__link').attr('href') || row.find('a[href*="/itm/"]').first().attr('href')
-          const imgSrc = row.find('img.s-item__image-img').attr('src') || row.find('img').first().attr('src')
-          const itemId = link?.split('/itm/')[1]?.split('?')[0] || ''
-
-          const year = extractYear(title)
-          const make = title.split(' ')[1] || ''
-          const model = title.split(' ').slice(2, 4).join(' ') || ''
-
-          items.push({
-            source: 'ebay_motors',
-            source_deal_id: itemId,
-            source_url: link ? normalizeUrl(link, EBAY_MOTORS_CONFIG.baseUrl) : '',
-            title,
-            year,
-            make,
-            model,
-            ask_price: price,
-            mileage: extractMileage(mileageText),
-            condition: 'clean',
-            location_city: locationText,
-            images: imgSrc ? [imgSrc] : [],
-            description: mileageText,
-            seller_type: 'private',
-            bid_count: bidText ? extractNumber(bidsOnly(bidText)) : undefined,
-            auction_end: timeLeftText ? parseTimeLeft(timeLeftText) : undefined,
-            scraped_at: new Date().toISOString(),
-          })
-        })
-
-        const hasMore = $('a.pagination__next').length > 0 && !$('a.pagination__next').hasClass('disabled')
-        return { items, hasMore }
-      }
-    )
-
-    for await (const batch of gen) {
-      allDeals.push(...batch)
-    }
+        const html =
+          typeof input === "string"
+            ? input
+            : ((input as any)?.html?.() ?? String(input));
+        const items = parseEbayHtml(html);
+        return { items, hasMore: items.length >= 20 };
+      },
+    );
+    for await (const batch of gen) allDeals.push(...batch);
   }
 
-  console.log(`[eBay Motors] Found ${allDeals.length} deals`)
-  await upsertDeals(allDeals)
-  return allDeals.length
-}
-
-function bidsOnly(text: string): string {
-  const match = text.match(/(\d+)\s*bids?/i)
-  return match ? match[1] : '0'
-}
-
-function extractNumber(text: string): number | undefined {
-  const match = text.replace(/,/g, '').match(/(\d+)/)
-  return match ? parseInt(match[1]) : undefined
-}
-
-function parseTimeLeft(text: string): string | undefined {
-  // eBay shows "4d 3h left" or "Ended: Aug 12, 2026 12:00 PM"
-  if (!text || text.toLowerCase().includes('ended')) return undefined
-
-  const days = text.match(/(\d+)d/)?.[1]
-  const hours = text.match(/(\d+)h/)?.[1]
-  const minutes = text.match(/(\d+)m/)?.[1]
-
-  const now = new Date()
-  if (days) now.setDate(now.getDate() + parseInt(days))
-  if (hours) now.setHours(now.getHours() + parseInt(hours))
-  if (minutes) now.setMinutes(now.getMinutes() + parseInt(minutes))
-
-  return now.toISOString()
+  console.log(`[eBay Motors] Found ${allDeals.length} deals`);
+  if (allDeals.length > 0) await upsertDeals(allDeals);
+  return allDeals.length;
 }
