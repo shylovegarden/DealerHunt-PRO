@@ -23,6 +23,7 @@ import { MarketTiming } from "@/components/deal/MarketTiming";
 import { AIBrief } from "@/components/deal/AIBrief";
 import { DealIQCard } from "@/components/deal/DealIQCard";
 import { LogOutcome } from "@/components/deal/LogOutcome";
+import { DealEconomics } from "@/components/deal/DealEconomics";
 import { ImageGallery } from "@/components/shared/ImageGallery";
 import { PriceMilesScatter } from "@/components/deal/PriceMilesScatter";
 import { BestTimeToBuy } from "@/components/deal/BestTimeToBuy";
@@ -439,6 +440,27 @@ export default function DealPage({
             </Card>
           );
         })()}
+
+      {/* THE MONEY — one-glance profit visual (buy + costs → your cut), the hero of the page */}
+      {serverDeal?.dealVerdict && serverDeal.dealAnalysis?.costs && (
+        <DealEconomics
+          buy={
+            serverDeal.dealAnalysis.costs.acquisition ??
+            serverDeal.askPrice ??
+            store.askPrice ??
+            0
+          }
+          transport={serverDeal.dealAnalysis.costs.transport ?? 0}
+          recon={serverDeal.dealAnalysis.costs.repair ?? 0}
+          fees={
+            (serverDeal.dealAnalysis.costs.holding ?? 0) +
+            (serverDeal.dealAnalysis.costs.selling ?? 0)
+          }
+          sell={serverDeal.sellEstimate ?? 0}
+          profit={serverDeal.true_net_profit ?? engineNetProfit ?? 0}
+          verdict={String(serverDeal.dealVerdict).toUpperCase()}
+        />
+      )}
 
       {/* LOG OUTCOME — the loop that activates per-dealer calibration from real flips */}
       {serverDeal && (
