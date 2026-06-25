@@ -36,11 +36,14 @@ import {
 } from "@/components/deal/SortableWidgetGrid";
 
 // Fetcher function for SWR
-const fetcher = (url: string) =>
-  fetch(url).then((res) => {
-    if (!res.ok) throw new Error("Failed to fetch");
-    return res.json();
-  });
+const fetcher = async (url: string) => {
+  const res = await fetch(url);
+  // 402 = free-plan daily limit reached. Return the payload (locked:true) so the page can show an
+  // upgrade prompt instead of a generic error.
+  if (res.status === 402) return res.json();
+  if (!res.ok) throw new Error("Failed to fetch");
+  return res.json();
+};
 
 export default function DealPage({
   params,
@@ -220,6 +223,54 @@ export default function DealPage({
           }
           onRetry={() => window.location.reload()}
         />
+      </div>
+    );
+  }
+
+  // Free-plan daily limit reached (gating). Show an upgrade CTA instead of the deal.
+  if (dealData?.locked) {
+    return (
+      <div className="max-w-md mx-auto mt-16">
+        <div
+          className="glass-panel p-8 text-center relative overflow-hidden"
+          style={{
+            background: "rgba(20,10,20,0.6)",
+            boxShadow: "var(--shadow)",
+          }}
+        >
+          <div
+            className="h-1 w-full absolute top-0 left-0"
+            style={{ background: "var(--grad)" }}
+          />
+          <div
+            className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 text-white"
+            style={{ background: "var(--grad)" }}
+          >
+            <Ico name="trending-up" size={26} />
+          </div>
+          <h2 className="text-xl font-black text-[var(--t1)] mb-2">
+            You’ve hit today’s free limit
+          </h2>
+          <p className="text-sm text-[var(--t3)] mb-6">
+            Free includes{" "}
+            <strong className="text-[var(--t1)]">
+              {dealData?.meter?.limit ?? 10} deal analyses/day
+            </strong>
+            . Upgrade to Pro for unlimited deal intelligence, alerts, and
+            calibrated pricing tuned to your shop.
+          </p>
+          <a
+            href="/upgrade"
+            className="inline-flex items-center gap-2 text-sm font-bold text-white rounded-xl px-6 py-3 border-none"
+            style={{ background: "var(--grad)" }}
+          >
+            <Ico name="trending-up" size={16} />
+            Upgrade to Pro
+          </a>
+          <p className="text-[11px] text-[var(--t5)] mt-4">
+            Your limit resets at midnight.
+          </p>
+        </div>
       </div>
     );
   }
