@@ -33,7 +33,27 @@ export function PriceMilesScatter({ dealId, mileage, askPrice }: Props) {
   if (meValid) pts.push({ x: Number(mileage), y: Number(askPrice), me: true });
 
   // Need a real cluster to draw an honest picture.
-  if (pts.length < 4) return null;
+  // Don't silently vanish — tell the dealer WHY there's no chart (usually missing mileage on the
+  // comps, common for private/Craigslist listings) so an absent widget never reads as a bug.
+  if (pts.length < 4) {
+    return (
+      <Card
+        className="border-none"
+        style={{ background: "var(--s0)", boxShadow: "var(--shadow)" }}
+      >
+        <CardContent className="p-6 flex flex-col items-center justify-center text-center min-h-[180px] gap-2">
+          <Ico name="trending-up" size={20} className="text-[var(--t5)]" />
+          <p className="text-sm font-semibold text-[var(--t3)]">
+            Not enough comps with mileage to plot yet
+          </p>
+          <p className="text-xs text-[var(--t5)] max-w-[240px]">
+            Price-vs-mileage needs a few similar listings that report odometer —
+            common gap on private/Craigslist cars.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const W = 340,
     H = 190,
