@@ -25,6 +25,7 @@ import { DealIQCard } from "@/components/deal/DealIQCard";
 import { LogOutcome } from "@/components/deal/LogOutcome";
 import { DealEconomics } from "@/components/deal/DealEconomics";
 import { RecentlySold } from "@/components/deal/RecentlySold";
+import { VinHistory } from "@/components/deal/VinHistory";
 import { ImageGallery } from "@/components/shared/ImageGallery";
 import { PriceMilesScatter } from "@/components/deal/PriceMilesScatter";
 import { BestTimeToBuy } from "@/components/deal/BestTimeToBuy";
@@ -460,6 +461,16 @@ export default function DealPage({
           sell={serverDeal.sellEstimate ?? 0}
           profit={serverDeal.true_net_profit ?? engineNetProfit ?? 0}
           verdict={String(serverDeal.dealVerdict).toUpperCase()}
+        />
+      )}
+
+      {/* VIN HISTORY — the "should I buy" red flags (title brands/accidents), tiered w/ fallback */}
+      {serverDeal && (
+        <VinHistory
+          vin={serverDeal.vin ?? store.vin}
+          title={serverDeal.title}
+          condition={serverDeal.condition ?? store.titleType}
+          damageType={serverDeal.damageType ?? serverDeal.damage_type}
         />
       )}
 
