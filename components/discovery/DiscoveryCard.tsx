@@ -205,10 +205,16 @@ export const DiscoveryCard = memo(function DiscoveryCard({
 
         {/* Body */}
         <div className="flex flex-1 flex-col gap-2 p-3.5">
-          {/* Title */}
-          <h3 className="truncate text-[15px] font-bold leading-tight text-[var(--t1)] transition-colors group-hover:text-[var(--amber)]">
-            {title}
-          </h3>
+          <div className="flex justify-between items-start gap-2">
+            <h3 className="truncate text-[15px] font-bold leading-tight text-[var(--t1)] transition-colors group-hover:text-[var(--amber)]">
+              {title}
+            </h3>
+            {deal.vin && (
+              <span className="font-mono text-[10px] text-[var(--t4)] shrink-0 group-hover:text-[var(--t2)] transition-colors">
+                {deal.vin.slice(-6)}
+              </span>
+            )}
+          </div>
 
           {/* Meta: mileage · location · title class */}
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[var(--t4)]">
@@ -258,26 +264,31 @@ export const DiscoveryCard = memo(function DiscoveryCard({
             </span>
           )}
 
-          {/* Price + max bid hint */}
-          <div className="mt-auto flex items-end justify-between gap-2 pt-1">
+          {/* Price + Est Profit grid */}
+          <div className="mt-auto grid grid-cols-2 gap-2 pt-2 border-t border-[var(--b1)]">
             <div>
-              <p className="text-[9px] font-semibold uppercase tracking-widest text-[var(--t4)]">
-                Ask Price
+              <p className="text-[9px] font-bold uppercase tracking-widest text-[var(--t4)]">
+                Purchase Price
               </p>
-              <span className="font-mono text-xl font-black leading-none text-[var(--t1)]">
+              <span className="font-mono text-lg font-black leading-none text-[var(--t1)] tracking-tight">
                 ${deal.askPrice.toLocaleString()}
               </span>
             </div>
-            {deal.recommendedMaxBid != null && deal.recommendedMaxBid > 0 && (
-              <div className="text-right">
-                <p className="text-[9px] font-semibold uppercase tracking-widest text-[var(--t4)]">
-                  Max Bid
-                </p>
-                <span className="font-mono text-sm font-bold leading-none text-[var(--green)]">
-                  ${deal.recommendedMaxBid.toLocaleString()}
+            
+            <div className="text-right">
+              <p className="text-[9px] font-bold uppercase tracking-widest text-[var(--t4)]">
+                Est. Net Profit
+              </p>
+              {deal.trueNetProfit && deal.trueNetProfit > 0 ? (
+                <span className="font-mono text-[17px] font-black leading-none text-[var(--green)]">
+                  +${deal.trueNetProfit.toLocaleString()}
                 </span>
-              </div>
-            )}
+              ) : (
+                <span className="font-mono text-[17px] font-bold leading-none text-[var(--t3)]">
+                  --
+                </span>
+              )}
+            </div>
           </div>
 
           {/* Multi-source line (Kayak): from $cheapest */}
