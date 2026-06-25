@@ -36,6 +36,31 @@ function mapCraigslistTitle(status?: string): string | undefined {
   return undefined; // lien/missing/etc → leave as-is
 }
 
+// Craigslist (and many dealer) gallery cards don't expose odometer structurally, but the TITLE almost
+// always carries it ("2015 F-150 90k miles", "Accord 90,000 mi"). Pull it from the title so the
+// majority of CL inventory gets mileage WITHOUT a detail-page fetch — which lights up mileage-aware
+// valuation + the price-vs-mileage visualizer for our biggest source. Prices ($15k) are stripped
+// first so they can't be misread as miles.
+export function mileageFromTitle(title?: string | null): number | undefined {
+  if (!title) return undefined;
+  const t = title.toLowerCase().replace(/\$\s?\d[\d,.]*\s*k?/g, " ");
+  // "90k", "90 k", "90k miles", "90k mi"
+  let m = t.match(/\b(\d{1,3})\s*k(?:\s*(?:miles|mile|mi))?\b/);
+  if (m) {
+    const v = parseInt(m[1], 10) * 1000;
+    if (v >= 1000 && v <= 400000) return v;
+  }
+  // "90,000 miles", "90000 mi", "143,250 miles"
+  m = t.match(
+    /\b(\d{1,3}(?:,\d{3})|\d{4,6})\s*(?:miles|mile|mi|odometer|odo)\b/,
+  );
+  if (m) {
+    const v = parseInt(m[1].replace(/,/g, ""), 10);
+    if (v >= 1000 && v <= 400000) return v;
+  }
+  return undefined;
+}
+
 export async function enrichCraigslistDetail(
   url: string,
 ): Promise<Partial<Deal>> {
@@ -222,6 +247,7 @@ export async function scrapeCraigslist(
                 make: title.split(" ").slice(1, 2).join("") || "",
                 model: title.split(" ").slice(2, 4).join(" ") || "",
                 ask_price: extractPrice(priceText) || 0,
+                mileage: mileageFromTitle(title),
                 condition: "run_drive",
                 location_city: hood || city,
                 location_state: CL_SITE_STATE.get(city),
@@ -401,7 +427,7 @@ export async function scrapeIndependentDealer(
           make: title.split(" ").filter((w) => w.match(/[A-Z][a-z]+/))[0] || "",
           model: title.split(" ").slice(2, 4).join(" ") || "",
           ask_price: price,
-          mileage: extractMileage(mileText),
+          mileage: extractMileage(mileText) || mileageFromTitle(title),
           condition: "run_drive",
           location_city: profile.city,
           location_state: profile.state,
