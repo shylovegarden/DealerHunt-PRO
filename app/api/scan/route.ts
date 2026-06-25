@@ -194,13 +194,10 @@ export async function GET(req: NextRequest) {
       "independent_dealer",
     ];
     if (lane === "auction") query = query.in("source", AUCTION);
-    else if (lane === "salvage")
+    else if (lane === "damaged")
+      // Salvage + repairable + branded — every fixable/damaged car, any source (incl. auction lots).
       query = query.or(
-        "condition.ilike.%salvage%,condition.ilike.%parts%,condition.ilike.%flood%,condition.ilike.%fire%,condition.ilike.%junk%",
-      );
-    else if (lane === "repairable")
-      query = query.or(
-        "condition.ilike.%rebuilt%,condition.ilike.%repairable%,condition.ilike.%hail%",
+        "condition.ilike.%salvage%,condition.ilike.%parts%,condition.ilike.%flood%,condition.ilike.%fire%,condition.ilike.%junk%,condition.ilike.%rebuilt%,condition.ilike.%repairable%,condition.ilike.%hail%",
       );
     else if (lane === "clean-retail") query = query.in("source", RETAIL);
     else if (lane === "private") query = query.in("source", PRIVATE);

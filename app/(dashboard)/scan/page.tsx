@@ -1263,8 +1263,7 @@ export default function ScanPage() {
         {[
           { v: "all", l: "All deals" },
           { v: "auction", l: "Auction lots" },
-          { v: "salvage", l: "Salvage" },
-          { v: "repairable", l: "Repairable" },
+          { v: "damaged", l: "Salvage & Repairable" },
           { v: "clean-retail", l: "Clean retail" },
           { v: "private", l: "Private" },
         ].map((seg) => (
