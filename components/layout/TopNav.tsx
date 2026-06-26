@@ -23,6 +23,7 @@ import {
   Activity,
   Cpu,
   SlidersHorizontal,
+  Wrench,
 } from "lucide-react";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 
@@ -34,6 +35,7 @@ const PRIMARY = [
   { name: "Deal Check", href: "/deal-check", icon: FileCheck },
   { name: "Map", href: "/map", icon: MapPin },
   { name: "Intel", href: "/insights", icon: TrendingUp },
+  { name: "Parts", href: "/parts", icon: Wrench },
   { name: "Fleet", href: "/fleet", icon: Clock },
 ];
 
