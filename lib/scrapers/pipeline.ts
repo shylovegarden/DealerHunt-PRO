@@ -210,6 +210,37 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
     })
     .select(SELECT_COLS);
 
+  // Self-heal a schema mismatch: a non-existent column rejects the WHOLE batch, and the per-row retry
+  // below would then drop EVERY row (they all carry it) — that exact bug once killed all ingestion. So
+  // when the error names a missing column, strip it from every row and retry the batch. Loop for several.
+  let healedRows: any[] = rows;
+  let heals = 0;
+  while (error && heals < 8) {
+    const col = error.message.match(
+      /Could not find the '([^']+)' column|'([^']+)' column of/i,
+    );
+    const bad = col?.[1] || col?.[2];
+    if (!bad) break;
+    heals++;
+    console.warn(
+      `[upsertDeals] unknown column '${bad}' — stripping it and retrying the batch (heal ${heals})`,
+    );
+    healedRows = healedRows.map((r) => {
+      const c = { ...r };
+      delete c[bad];
+      return c;
+    });
+    const retry = await sb
+      .from("deals")
+      .upsert(healedRows, {
+        onConflict: "source,source_deal_id",
+        ignoreDuplicates: false,
+      })
+      .select(SELECT_COLS);
+    error = retry.error;
+    upsertedRows = retry.data;
+  }
+
   if (error) {
     // A batch fails atomically, so one bad row (e.g. an enum/type violation) would otherwise lose
     // the whole batch. Fall back to per-row upserts: keep the good rows, skip + log the offenders.
@@ -217,7 +248,7 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
       `[upsertDeals] batch failed (${error.message}); retrying per-row to salvage good rows`,
     );
     const salvaged: any[] = [];
-    for (const row of rows) {
+    for (const row of healedRows) {
       const { data, error: rowErr } = await sb
         .from("deals")
         .upsert([row], {
