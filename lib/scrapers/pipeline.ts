@@ -110,10 +110,12 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
         // Listing photos (the `images` text[] column exists). Without this every scraped/ingested
         // deal showed a placeholder card.
         images: Array.isArray(deal.images) ? deal.images.slice(0, 12) : [],
-        // Generated/non-existent columns commented out to prevent PGRST204 errors
+        // seller / seller_type columns exist (5k+ rows already populated) and most scrapers set them —
+        // writing them here unlocks real Seller-Type filtering (Dealer / Auction / Private).
+        seller: (deal as any).seller ?? null,
+        seller_type: (deal as any).seller_type ?? null,
+        // Still-absent columns kept commented to avoid PGRST204.
         // description: deal.description,
-        // seller: deal.seller,
-        // seller_type: deal.seller_type,
         // auction_end: deal.auction_end,
         // bid_count: deal.bid_count,
         estimated_transport_cost: analysis.transportCost,

@@ -220,6 +220,7 @@ export async function runDiscovery(
           state: s.state,
           conditionDefault: d.condition,
           damageDefault: d.damage_type,
+          sellerDefault: d.seller_type,
         });
         recordYield(s.url, n);
         crawled += n;
@@ -252,6 +253,7 @@ export async function scrapeDiscoveredSites(
         state: s.state,
         conditionDefault: d.condition,
         damageDefault: d.damage_type,
+        sellerDefault: d.seller_type,
       });
       recordYield(s.url, n);
       total += n;

@@ -47,6 +47,8 @@ type Filters = {
   makes: string[];
   conditions: string[];
   verdicts: string[];
+  sellerTypes: string[];
+  minRoi: string;
   priceMin: string;
   priceMax: string;
   yearMin: string;
@@ -63,6 +65,8 @@ const EMPTY: Filters = {
   makes: [],
   conditions: [],
   verdicts: [],
+  sellerTypes: [],
+  minRoi: "",
   priceMin: "",
   priceMax: "",
   yearMin: "",
@@ -72,6 +76,12 @@ const EMPTY: Filters = {
   sort: "profitEstimate",
   sortDir: "desc",
 };
+
+const SELLERS = [
+  { key: "dealer", label: "Dealer" },
+  { key: "auction", label: "Auction" },
+  { key: "private", label: "Private" },
+];
 
 function toggle(arr: string[], v: string): string[] {
   return arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v];
@@ -88,6 +98,8 @@ export default function MarketPage() {
     if (f.makes.length) p.set("makes", f.makes.join(","));
     if (f.conditions.length) p.set("conditions", f.conditions.join(","));
     if (f.verdicts.length) p.set("verdicts", f.verdicts.join(","));
+    if (f.sellerTypes.length) p.set("sellerTypes", f.sellerTypes.join(","));
+    if (f.minRoi) p.set("minRoi", f.minRoi);
     if (f.priceMin) p.set("priceMin", f.priceMin);
     if (f.priceMax) p.set("priceMax", f.priceMax);
     if (f.yearMin) p.set("yearMin", f.yearMin);
@@ -113,6 +125,8 @@ export default function MarketPage() {
     f.makes.length +
     f.conditions.length +
     f.verdicts.length +
+    f.sellerTypes.length +
+    (f.minRoi ? 1 : 0) +
     (f.priceMin ? 1 : 0) +
     (f.priceMax ? 1 : 0) +
     (f.yearMin ? 1 : 0) +
@@ -188,6 +202,43 @@ export default function MarketPage() {
           selected={f.verdicts}
           onToggle={(k) => set({ verdicts: toggle(f.verdicts, k) })}
         />
+
+        <ChipGroup
+          title="Seller type"
+          options={SELLERS.map((s) => ({
+            key: s.key,
+            label: s.label,
+            count: facets.sellerTypes?.[s.key],
+          }))}
+          selected={f.sellerTypes}
+          onToggle={(k) => set({ sellerTypes: toggle(f.sellerTypes, k) })}
+        />
+
+        {/* Min ROI — chop low-yield flips fast (Visor-style) */}
+        <div
+          className="rounded-[var(--r3)] p-3"
+          style={{ background: "var(--s1)", boxShadow: "var(--shadow)" }}
+        >
+          <div className="mb-2 text-xs font-bold uppercase tracking-wide text-[var(--t3)]">
+            Min ROI
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {["", "10", "25", "50", "100"].map((v) => (
+              <button
+                key={v || "any"}
+                onClick={() => set({ minRoi: v })}
+                className="rounded-full px-2.5 py-1 text-[11px] font-bold transition-all"
+                style={
+                  f.minRoi === v
+                    ? { background: "var(--grad)", color: "#fff" }
+                    : { background: "var(--s2)", color: "var(--t3)" }
+                }
+              >
+                {v ? `${v}%+` : "Any"}
+              </button>
+            ))}
+          </div>
+        </div>
 
         {/* Numeric ranges */}
         <div

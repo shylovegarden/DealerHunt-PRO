@@ -9,6 +9,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { estimateBaselineValue } from "./baseline-value";
+import { looksLikePlaceholderPrice } from "./placeholder-price";
 
 const RETAIL_SOURCES = new Set([
   "cars_com",
@@ -190,6 +191,9 @@ export async function loadMarketIndex(
     const k = key(r.make, r.model, r.year);
     // Require make + model present (year may be 'na'); skip empty rows.
     if (!(r.make && r.model)) continue;
+    // Keep placeholder/bait prices ($1,234, $1, $111,111) OUT of the comp index so they can't poison
+    // the medians every valuation depends on. The listing still exists/shows — just not as a comp.
+    if (looksLikePlaceholderPrice(r.ask_price)) continue;
     // Tally national supply per make|model (all years) for the demand-scarcity signal.
     const sk = `${(r.make || "").toLowerCase().trim()}|${normalizeModel(r.model)}`;
     supply.set(sk, (supply.get(sk) || 0) + 1);

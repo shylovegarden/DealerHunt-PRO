@@ -39,8 +39,8 @@ export function normalizeCondition(raw?: string | null): string | undefined {
   if (/\bflood|water\b/.test(x)) return "flood";
   if (/\bfire|burn/.test(x)) return "fire";
   if (/\bhail\b/.test(x)) return "hail";
-  if (/\b(rebuilt|reconstructed|prior salvage rebuilt)\b/.test(x))
-    return "rebuilt_title";
+  if (/prior[\s-]?salvage|reconstruct/.test(x)) return "rebuilt_title";
+  if (/\b(rebuilt|prior salvage rebuilt)\b/.test(x)) return "rebuilt_title";
   if (/\b(repairable|rebuildable|fixable|damaged)\b/.test(x))
     return "repairable";
   if (/\bsalvage|total(ed)? loss|wreck/.test(x)) return "salvage_title";

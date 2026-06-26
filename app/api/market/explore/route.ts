@@ -28,6 +28,8 @@ export async function GET(req: NextRequest) {
     const conditions = csv(sp.get("conditions"));
     const verdicts = csv(sp.get("verdicts"));
     const sources = csv(sp.get("sources"));
+    const sellerTypes = csv(sp.get("sellerTypes")).map((s) => s.toLowerCase());
+    const minRoi = parseFloat(sp.get("minRoi") || "0") || 0;
     const priceMin = parseInt(sp.get("priceMin") || "0") || 0;
     const priceMax = parseInt(sp.get("priceMax") || "0") || 0;
     const yearMin = parseInt(sp.get("yearMin") || "0") || 0;
@@ -44,7 +46,7 @@ export async function GET(req: NextRequest) {
     let q = supabase
       .from("deals")
       .select(
-        "id, source, title, year, make, model, trim, vin, mileage, condition, damage_type, ask_price, sell_estimate, profit_score, true_net_profit, recommended_max_bid, deal_verdict, is_arbitrage_opportunity, location_state",
+        "id, source, title, year, make, model, trim, vin, mileage, condition, damage_type, ask_price, sell_estimate, profit_score, true_net_profit, recommended_max_bid, deal_verdict, deal_analysis, seller_type, is_arbitrage_opportunity, location_state",
       )
       .eq("active", true)
       .gt("ask_price", 0)
@@ -57,6 +59,7 @@ export async function GET(req: NextRequest) {
     if (conditions.length) q = q.in("condition", conditions);
     if (verdicts.length) q = q.in("deal_verdict", verdicts);
     if (sources.length) q = q.in("source", sources);
+    if (sellerTypes.length) q = q.in("seller_type", sellerTypes);
     if (priceMin > 0) q = q.gte("ask_price", priceMin);
     if (priceMax > 0) q = q.lte("ask_price", priceMax);
     if (yearMin > 0) q = q.gte("year", yearMin);
@@ -90,11 +93,15 @@ export async function GET(req: NextRequest) {
       locationState: d.location_state || undefined,
       condition: d.condition || undefined,
       damageType: d.damage_type || undefined,
+      sellerType: d.seller_type || undefined,
+      roi: d.deal_analysis?.roi != null ? Number(d.deal_analysis.roi) : undefined,
       lane: dealLane(d),
     }));
 
     // Lane filter (computed, so done here).
     if (lanes.length) rows = rows.filter((r) => lanes.includes(r.lane));
+    // ROI filter — deal_analysis.roi is a JSON number, so compared correctly here (not as PG text).
+    if (minRoi > 0) rows = rows.filter((r) => (r.roi ?? -Infinity) >= minRoi);
 
     // Facets over the post-filter set so the UI shows live counts.
     const count = <T extends string>(key: (r: (typeof rows)[number]) => T | undefined) => {
@@ -107,6 +114,7 @@ export async function GET(req: NextRequest) {
     };
     const stateCounts = count((r) => r.locationState);
     const laneCounts = count((r) => r.lane);
+    const sellerCounts = count((r) => r.sellerType);
     const makeCounts = count((r) => r.make);
     const topMakes = Object.entries(makeCounts)
       .sort((a, b) => b[1] - a[1])
@@ -143,6 +151,7 @@ export async function GET(req: NextRequest) {
       facets: {
         states: stateCounts,
         lanes: laneCounts,
+        sellerTypes: sellerCounts,
         topMakes,
         laneColors: LANE_COLORS,
       },

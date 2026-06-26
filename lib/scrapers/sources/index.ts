@@ -329,6 +329,7 @@ interface DealerProfile {
   // instead of falling through to the "private" lane. See SITE_TYPE_DEFAULTS.
   conditionDefault?: string;
   damageDefault?: string;
+  sellerDefault?: string;
 }
 
 export const DEALER_PROFILES: DealerProfile[] = [
@@ -375,6 +376,8 @@ export const DEALER_PROFILES: DealerProfile[] = [
 // titleToCondition this never guesses "clean" — silence means "use the site default", not "clean".
 function conditionFromTitle(title?: string): string | undefined {
   const x = (title || "").toLowerCase();
+  // "Prior salvage" = was salvaged, now retitled rebuilt/reconstructed → rebuilt, NOT active salvage.
+  if (/prior[\s-]?salvage|reconstruct/.test(x)) return "rebuilt_title";
   if (/\bsalvage\b/.test(x)) return "salvage_title";
   if (/\brebuilt\b/.test(x)) return "rebuilt_title";
   if (/\b(repairable|rebuildable)\b/.test(x)) return "repairable";
@@ -455,6 +458,7 @@ export async function scrapeIndependentDealer(
           condition:
             conditionFromTitle(title) ?? profile.conditionDefault ?? "run_drive",
           damage_type: profile.damageDefault,
+          seller_type: profile.sellerDefault as Deal["seller_type"],
           location_city: profile.city,
           location_state: profile.state,
           images: imgSrc ? [normalizeUrl(imgSrc, baseUrl)] : [],
@@ -507,6 +511,7 @@ export async function scrapeIndependentDealer(
                 (v as any).condition ||
                 "run_drive",
               damage_type: profile.damageDefault,
+              seller_type: profile.sellerDefault as Deal["seller_type"],
               location_city: v.location_city || profile.city,
               location_state: v.location_state || profile.state,
               images: [],
@@ -547,6 +552,7 @@ export async function autoDiscoverAndCrawl(
     state?: string;
     conditionDefault?: string;
     damageDefault?: string;
+    sellerDefault?: string;
   },
 ): Promise<number> {
   console.log(`[AutoDiscover] Analyzing ${dealerWebsite}`);
@@ -628,6 +634,7 @@ export async function autoDiscoverAndCrawl(
     state: hint?.state || base.state,
     conditionDefault: hint?.conditionDefault ?? base.conditionDefault,
     damageDefault: hint?.damageDefault ?? base.damageDefault,
+    sellerDefault: hint?.sellerDefault ?? base.sellerDefault,
   };
 
   return scrapeIndependentDealer(profile, dealerWebsite);
@@ -662,13 +669,13 @@ export interface CuratedSite {
 // condition / damage_type, which dealLane() already reads → correct lane/color, no dealLane change.
 export const SITE_TYPE_DEFAULTS: Record<
   CuratedSiteType,
-  { condition?: string; damage_type?: string }
+  { condition?: string; damage_type?: string; seller_type?: string }
 > = {
-  salvage_yard: { condition: "salvage_title" },
-  rebuilder_dealer: { condition: "rebuilt_title", damage_type: "repairable" },
-  independent_dealer: { condition: "run_drive" }, // preserves prior behavior
-  auction_proxy: { condition: "salvage_title" },
-  clean_retail: { condition: "clean" },
+  salvage_yard: { condition: "salvage_title", seller_type: "dealer" },
+  rebuilder_dealer: { condition: "rebuilt_title", damage_type: "repairable", seller_type: "dealer" },
+  independent_dealer: { condition: "run_drive", seller_type: "dealer" },
+  auction_proxy: { condition: "salvage_title", seller_type: "auction" },
+  clean_retail: { condition: "clean", seller_type: "dealer" },
 };
 
 // prettier-ignore
@@ -813,6 +820,7 @@ export async function scrapeCuratedSites(
         state: site.state,
         conditionDefault: d.condition,
         damageDefault: d.damage_type,
+        sellerDefault: d.seller_type,
       });
       console.log(
         `[CuratedSites] ${site.name} (${site.type}${site.state ? `/${site.state}` : ""}): ${n} listings`,
