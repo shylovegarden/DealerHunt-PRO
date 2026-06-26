@@ -4,6 +4,7 @@ import React from "react";
 import useSWR from "swr";
 import { DealTable, type TableRow } from "@/components/scan/DealTable";
 import { Ico } from "@/components/shared/Ico";
+import { USHeatmap } from "@/components/market/USHeatmap";
 
 // /market — the advanced sourcing surface. A dealer dials in exactly what they want (states, channel,
 // price, year, miles, make, condition, verdict) and flips between CURATED (deals worth acting on) and
@@ -117,7 +118,12 @@ export default function MarketPage() {
   });
 
   const rows: TableRow[] = data?.rows || [];
-  const facets = data?.facets || { states: {}, lanes: {}, topMakes: [], laneColors: {} };
+  const facets = data?.facets || {
+    states: {},
+    lanes: {},
+    topMakes: [],
+    laneColors: {},
+  };
   const total: number = data?.total ?? 0;
   const activeCount =
     f.states.length +
@@ -134,206 +140,229 @@ export default function MarketPage() {
     (f.minProfit ? 1 : 0);
 
   return (
-    <div className="flex flex-col gap-4 p-4 md:flex-row">
-      {/* ── Filter rail ── */}
-      <aside className="md:w-72 md:shrink-0 md:sticky md:top-4 md:self-start md:max-h-[calc(100vh-2rem)] md:overflow-y-auto flex flex-col gap-4">
-        {/* Curated ⟷ whole market */}
-        <div
-          className="flex rounded-[var(--r2)] p-1"
-          style={{ background: "var(--s1)", boxShadow: "var(--shadow)" }}
-        >
-          {(["curated", "all"] as const).map((m) => (
-            <button
-              key={m}
-              onClick={() => set({ mode: m })}
-              className="flex-1 rounded-[var(--r1)] px-3 py-2 text-xs font-bold uppercase tracking-wide transition-all"
-              style={
-                f.mode === m
-                  ? { background: "var(--grad)", color: "#fff" }
-                  : { color: "var(--t4)" }
-              }
-            >
-              {m === "curated" ? "Curated" : "Whole market"}
-            </button>
-          ))}
-        </div>
-
-        <ChipGroup
-          title="Channel"
-          options={LANES.map((l) => ({
-            key: l.key,
-            label: l.label,
-            count: facets.lanes?.[l.key],
-            color: facets.laneColors?.[l.key],
-          }))}
-          selected={f.lanes}
-          onToggle={(k) => set({ lanes: toggle(f.lanes, k) })}
-        />
-
-        <StateGroup
-          selected={f.states}
-          counts={facets.states || {}}
-          onToggle={(k) => set({ states: toggle(f.states, k) })}
-          onClear={() => set({ states: [] })}
-        />
-
-        <ChipGroup
-          title="Make"
-          options={(facets.topMakes || []).map((m: any) => ({
-            key: m.make,
-            label: m.make,
-            count: m.n,
-          }))}
-          selected={f.makes}
-          onToggle={(k) => set({ makes: toggle(f.makes, k) })}
-          lowercaseMatch
-        />
-
-        <ChipGroup
-          title="Title / condition"
-          options={CONDITIONS.map((c) => ({ key: c, label: c.replace(/_/g, " ") }))}
-          selected={f.conditions}
-          onToggle={(k) => set({ conditions: toggle(f.conditions, k) })}
-        />
-
-        <ChipGroup
-          title="Verdict"
-          options={VERDICTS.map((v) => ({ key: v.key, label: v.label }))}
-          selected={f.verdicts}
-          onToggle={(k) => set({ verdicts: toggle(f.verdicts, k) })}
-        />
-
-        <ChipGroup
-          title="Seller type"
-          options={SELLERS.map((s) => ({
-            key: s.key,
-            label: s.label,
-            count: facets.sellerTypes?.[s.key],
-          }))}
-          selected={f.sellerTypes}
-          onToggle={(k) => set({ sellerTypes: toggle(f.sellerTypes, k) })}
-        />
-
-        {/* Min ROI — chop low-yield flips fast (Visor-style) */}
-        <div
-          className="rounded-[var(--r3)] p-3"
-          style={{ background: "var(--s1)", boxShadow: "var(--shadow)" }}
-        >
-          <div className="mb-2 text-xs font-bold uppercase tracking-wide text-[var(--t3)]">
-            Min ROI
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {["", "10", "25", "50", "100"].map((v) => (
+    <div className="flex flex-col gap-4 p-4">
+      {/* Whole-country opportunity heatmap — where the GO/HOLD money clusters. */}
+      <USHeatmap />
+      <div className="flex flex-col gap-4 md:flex-row">
+        {/* ── Filter rail ── */}
+        <aside className="md:w-72 md:shrink-0 md:sticky md:top-4 md:self-start md:max-h-[calc(100vh-2rem)] md:overflow-y-auto flex flex-col gap-4">
+          {/* Curated ⟷ whole market */}
+          <div
+            className="flex rounded-[var(--r2)] p-1"
+            style={{ background: "var(--s1)", boxShadow: "var(--shadow)" }}
+          >
+            {(["curated", "all"] as const).map((m) => (
               <button
-                key={v || "any"}
-                onClick={() => set({ minRoi: v })}
-                className="rounded-full px-2.5 py-1 text-[11px] font-bold transition-all"
+                key={m}
+                onClick={() => set({ mode: m })}
+                className="flex-1 rounded-[var(--r1)] px-3 py-2 text-xs font-bold uppercase tracking-wide transition-all"
                 style={
-                  f.minRoi === v
+                  f.mode === m
                     ? { background: "var(--grad)", color: "#fff" }
-                    : { background: "var(--s2)", color: "var(--t3)" }
+                    : { color: "var(--t4)" }
                 }
               >
-                {v ? `${v}%+` : "Any"}
+                {m === "curated" ? "Curated" : "Whole market"}
               </button>
             ))}
           </div>
-        </div>
 
-        {/* Numeric ranges */}
-        <div
-          className="rounded-[var(--r3)] p-3"
-          style={{ background: "var(--s1)", boxShadow: "var(--shadow)" }}
-        >
-          <div className="mb-2 text-xs font-bold uppercase tracking-wide text-[var(--t3)]">
-            Price / year / miles
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <NumIn ph="$ min" v={f.priceMin} on={(v) => set({ priceMin: v })} />
-            <NumIn ph="$ max" v={f.priceMax} on={(v) => set({ priceMax: v })} />
-            <NumIn ph="year ≥" v={f.yearMin} on={(v) => set({ yearMin: v })} />
-            <NumIn ph="miles ≤" v={f.mileageMax} on={(v) => set({ mileageMax: v })} />
-            <NumIn
-              ph="profit ≥"
-              v={f.minProfit}
-              on={(v) => set({ minProfit: v })}
-              full
-            />
-          </div>
-        </div>
+          <ChipGroup
+            title="Channel"
+            options={LANES.map((l) => ({
+              key: l.key,
+              label: l.label,
+              count: facets.lanes?.[l.key],
+              color: facets.laneColors?.[l.key],
+            }))}
+            selected={f.lanes}
+            onToggle={(k) => set({ lanes: toggle(f.lanes, k) })}
+          />
 
-        {activeCount > 0 && (
-          <button
-            onClick={() => set({ ...EMPTY, mode: f.mode })}
-            className="rounded-[var(--r2)] px-3 py-2 text-xs font-bold text-[var(--t3)] transition-colors hover:text-[var(--t1)]"
-            style={{ background: "var(--s1)" }}
-          >
-            Clear {activeCount} filter{activeCount > 1 ? "s" : ""}
-          </button>
-        )}
-      </aside>
+          <StateGroup
+            selected={f.states}
+            counts={facets.states || {}}
+            onToggle={(k) => set({ states: toggle(f.states, k) })}
+            onClear={() => set({ states: [] })}
+          />
 
-      {/* ── Results ── */}
-      <main className="min-w-0 flex-1">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <div>
-            <h1 className="text-lg font-black text-[var(--t1)]">
-              Market sourcing
-            </h1>
-            <p className="text-xs text-[var(--t4)]">
-              {isLoading && !data ? (
-                "Loading…"
-              ) : (
-                <>
-                  <strong className="text-[var(--t2)]">
-                    {total.toLocaleString()}
-                  </strong>{" "}
-                  {f.mode === "curated" ? "curated" : "market"} matches
-                  {f.states.length
-                    ? ` · ${f.states.length} state${f.states.length > 1 ? "s" : ""}`
-                    : " · all states"}
-                  {data?.capped ? " · refine to see all" : ""}
-                </>
-              )}
-            </p>
-          </div>
-          <select
-            value={`${f.sort}:${f.sortDir}`}
-            onChange={(e) => {
-              const [sort, sortDir] = e.target.value.split(":");
-              set({ sort, sortDir: sortDir as "asc" | "desc" });
-            }}
-            className="field !w-auto text-xs"
-          >
-            <option value="profitEstimate:desc">Profit ↓</option>
-            <option value="profitScore:desc">Score ↓</option>
-            <option value="askPrice:asc">Price ↑</option>
-            <option value="askPrice:desc">Price ↓</option>
-            <option value="mileage:asc">Miles ↑</option>
-            <option value="year:desc">Year ↓</option>
-          </select>
-        </div>
+          <ChipGroup
+            title="Make"
+            options={(facets.topMakes || []).map((m: any) => ({
+              key: m.make,
+              label: m.make,
+              count: m.n,
+            }))}
+            selected={f.makes}
+            onToggle={(k) => set({ makes: toggle(f.makes, k) })}
+            lowercaseMatch
+          />
 
-        {rows.length > 0 ? (
-          <DealTable rows={rows} />
-        ) : (
+          <ChipGroup
+            title="Title / condition"
+            options={CONDITIONS.map((c) => ({
+              key: c,
+              label: c.replace(/_/g, " "),
+            }))}
+            selected={f.conditions}
+            onToggle={(k) => set({ conditions: toggle(f.conditions, k) })}
+          />
+
+          <ChipGroup
+            title="Verdict"
+            options={VERDICTS.map((v) => ({ key: v.key, label: v.label }))}
+            selected={f.verdicts}
+            onToggle={(k) => set({ verdicts: toggle(f.verdicts, k) })}
+          />
+
+          <ChipGroup
+            title="Seller type"
+            options={SELLERS.map((s) => ({
+              key: s.key,
+              label: s.label,
+              count: facets.sellerTypes?.[s.key],
+            }))}
+            selected={f.sellerTypes}
+            onToggle={(k) => set({ sellerTypes: toggle(f.sellerTypes, k) })}
+          />
+
+          {/* Min ROI — chop low-yield flips fast (Visor-style) */}
           <div
-            className="flex flex-col items-center justify-center gap-2 rounded-[var(--r3)] py-20 text-center"
-            style={{ background: "var(--s1)" }}
+            className="rounded-[var(--r3)] p-3"
+            style={{ background: "var(--s1)", boxShadow: "var(--shadow)" }}
           >
-            <Ico name="search" size={28} className="text-[var(--t5)]" />
-            <p className="text-sm font-bold text-[var(--t2)]">
-              {isLoading ? "Searching…" : "No matches"}
-            </p>
-            {!isLoading && (
-              <p className="text-xs text-[var(--t4)]">
-                Loosen a filter
-                {f.mode === "curated" ? " or switch to Whole market" : ""}.
-              </p>
-            )}
+            <div className="mb-2 text-xs font-bold uppercase tracking-wide text-[var(--t3)]">
+              Min ROI
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {["", "10", "25", "50", "100"].map((v) => (
+                <button
+                  key={v || "any"}
+                  onClick={() => set({ minRoi: v })}
+                  className="rounded-full px-2.5 py-1 text-[11px] font-bold transition-all"
+                  style={
+                    f.minRoi === v
+                      ? { background: "var(--grad)", color: "#fff" }
+                      : { background: "var(--s2)", color: "var(--t3)" }
+                  }
+                >
+                  {v ? `${v}%+` : "Any"}
+                </button>
+              ))}
+            </div>
           </div>
-        )}
-      </main>
+
+          {/* Numeric ranges */}
+          <div
+            className="rounded-[var(--r3)] p-3"
+            style={{ background: "var(--s1)", boxShadow: "var(--shadow)" }}
+          >
+            <div className="mb-2 text-xs font-bold uppercase tracking-wide text-[var(--t3)]">
+              Price / year / miles
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <NumIn
+                ph="$ min"
+                v={f.priceMin}
+                on={(v) => set({ priceMin: v })}
+              />
+              <NumIn
+                ph="$ max"
+                v={f.priceMax}
+                on={(v) => set({ priceMax: v })}
+              />
+              <NumIn
+                ph="year ≥"
+                v={f.yearMin}
+                on={(v) => set({ yearMin: v })}
+              />
+              <NumIn
+                ph="miles ≤"
+                v={f.mileageMax}
+                on={(v) => set({ mileageMax: v })}
+              />
+              <NumIn
+                ph="profit ≥"
+                v={f.minProfit}
+                on={(v) => set({ minProfit: v })}
+                full
+              />
+            </div>
+          </div>
+
+          {activeCount > 0 && (
+            <button
+              onClick={() => set({ ...EMPTY, mode: f.mode })}
+              className="rounded-[var(--r2)] px-3 py-2 text-xs font-bold text-[var(--t3)] transition-colors hover:text-[var(--t1)]"
+              style={{ background: "var(--s1)" }}
+            >
+              Clear {activeCount} filter{activeCount > 1 ? "s" : ""}
+            </button>
+          )}
+        </aside>
+
+        {/* ── Results ── */}
+        <main className="min-w-0 flex-1">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <h1 className="text-lg font-black text-[var(--t1)]">
+                Market sourcing
+              </h1>
+              <p className="text-xs text-[var(--t4)]">
+                {isLoading && !data ? (
+                  "Loading…"
+                ) : (
+                  <>
+                    <strong className="text-[var(--t2)]">
+                      {total.toLocaleString()}
+                    </strong>{" "}
+                    {f.mode === "curated" ? "curated" : "market"} matches
+                    {f.states.length
+                      ? ` · ${f.states.length} state${f.states.length > 1 ? "s" : ""}`
+                      : " · all states"}
+                    {data?.capped ? " · refine to see all" : ""}
+                  </>
+                )}
+              </p>
+            </div>
+            <select
+              value={`${f.sort}:${f.sortDir}`}
+              onChange={(e) => {
+                const [sort, sortDir] = e.target.value.split(":");
+                set({ sort, sortDir: sortDir as "asc" | "desc" });
+              }}
+              className="field !w-auto text-xs"
+            >
+              <option value="profitEstimate:desc">Profit ↓</option>
+              <option value="profitScore:desc">Score ↓</option>
+              <option value="askPrice:asc">Price ↑</option>
+              <option value="askPrice:desc">Price ↓</option>
+              <option value="mileage:asc">Miles ↑</option>
+              <option value="year:desc">Year ↓</option>
+            </select>
+          </div>
+
+          {rows.length > 0 ? (
+            <DealTable rows={rows} />
+          ) : (
+            <div
+              className="flex flex-col items-center justify-center gap-2 rounded-[var(--r3)] py-20 text-center"
+              style={{ background: "var(--s1)" }}
+            >
+              <Ico name="search" size={28} className="text-[var(--t5)]" />
+              <p className="text-sm font-bold text-[var(--t2)]">
+                {isLoading ? "Searching…" : "No matches"}
+              </p>
+              {!isLoading && (
+                <p className="text-xs text-[var(--t4)]">
+                  Loosen a filter
+                  {f.mode === "curated" ? " or switch to Whole market" : ""}.
+                </p>
+              )}
+            </div>
+          )}
+        </main>
+      </div>
     </div>
   );
 }
@@ -391,7 +420,9 @@ function ChipGroup({
           return (
             <button
               key={o.key}
-              onClick={() => onToggle(lowercaseMatch ? o.key.toLowerCase() : o.key)}
+              onClick={() =>
+                onToggle(lowercaseMatch ? o.key.toLowerCase() : o.key)
+              }
               className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold capitalize transition-all"
               style={
                 on
@@ -410,7 +441,9 @@ function ChipGroup({
               )}
               {o.label}
               {o.count != null && (
-                <span className={on ? "opacity-80" : "opacity-50"}>{o.count}</span>
+                <span className={on ? "opacity-80" : "opacity-50"}>
+                  {o.count}
+                </span>
               )}
             </button>
           );
@@ -474,9 +507,7 @@ function StateGroup({
               }
             >
               {s}
-              {has && (
-                <span className="ml-1 opacity-60">{counts[s]}</span>
-              )}
+              {has && <span className="ml-1 opacity-60">{counts[s]}</span>}
             </button>
           );
         })}
