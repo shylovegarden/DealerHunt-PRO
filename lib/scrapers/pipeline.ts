@@ -93,13 +93,15 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
         model: deal.model,
         trim: deal.trim,
         vin: vin,
-        // Structured options (drivetrain / transmission / fuel / features) parsed from the listing
-        // text, so the scan filters can offer real "AWD", "Diesel", "Sunroof", etc. facets. Seller
-        // contact now lives in the seller_phone/seller_email columns (extractContactInfo above) which
-        // the ContactSeller panel reads via deals-service.
-        options: extractOptions(
-          `${deal.title || ""} ${(deal as any).description || ""}`,
-        ),
+        // Structured options (drivetrain / transmission / fuel / features) + seller contact folded under
+        // options.contact (jsonb — exists). NOTE: the seller_phone/seller_email COLUMNS do not exist;
+        // writing them was rejecting EVERY insert (PGRST schema error) and silently breaking ingestion.
+        options: {
+          ...extractOptions(
+            `${deal.title || ""} ${(deal as any).description || ""}`,
+          ),
+          contact: phone || email ? { phone, email } : undefined,
+        },
         ask_price: deal.ask_price,
         mileage: deal.mileage,
         // Coerce to the listing_condition enum — AI-rescue / bespoke salvage sites emit free text
@@ -123,12 +125,11 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
         // writing them here unlocks real Seller-Type filtering (Dealer / Auction / Private).
         seller: (deal as any).seller ?? null,
         seller_type: (deal as any).seller_type ?? null,
-        // Still-absent columns kept commented to avoid PGRST204.
+        // Absent columns kept OUT of the upsert — writing a non-existent column rejects the whole row.
         // description: deal.description,
         // auction_end: deal.auction_end,
         // bid_count: deal.bid_count,
-        seller_phone: phone,
-        seller_email: email,
+        // seller_phone / seller_email do NOT exist — contact lives in options.contact above.
         estimated_transport_cost: analysis.transportCost,
         estimated_repair_cost: analysis.repairCost,
         true_net_profit: analysis.profit,

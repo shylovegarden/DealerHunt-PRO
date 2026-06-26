@@ -121,10 +121,10 @@ export class DealsService {
       seller: row.seller,
       sellerType: row.seller_type,
       contact:
-        row.seller_phone || row.seller_email
+        row.options?.contact?.phone || row.options?.contact?.email
           ? {
-              phone: row.seller_phone || undefined,
-              email: row.seller_email || undefined,
+              phone: row.options.contact.phone || undefined,
+              email: row.options.contact.email || undefined,
               listingUrl: row.source_url || undefined,
             }
           : undefined,
