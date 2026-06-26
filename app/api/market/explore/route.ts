@@ -121,6 +121,29 @@ export async function GET(req: NextRequest) {
       .slice(0, 25)
       .map(([make, n]) => ({ make, n }));
 
+    // Price distribution — chart-ready histogram (12 quantile-free fixed buckets) for the market viz.
+    const prices = rows.map((r) => r.askPrice).filter((p) => p > 0);
+    const hiP = prices.length ? Math.max(...prices) : 0;
+    const bw = hiP > 0 ? Math.max(1000, Math.ceil(hiP / 12 / 1000) * 1000) : 1000;
+    const priceHistogram: { from: number; to: number; n: number }[] = [];
+    for (let i = 0; i < 12; i++) {
+      const from = i * bw;
+      priceHistogram.push({ from, to: from + bw, n: 0 });
+    }
+    for (const p of prices) {
+      const idx = Math.min(11, Math.floor(p / bw));
+      priceHistogram[idx].n++;
+    }
+    // Median profit per lane — a "where's the money by channel" bar for the viz.
+    const profitByLane: Record<string, number[]> = {};
+    for (const r of rows)
+      (profitByLane[r.lane] ??= []).push(r.profitEstimate || 0);
+    const laneProfit: Record<string, number> = {};
+    for (const [lane, arr] of Object.entries(profitByLane)) {
+      const s = arr.slice().sort((a, b) => a - b);
+      laneProfit[lane] = s.length ? Math.round(s[Math.floor(s.length / 2)]) : 0;
+    }
+
     // Sort + paginate.
     const dir = sortDir === "asc" ? 1 : -1;
     const sortKey = (
@@ -153,6 +176,8 @@ export async function GET(req: NextRequest) {
         lanes: laneCounts,
         sellerTypes: sellerCounts,
         topMakes,
+        priceHistogram,
+        laneProfit,
         laneColors: LANE_COLORS,
       },
     });
