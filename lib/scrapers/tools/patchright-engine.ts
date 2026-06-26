@@ -68,8 +68,35 @@ export async function withPatchrightSession<T>(
   fn: (goto: (url: string) => Promise<string>) => Promise<T>,
   options: ScraperOptions & { tough?: boolean; settleMs?: number } = {},
 ): Promise<T> {
-  const { browser, page } = await createPatchrightBrowser(options);
-  const settle = options.settleMs ?? 3500;
+  const tough = options.tough === true;
+  const settle = options.settleMs ?? (tough ? 6000 : 3500);
+
+  let page: Page;
+  let close: () => Promise<void>;
+
+  if (tough) {
+    // PerimeterX (TrueCar/CarGurus) and Akamai (AutoTrader) detect HEADLESS Chrome even with stealth.
+    // The only free path past them is a real HEADED Chrome persistent context — which needs a display,
+    // so CI must wrap the run in `xvfb-run`. Verified to fully render TrueCar (1600+ listing hits).
+    const { chromium: pr } = await import("patchright");
+    const context = await pr.launchPersistentContext("", {
+      headless: false,
+      channel: "chrome",
+      viewport: { width: 1400, height: 900 },
+      args: [
+        "--no-sandbox",
+        "--disable-blink-features=AutomationControlled",
+        "--start-maximized",
+      ],
+    });
+    page = context.pages()[0] ?? (await context.newPage());
+    close = () => context.close();
+  } else {
+    const b = await createPatchrightBrowser(options);
+    page = b.page;
+    close = () => b.browser.close();
+  }
+
   try {
     const goto = async (url: string): Promise<string> => {
       await page.goto(url, { waitUntil: "domcontentloaded", timeout: 35000 });
@@ -78,7 +105,7 @@ export async function withPatchrightSession<T>(
     };
     return await fn(goto);
   } finally {
-    await browser.close().catch(() => {});
+    await close().catch(() => {});
   }
 }
 
