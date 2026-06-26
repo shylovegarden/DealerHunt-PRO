@@ -3,6 +3,24 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { createServerComponentClient } from "@/lib/supabase";
 import { loadProfitableMakes } from "@/lib/intelligence/profitable-segments";
+import { cached } from "@/lib/cache";
+
+const KNOWN_SOURCES = [
+  "copart",
+  "craigslist",
+  "craigslist_dealer",
+  "carvana",
+  "cars_com",
+  "autotrader",
+  "cargurus",
+  "truecar",
+  "ebay_motors",
+  "independent_dealer",
+  "gov_auction",
+  "iaa",
+  "facebook_marketplace",
+  "offerup",
+];
 
 // GET /api/system/status — the app's self-awareness: data freshness, per-source health (with
 // self-heal flags), and data-quality coverage. Read-only; powers the status surface and lets the
@@ -78,7 +96,54 @@ export async function GET() {
       .catch(() => [] as string[]),
   ]);
 
+  // Per-source health, computed live and cached 5 min: which sources are actually working, fresh, and
+  // SHOWING the cars (photo coverage). This is the actionable view behind the aggregate numbers — Copart
+  // at 0% photos vs retail at 100% only shows up here. Parallel count queries per known source.
+  const sourceBreakdown = await cached("status:source-breakdown", 300_000, () =>
+    Promise.all(
+      KNOWN_SOURCES.map(async (src) => {
+        const base = () =>
+          sb
+            .from("deals")
+            .select("id", { count: "exact", head: true })
+            .eq("active", true)
+            .eq("source", src);
+        const [n, withImg, freshRow] = await Promise.all([
+          base().then((r: any) => r.count ?? 0),
+          base()
+            .not("images", "is", null)
+            .neq("images", "{}")
+            .then((r: any) => r.count ?? 0),
+          sb
+            .from("deals")
+            .select("last_seen_at,created_at")
+            .eq("active", true)
+            .eq("source", src)
+            .order("last_seen_at", { ascending: false, nullsFirst: false })
+            .limit(1)
+            .maybeSingle()
+            .then((r: any) => r.data ?? null),
+        ]);
+        const freshTs = freshRow?.last_seen_at || freshRow?.created_at || null;
+        const ageH = freshTs
+          ? Math.round((Date.now() - new Date(freshTs).getTime()) / 3600_000)
+          : null;
+        return {
+          source: src,
+          active: n,
+          photoPct: n ? Math.round((withImg / n) * 100) : 0,
+          ageHours: ageH,
+          status:
+            n === 0 ? "idle" : ageH == null || ageH > 72 ? "stale" : "live",
+        };
+      }),
+    ).then((rows) =>
+      rows.filter((r) => r.active > 0).sort((a, b) => b.active - a.active),
+    ),
+  );
+
   return NextResponse.json({
+    sourceBreakdown,
     learning: {
       outcomesLogged,
       prioritizedMakes: profitableMakes,

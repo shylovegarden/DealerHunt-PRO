@@ -107,11 +107,14 @@ export abstract class BaseScraperOrchestrator {
       .single();
 
     if (error || !data) {
+      // Run-tracking is observability, NOT the job. A failure here (e.g. a source id that isn't a valid
+      // deal_source enum, like "publicsurplus") must never crash the actual scrape — that once took the
+      // whole run down with it. Warn and continue with a synthetic id so deals still get scraped + saved.
       this.log(
-        `Failed to create scraper run for ${source}: ${error?.message}`,
-        "error",
+        `Failed to create scraper run for ${source} (${error?.message}); continuing without run tracking`,
+        "warn",
       );
-      throw new Error(`Failed to create scraper run: ${error?.message}`);
+      return `untracked-${source}-${Date.now()}`;
     }
 
     return data.id;

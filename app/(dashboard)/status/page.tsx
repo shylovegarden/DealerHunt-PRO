@@ -63,6 +63,7 @@ export default function StatusPage() {
   const l = data?.learning;
   const sources: any[] = data?.sources ?? [];
   const runs: any[] = data?.recentRuns ?? [];
+  const breakdown: any[] = data?.sourceBreakdown ?? [];
 
   return (
     <div
@@ -167,6 +168,72 @@ export default function StatusPage() {
               </p>
             )}
           </div>
+
+          {/* Live inventory per source — count, freshness, and are we SHOWING the cars (photos) */}
+          {breakdown.length > 0 && (
+            <div className="glass-panel p-5">
+              <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--t4)] font-bold mb-3">
+                Live inventory by source
+              </p>
+              <div className="divide-y divide-[var(--b1)]">
+                {breakdown.map((s) => {
+                  const live = s.status === "live";
+                  const idle = s.status === "idle";
+                  const dot = idle
+                    ? "var(--t5)"
+                    : live
+                      ? "var(--green)"
+                      : "var(--amber)";
+                  const photoTone =
+                    s.photoPct >= 70
+                      ? "var(--green)"
+                      : s.photoPct >= 30
+                        ? "var(--amber)"
+                        : "var(--red)";
+                  return (
+                    <div
+                      key={s.source}
+                      className="flex items-center justify-between py-2.5 gap-3"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span
+                          className="w-2 h-2 rounded-full shrink-0"
+                          style={{ background: dot }}
+                        />
+                        <span className="text-sm font-bold text-[var(--t1)] capitalize truncate">
+                          {s.source.replace(/_/g, " ")}
+                        </span>
+                        {s.status === "stale" && (
+                          <span className="text-[10px] font-bold text-[var(--amber)] uppercase shrink-0">
+                            stale
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-4 text-xs shrink-0">
+                        <span className="text-[var(--t2)] font-semibold tabular-nums">
+                          {Number(s.active).toLocaleString()} cars
+                        </span>
+                        <span
+                          className="font-semibold tabular-nums w-[88px] text-right"
+                          style={{ color: photoTone }}
+                          title="Share of active listings showing at least one photo"
+                        >
+                          {s.photoPct}% photos
+                        </span>
+                        <span className="text-[var(--t4)] w-[64px] text-right">
+                          {s.ageHours == null
+                            ? "—"
+                            : s.ageHours < 1
+                              ? "<1h"
+                              : `${s.ageHours}h`}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Source health */}
           <div className="glass-panel p-5">
