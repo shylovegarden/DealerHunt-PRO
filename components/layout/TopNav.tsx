@@ -22,12 +22,14 @@ import {
   Code2,
   Activity,
   Cpu,
+  SlidersHorizontal,
 } from "lucide-react";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 
 // Clean primary nav — only real, dealer-relevant routes. Dead/ops/dev pages were pruned.
 const PRIMARY = [
   { name: "Discover", href: "/discover", icon: Compass },
+  { name: "Market", href: "/market", icon: SlidersHorizontal },
   { name: "Scan", href: "/scan", icon: Search },
   { name: "Deal Check", href: "/deal-check", icon: FileCheck },
   { name: "Map", href: "/map", icon: MapPin },
