@@ -9,6 +9,7 @@ import { Tag } from "@/components/shared/Tag";
 import { Mono } from "@/components/shared/Mono";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { InventoryItem } from "@/lib/data/inventory-service";
+import { FleetKPIs } from "@/components/fleet/FleetKPIs";
 import { useDealerId } from "@/hooks/useDealerId";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -1039,6 +1040,9 @@ export default function FleetPage() {
           </span>
         )}
       </div>
+
+      {/* Deep KPI rollup — margin, days-to-sell, recon, live ghost cost, bottleneck (the flip loop) */}
+      {!loading && !error && fleet.length > 0 && <FleetKPIs fleet={fleet} />}
 
       {/* Stats row */}
       {!loading && !error && fleet.length > 0 && (
