@@ -27,6 +27,7 @@ import { DealEconomics } from "@/components/deal/DealEconomics";
 import { RecentlySold } from "@/components/deal/RecentlySold";
 import { VinHistory } from "@/components/deal/VinHistory";
 import { ContactSeller } from "@/components/deal/ContactSeller";
+import { DealNotes } from "@/components/deal/DealNotes";
 import { ImageGallery } from "@/components/shared/ImageGallery";
 import { PriceMilesScatter } from "@/components/deal/PriceMilesScatter";
 import { BestTimeToBuy } from "@/components/deal/BestTimeToBuy";
@@ -504,6 +505,9 @@ export default function DealPage({
           sourceUrl={serverDeal.sourceUrl}
         />
       )}
+
+      {/* NOTES — private per-deal annotations (offer made, seller's bottom line, follow-up) */}
+      <DealNotes dealId={id} />
 
       {/* VIN HISTORY — the "should I buy" red flags (title brands/accidents), tiered w/ fallback */}
       {serverDeal && (
