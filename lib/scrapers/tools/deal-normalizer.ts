@@ -138,15 +138,44 @@ export function extractMileage(title?: string): number | undefined {
   return undefined;
 }
 
+// Multi-word models: when the first token after the make is one of these prefixes AND the next token
+// is a known continuation, the model is BOTH words. Without this, "Jeep Grand Cherokee" → "Grand",
+// "Tesla Model 3" → "Model", "Hyundai Santa Fe" → "Santa" — truncated stubs that never pool with
+// their real comps (the #1 cause of common, high-volume vehicles falling back to the offline baseline).
+const MODEL_SECOND_WORD: Record<string, Set<string>> = {
+  grand: new Set([
+    "cherokee", "caravan", "wagoneer", "prix", "am", "marquis", "voyager", "national",
+  ]),
+  model: new Set(["3", "y", "s", "x", "t"]),
+  santa: new Set(["fe", "cruz"]),
+  range: new Set(["rover"]),
+  land: new Set(["cruiser"]),
+  crown: new Set(["victoria"]),
+  town: new Set(["car", "country"]),
+  new: new Set(["yorker"]),
+};
+
 export function extractModel(
   title?: string,
   make?: string,
 ): string | undefined {
   if (!title || !make) return undefined;
-  const pattern = new RegExp(`${make}\\s+([A-Za-z0-9-]+)`, "i");
+  // Escape regex-special chars in the make (e.g. nothing today, but multi-word makes have spaces).
+  const safeMake = make.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = new RegExp(
+    `${safeMake}\\s+([A-Za-z0-9-]+)(?:\\s+([A-Za-z0-9-]+))?`,
+    "i",
+  );
   const match = title.match(pattern);
   if (!match) return undefined;
-  return match[1].charAt(0).toUpperCase() + match[1].slice(1).toLowerCase();
+  const cap = (s: string) =>
+    s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+  const first = match[1].toLowerCase();
+  const second = (match[2] || "").toLowerCase();
+  if (second && MODEL_SECOND_WORD[first]?.has(second)) {
+    return `${cap(first)} ${cap(second)}`;
+  }
+  return cap(first);
 }
 
 // Body-style / drivetrain / filler tokens that follow a model but are NOT the trim. Kept out of the
