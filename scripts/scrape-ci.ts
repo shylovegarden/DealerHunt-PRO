@@ -401,6 +401,24 @@ async function main() {
     console.warn("retention skipped:", (e as Error).message);
   }
 
+  // VIN-graph fraud pass (runs every cycle): re-score the cross-market history so any car listed
+  // "clean" that our records show was salvaged/washed/rolled-back gets demoted out of the GO list +
+  // warned, before a dealer can act on it. Self-maintaining — the protection compounds with each scrape.
+  try {
+    const { createClient } = await import("@supabase/supabase-js");
+    const { flagVinGraph } = await import("../lib/scrapers/flag-vin-graph");
+    const sb = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    );
+    const g = await flagVinGraph(sb);
+    console.log(
+      `🛡️  VIN-graph: ${g.flagged} flagged, ${g.demoted} misrepresented demoted (${g.vins} VINs)`,
+    );
+  } catch (e) {
+    console.warn("VIN-graph pass skipped:", (e as Error).message);
+  }
+
   const totalDeals = results.reduce((sum, r) => sum + (r.dealsFound || 0), 0);
   const succeeded = results.filter((r) => r.success).length;
   const durationS = Math.round((Date.now() - startedAt) / 1000);
