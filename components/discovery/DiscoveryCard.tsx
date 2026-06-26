@@ -398,6 +398,34 @@ export const DiscoveryCard = memo(function DiscoveryCard({
             </div>
           </div>
 
+          {/* Sell estimate + max bid — the context that makes the profit number mean something. */}
+          {(deal.sellEstimate || deal.recommendedMaxBid) && (
+            <div className="mt-1.5 grid grid-cols-2 gap-1.5 text-[10px]">
+              <div
+                className="flex items-center justify-between rounded-[var(--r1)] px-2 py-1"
+                style={{ background: "var(--s1)" }}
+              >
+                <span className="font-semibold text-[var(--t4)]">Sell est</span>
+                <span className="font-mono font-bold text-[var(--t2)]">
+                  {deal.sellEstimate
+                    ? `$${Math.round(deal.sellEstimate).toLocaleString()}`
+                    : "—"}
+                </span>
+              </div>
+              <div
+                className="flex items-center justify-between rounded-[var(--r1)] px-2 py-1"
+                style={{ background: "var(--s1)" }}
+              >
+                <span className="font-semibold text-[var(--t4)]">Max bid</span>
+                <span className="font-mono font-bold text-[var(--green)]">
+                  {deal.recommendedMaxBid
+                    ? `$${Math.round(deal.recommendedMaxBid).toLocaleString()}`
+                    : "—"}
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* Multi-source line (Kayak): from $cheapest */}
           {multi && (
             <div

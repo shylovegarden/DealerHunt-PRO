@@ -184,12 +184,23 @@ export function DealTable({ rows }: { rows: TableRow[] }) {
                       {r.year} {r.make} {r.model}
                     </span>
                   </div>
-                  {r.trim && (
-                    <div className="truncate text-[11px] text-[var(--t4)]">
-                      {r.trim}
-                      {r.locationState ? ` · ${r.locationState}` : ""}
-                    </div>
-                  )}
+                  <div className="truncate text-[11px] text-[var(--t4)]">
+                    {[
+                      r.trim,
+                      r.condition ? r.condition.replace(/_/g, " ") : null,
+                      r.locationState,
+                      (() => {
+                        const fs = (r as any).firstSeenAt;
+                        if (!fs) return null;
+                        const d = Math.floor(
+                          (Date.now() - new Date(fs).getTime()) / 86_400_000,
+                        );
+                        return d >= 0 ? `${d}d` : null;
+                      })(),
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </div>
                 </td>
                 <td className="px-3 py-2.5">
                   <span
