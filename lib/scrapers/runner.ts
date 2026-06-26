@@ -255,8 +255,10 @@ export function createScraperRegistry(
     requiresAuth: false,
     stealthRequired: true,
     fn: () => scrapeCarGurus(),
-    // Disabled: bot-walled — its ajax inventory endpoint returns HTTP 406 (PerimeterX). AutoTempest
-    // surfaces CarGurus listings without hitting the wall, so retail comps are covered.
+    // Disabled: DataDome-walled — the inventory XHR 403s and the page serves a DataDome captcha
+    // interstitial (geo.captcha-delivery.com) even to headed real-Chrome Patchright. DataDome is the
+    // one anti-bot that needs a paid captcha solver (ruled out by no-paid-services). AutoTempest carries
+    // CarGurus listings without touching DataDome, so retail comps stay covered. Verified 2026-06-26.
     enabled: false,
     estimatedDealsPerRun: 300,
   });

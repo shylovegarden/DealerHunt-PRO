@@ -38,6 +38,9 @@ jobs:
       GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
       RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
       SCRAPE_SOURCES: ${{ github.event.inputs.sources }}
+      # Lets smartFetch use its headed real-Chrome tier (the only free path past PerimeterX/Akamai —
+      # truecar, autotrader). The run is wrapped in xvfb-run below to give headed Chrome a display.
+      ENABLE_HEADED_SCRAPERS: '1'
 
     steps:
       - uses: actions/checkout@v4
@@ -50,8 +53,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
+      - name: Install browsers (Patchright stealth + real Chrome for the headed tier) + xvfb
+        run: |
+          npx patchright install chromium
+          npx playwright install --with-deps chromium chrome
+          sudo apt-get update && sudo apt-get install -y xvfb
 
       - name: Wait for FlareSolverr
         run: |
@@ -62,4 +68,5 @@ jobs:
           echo "FlareSolverr did not become ready (continuing — direct sources still run)"
 
       - name: Run scrapers
-        run: npm run scrape:ci
+        # xvfb-run gives the headed-Chrome tier a virtual display; headless + static tiers ignore it.
+        run: xvfb-run -a npm run scrape:ci
