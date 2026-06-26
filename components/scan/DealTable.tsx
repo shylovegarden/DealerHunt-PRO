@@ -4,7 +4,8 @@ import React from "react";
 import { useRouter } from "next/navigation";
 import { Mono } from "@/components/shared/Mono";
 import { dealLane, LANE_COLORS } from "@/lib/discovery/categorize";
-import { buyTerm } from "@/lib/deal-terms";
+import { buyTerms } from "@/lib/sources/source-meta";
+import { SourceBadge } from "@/components/shared/SourceBadge";
 
 // Dense, sortable table view — the fastest way to scan many lots (Visor "table view", done better:
 // sticky header, GPU-only hover transitions, and content-visibility so 500+ rows stay 60fps).
@@ -184,22 +185,25 @@ export function DealTable({ rows }: { rows: TableRow[] }) {
                       {r.year} {r.make} {r.model}
                     </span>
                   </div>
-                  <div className="truncate text-[11px] text-[var(--t4)]">
-                    {[
-                      r.trim,
-                      r.condition ? r.condition.replace(/_/g, " ") : null,
-                      r.locationState,
-                      (() => {
-                        const fs = (r as any).firstSeenAt;
-                        if (!fs) return null;
-                        const d = Math.floor(
-                          (Date.now() - new Date(fs).getTime()) / 86_400_000,
-                        );
-                        return d >= 0 ? `${d}d` : null;
-                      })(),
-                    ]
-                      .filter(Boolean)
-                      .join(" · ")}
+                  <div className="mt-1 flex items-center gap-1.5">
+                    <SourceBadge source={r.source} size="sm" />
+                    <span className="truncate text-[11px] text-[var(--t4)]">
+                      {[
+                        r.trim,
+                        r.condition ? r.condition.replace(/_/g, " ") : null,
+                        r.locationState,
+                        (() => {
+                          const fs = (r as any).firstSeenAt;
+                          if (!fs) return null;
+                          const d = Math.floor(
+                            (Date.now() - new Date(fs).getTime()) / 86_400_000,
+                          );
+                          return d >= 0 ? `${d}d` : null;
+                        })(),
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
                   </div>
                 </td>
                 <td className="px-3 py-2.5">
@@ -222,7 +226,7 @@ export function DealTable({ rows }: { rows: TableRow[] }) {
                     {fmt(r.askPrice)}
                   </Mono>
                   <div className="text-[9px] uppercase text-[var(--t5)]">
-                    {buyTerm(r.source).priceLabel}
+                    {buyTerms(r.source).priceLabel}
                   </div>
                 </td>
                 <td className="px-3 py-2.5 text-right">

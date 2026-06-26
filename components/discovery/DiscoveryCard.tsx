@@ -8,6 +8,7 @@ import type { DiscoveryDeal } from "./types";
 import { liteDealIQ, IQ_TIER_COLOR } from "@/lib/intelligence/lite-iq";
 import { daysOnMarket, domTier } from "@/lib/intelligence/days-on-market";
 import { proxiedImage } from "@/lib/image-url";
+import { sourceMeta, buyTerms } from "@/lib/sources/source-meta";
 
 const TITLE_STYLES: Record<
   string,
@@ -160,6 +161,28 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                 <span style={{ color: IQ_TIER_COLOR[iq.tier] }}>
                   IQ&nbsp;{iq.score}
                 </span>
+              </span>
+            );
+          })()}
+
+          {/* Source chip — floating top-left: instant "where's this from", brand-colored */}
+          {(() => {
+            const m = sourceMeta(deal.source);
+            return (
+              <span
+                className="absolute left-2.5 top-2.5 inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-[10px] font-bold"
+                style={{
+                  background: "rgba(20,10,20,.72)",
+                  backdropFilter: "blur(8px)",
+                  color: m.color,
+                }}
+                title={`${m.label} · ${buyTerms(deal.source).channelTag}`}
+              >
+                <span
+                  className="inline-block h-1.5 w-1.5 rounded-full"
+                  style={{ background: m.color }}
+                />
+                {m.label}
               </span>
             );
           })()}
@@ -416,7 +439,9 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                 className="flex items-center justify-between rounded-[var(--r1)] px-2 py-1"
                 style={{ background: "var(--s1)" }}
               >
-                <span className="font-semibold text-[var(--t4)]">Max bid</span>
+                <span className="font-semibold text-[var(--t4)]">
+                  {buyTerms(deal.source).maxLabel}
+                </span>
                 <span className="font-mono font-bold text-[var(--green)]">
                   {deal.recommendedMaxBid
                     ? `$${Math.round(deal.recommendedMaxBid).toLocaleString()}`

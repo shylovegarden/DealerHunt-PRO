@@ -9,10 +9,10 @@ import { daysOnMarket, domTier } from "@/lib/intelligence/days-on-market";
 import { type DealCardProps } from "./deal-card/types";
 import {
   VERDICT_STYLES,
-  getSourceColor,
   getScoreColor,
   formatCondition,
 } from "./deal-card/utils";
+import { SourceBadge } from "@/components/shared/SourceBadge";
 
 export const DealCard = memo(function DealCard({
   id,
@@ -40,7 +40,6 @@ export const DealCard = memo(function DealCard({
   firstSeenAt,
   onClick,
 }: DealCardProps) {
-  const srcColor = getSourceColor(source);
   const scoreColor = getScoreColor(profitScore);
   const dom = daysOnMarket(firstSeenAt);
   const tier = dom != null ? domTier(dom) : null;
@@ -84,12 +83,12 @@ export const DealCard = memo(function DealCard({
         style={{ borderColor: "var(--b1)", background: "var(--s1)" }}
       >
         <div className="flex items-center gap-2 min-w-0">
-          <span
-            className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-[var(--r1)] shrink-0"
-            style={{ background: srcColor.bg, color: srcColor.text }}
-          >
-            {source.toUpperCase()}
-          </span>
+          <SourceBadge
+            source={source}
+            size="md"
+            showChannel
+            className="shrink-0"
+          />
           {verdict && (
             <span
               className="text-[10px] font-black uppercase tracking-wider px-2 py-1 rounded-[var(--r1)] shrink-0"

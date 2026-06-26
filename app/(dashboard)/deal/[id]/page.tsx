@@ -7,6 +7,7 @@ import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { useDealStore } from "@/lib/store/dealStore";
 import { buyTerm, isAuctionSource } from "@/lib/deal-terms";
+import { SourceBadge } from "@/components/shared/SourceBadge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -286,7 +287,12 @@ export default function DealPage({
       {/* HEADER & USER TYPE */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <div className="flex items-center gap-3 mb-2">
+          <div className="flex flex-wrap items-center gap-2 mb-2">
+            <SourceBadge
+              source={dealData?.deal?.source}
+              size="lg"
+              showChannel
+            />
             <Badge
               variant="outline"
               className="text-[var(--t1)] bg-[var(--s0)] border-[var(--b1)]"
@@ -302,7 +308,6 @@ export default function DealPage({
           </div>
           <p className="text-[var(--t4)] text-sm">
             {[
-              dealData?.deal?.source,
               [dealData?.deal?.locationCity, dealData?.deal?.locationState]
                 .filter(Boolean)
                 .join(", "),
