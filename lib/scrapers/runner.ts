@@ -203,7 +203,10 @@ export function createScraperRegistry(
     requiresAuth: false,
     stealthRequired: false,
     fn: () => scrapeCarsComAllStates(),
-    enabled: true,
+    // Disabled: Cloudflare-walled — 0/50 states, "direct + FlareSolverr exhausted". AutoTempest
+    // aggregates Cars.com listings for us (2498 deals/run), so no retail data is lost. Re-enable only
+    // behind a working FlareSolverr or residential-proxy bypass (no-paid-services rules that out today).
+    enabled: false,
     estimatedDealsPerRun: 400,
   });
 
@@ -216,15 +219,28 @@ export function createScraperRegistry(
     requiresAuth: false,
     stealthRequired: true,
     fn: async () => {
-      // Scrape a batch of known dealer profiles
+      // Scrape a batch of known dealer profiles. DEALER_PROFILES today holds only parser TEMPLATES
+      // (relative inventoryUrl like "/inventory", no base domain) — they're meant to be applied to
+      // discovered sites, not crawled standalone, so skip any non-absolute URL. Per-profile try/catch
+      // so one bad site can never zero the whole source (an Invalid-URL throw used to do exactly that).
       const { DEALER_PROFILES } = await import("./sources/index");
       let total = 0;
       for (const profile of DEALER_PROFILES) {
-        total += await scrapeIndependentDealer(profile, profile.inventoryUrl);
+        if (!/^https?:\/\//i.test(profile.inventoryUrl)) continue;
+        try {
+          total += await scrapeIndependentDealer(profile, profile.inventoryUrl);
+        } catch (e) {
+          console.warn(
+            `[IndiDealer] ${profile.name} failed: ${(e as Error).message}`,
+          );
+        }
       }
       return total;
     },
-    enabled: true,
+    // Disabled: no real (absolute-URL) profiles exist — only templates, so it produced nothing but
+    // "Invalid URL" errors every run. Real dealer crawling is handled by curated_dealers (95 sites).
+    // Re-enable once DEALER_PROFILES gains absolute-URL entries (the loop above is now crash-safe).
+    enabled: false,
     estimatedDealsPerRun: 100,
   });
 
@@ -239,7 +255,9 @@ export function createScraperRegistry(
     requiresAuth: false,
     stealthRequired: true,
     fn: () => scrapeCarGurus(),
-    enabled: true,
+    // Disabled: bot-walled — its ajax inventory endpoint returns HTTP 406 (PerimeterX). AutoTempest
+    // surfaces CarGurus listings without hitting the wall, so retail comps are covered.
+    enabled: false,
     estimatedDealsPerRun: 300,
   });
 
@@ -252,7 +270,9 @@ export function createScraperRegistry(
     requiresAuth: false,
     stealthRequired: true,
     fn: () => scrapeAutoTrader(),
-    enabled: true,
+    // Disabled: Akamai-walled — returns an "Autotrader - page unavailable" interstitial, not data.
+    // AutoTempest aggregates AutoTrader listings, so retail coverage is preserved without the wall.
+    enabled: false,
     estimatedDealsPerRun: 300,
   });
 
@@ -265,7 +285,9 @@ export function createScraperRegistry(
     requiresAuth: false,
     stealthRequired: true,
     fn: () => scrapeTrueCar(),
-    enabled: true,
+    // Disabled: PerimeterX-walled — its abp/api listings endpoint returns a captcha challenge
+    // (appId PXVDPSla5w, blockScript), not JSON. AutoTempest carries TrueCar listings instead.
+    enabled: false,
     estimatedDealsPerRun: 250,
   });
 

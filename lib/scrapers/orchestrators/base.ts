@@ -133,6 +133,9 @@ export abstract class BaseScraperOrchestrator {
     );
 
     if (this.options.dryRun) return;
+    // Run was never tracked (logScrapeStart fell back to a synthetic id) — nothing to update, and the
+    // id isn't a uuid so the query would just log a noisy error. Skip cleanly.
+    if (runId.startsWith("untracked-")) return;
 
     const { error } = await this.supabase
       .from("scraper_runs")
@@ -158,6 +161,7 @@ export abstract class BaseScraperOrchestrator {
     this.log(`Run failed: ${message}`, "error");
 
     if (this.options.dryRun) return;
+    if (runId.startsWith("untracked-")) return;
 
     const { error: updateError } = await this.supabase
       .from("scraper_runs")
