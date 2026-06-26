@@ -111,7 +111,7 @@ export function createScraperRegistry(
     requiresAuth: true,
     stealthRequired: true,
     fn: () => scrapeIAA(),
-    enabled: true,
+    enabled: false, // gated (no open public feed like Copart); was producing ~0 while wasting a cycle.
     estimatedDealsPerRun: 150,
   });
 
