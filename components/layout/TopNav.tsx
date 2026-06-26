@@ -24,6 +24,7 @@ import {
   Cpu,
   SlidersHorizontal,
   Wrench,
+  ArrowLeftRight,
 } from "lucide-react";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 
@@ -31,6 +32,7 @@ import { useIsAdmin } from "@/hooks/useIsAdmin";
 const PRIMARY = [
   { name: "Discover", href: "/discover", icon: Compass },
   { name: "Market", href: "/market", icon: SlidersHorizontal },
+  { name: "Arbitrage", href: "/arbitrage", icon: ArrowLeftRight },
   { name: "Scan", href: "/scan", icon: Search },
   { name: "Deal Check", href: "/deal-check", icon: FileCheck },
   { name: "Map", href: "/map", icon: MapPin },
