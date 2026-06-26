@@ -270,11 +270,10 @@ export function createScraperRegistry(
     requiresAuth: false,
     stealthRequired: true,
     fn: () => scrapeAutoTrader(),
-    // Akamai-walled. Beaten via a HEADED Patchright Chrome (verified — parses 39 real listings/page),
-    // but headed needs a display, so this only runs where one exists: set ENABLE_HEADED_SCRAPERS=1 and
-    // wrap the scrape in `xvfb-run` on CI. Off by default so it can't fail the headless pipeline.
-    // AutoTempest backstops AutoTrader listings in the meantime.
-    enabled: !!process.env.ENABLE_HEADED_SCRAPERS,
+    // Akamai-walled. Goes through smartFetch, which escalates to the headed real-Chrome tier (verified
+    // — parses real listings/page). smartFetch auto-detects whether a display exists: full data on
+    // macOS / xvfb CI, graceful 0 on a bare headless box (AutoTempest backstops it). Safe to leave on.
+    enabled: true,
     estimatedDealsPerRun: 300,
   });
 
@@ -287,9 +286,9 @@ export function createScraperRegistry(
     requiresAuth: false,
     stealthRequired: true,
     fn: () => scrapeTrueCar(),
-    // Disabled: PerimeterX-walled — its abp/api listings endpoint returns a captcha challenge
-    // (appId PXVDPSla5w, blockScript), not JSON. AutoTempest carries TrueCar listings instead.
-    enabled: false,
+    // PerimeterX-walled. Goes through smartFetch, which escalates to the headed real-Chrome tier
+    // (PerimeterX detects headless). Full data on macOS / xvfb CI, graceful 0 on a bare headless box.
+    enabled: true,
     estimatedDealsPerRun: 250,
   });
 

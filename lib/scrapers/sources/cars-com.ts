@@ -1,5 +1,5 @@
 import { type ScraperConfig } from "../engine";
-import { withPatchrightSession } from "../tools/patchright-engine";
+import { smartFetch } from "../smart-fetch";
 import { enrichAndStore } from "./shared";
 import { STATE_SEED_ZIPS, US_STATES } from "@/lib/geo";
 
@@ -87,34 +87,27 @@ export async function scrapeCarsCom(
   const zip = STATE_SEED_ZIPS[state?.toUpperCase()] || "";
   if (!zip) return 0;
 
-  // Cloudflare-walled — static fetch + FlareSolverr both 403. Drive the SRP through one reused
-  // Patchright stealth browser (verified to pass Cloudflare headless and return the real listings
-  // JSON parseCarsComHtml reads). One browser per state, sequential pages, then close.
+  // Cloudflare-walled — smartFetch escalates past it (stealth headless tier) and reuses the warm
+  // browser across pages. The SRP HTML carries the embedded listings JSON parseCarsComHtml reads.
   let saved = 0;
-  await withPatchrightSession(async (goto) => {
-    for (let page = 1; page <= maxPages; page++) {
-      const q = searchTerm
-        ? `&searchTerm=${encodeURIComponent(searchTerm)}`
-        : "";
-      const url = `https://www.cars.com/shopping/results/?page=${page}${q}&stockType=used&maximum_distance=100&zip=${zip}&sort=best_match_desc`;
-      let items: any[] = [];
-      try {
-        const html = await goto(url);
-        items = parseCarsComHtml(html, state);
-      } catch (e) {
-        console.warn(
-          `[Cars.com] ${state} page ${page} failed: ${(e as Error).message}`,
-        );
-        break;
-      }
-      if (!items.length) break; // no more results
-      for (const v of items) {
-        await enrichAndStore(v);
-        saved++;
-      }
-      if (items.length < 8) break; // partial grid → last page
+  for (let page = 1; page <= maxPages; page++) {
+    const q = searchTerm ? `&searchTerm=${encodeURIComponent(searchTerm)}` : "";
+    const url = `https://www.cars.com/shopping/results/?page=${page}${q}&stockType=used&maximum_distance=100&zip=${zip}&sort=best_match_desc`;
+    const { html, blocked } = await smartFetch(url, {
+      validate: (h) => parseCarsComHtml(h).length > 0,
+    });
+    if (blocked) {
+      console.warn(`[Cars.com] ${state} blocked (no tier passed)`);
+      break;
     }
-  });
+    const items = parseCarsComHtml(html, state);
+    if (!items.length) break; // no more results
+    for (const v of items) {
+      await enrichAndStore(v);
+      saved++;
+    }
+    if (items.length < 8) break; // partial grid → last page
+  }
 
   console.log(`[Cars.com] Found ${saved} listings (${state})`);
   return saved;

@@ -5,7 +5,7 @@
 
 import type { Deal } from "@/types";
 import { type ScraperConfig } from "../engine";
-import { withPatchrightSession } from "../tools/patchright-engine";
+import { smartFetch } from "../smart-fetch";
 import { upsertDeals } from "../pipeline";
 import { STATE_SEED_ZIPS } from "@/lib/geo";
 
@@ -111,37 +111,31 @@ export async function scrapeAutoTrader(
   console.log(`[AutoTrader] Starting scrape near ${zip}...`);
   const allDeals: Partial<Deal>[] = [];
 
-  // Akamai-walled — static + FlareSolverr both serve a "page unavailable" interstitial. Drive the SRP
-  // through a HEADED Patchright Chrome (PerimeterX/Akamai detect headless); verified to render the full
-  // __NEXT_DATA__ inventory. CI must run under `xvfb-run` for the headed display.
-  await withPatchrightSession(
-    async (goto) => {
-      for (let page = 1; page <= maxPages; page++) {
-        const params = new URLSearchParams({
-          zip,
-          searchRadius: "100",
-          ...(searchTerm && { makeCodeList: searchTerm }),
-          startYear: "2010",
-          numRecords: "25",
-          firstRecord: String((page - 1) * 25),
-        });
-        const url = `https://www.autotrader.com/cars-for-sale/all-cars?${params.toString()}`;
-        let items: Partial<Deal>[] = [];
-        try {
-          items = parseAutotraderNextData(await goto(url));
-        } catch (e) {
-          console.warn(
-            `[AutoTrader] page ${page} failed: ${(e as Error).message}`,
-          );
-          break;
-        }
-        if (!items.length) break;
-        allDeals.push(...items);
-        if (items.length < 20) break;
-      }
-    },
-    { tough: true },
-  );
+  // Akamai-walled — smartFetch escalates to the headed real-Chrome tier (Akamai detects headless) and
+  // renders the full __NEXT_DATA__ inventory. Where no display exists (bare CI) smartFetch returns
+  // blocked and we degrade to 0 — AutoTempest backstops the listings until xvfb is wired.
+  for (let page = 1; page <= maxPages; page++) {
+    const params = new URLSearchParams({
+      zip,
+      searchRadius: "100",
+      ...(searchTerm && { makeCodeList: searchTerm }),
+      startYear: "2010",
+      numRecords: "25",
+      firstRecord: String((page - 1) * 25),
+    });
+    const url = `https://www.autotrader.com/cars-for-sale/all-cars?${params.toString()}`;
+    const { html, blocked } = await smartFetch(url, {
+      validate: (h) => parseAutotraderNextData(h).length > 0,
+    });
+    if (blocked) {
+      console.warn(`[AutoTrader] blocked near ${zip} (no tier passed)`);
+      break;
+    }
+    const items = parseAutotraderNextData(html);
+    if (!items.length) break;
+    allDeals.push(...items);
+    if (items.length < 20) break;
+  }
 
   console.log(`[AutoTrader] Found ${allDeals.length} deals`);
   if (allDeals.length > 0) await upsertDeals(allDeals);

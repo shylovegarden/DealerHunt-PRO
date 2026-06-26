@@ -436,6 +436,10 @@ async function main() {
     `Total: ${totalDeals} deals from ${succeeded}/${results.length} sources in ${durationS}s`,
   );
 
+  // Tear down any warm smartFetch browsers (stealth/headed) so Chrome doesn't linger past exit.
+  const { closeSmartFetch } = await import("../lib/scrapers/smart-fetch");
+  await closeSmartFetch().catch(() => {});
+
   if (succeeded === 0) {
     console.error("❌ All sources failed — exiting non-zero.");
     process.exit(1);
