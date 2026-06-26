@@ -10,6 +10,7 @@ import {
   LANE_COLORS,
 } from "@/lib/discovery/categorize";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
+import { cached } from "@/lib/cache";
 
 // /api/discover — the meta-search/aggregator endpoint (CarGurus/Kayak style).
 // Pulls active deals, MERGES duplicates of the same car across sources by VIN (cheapest wins,
@@ -82,56 +83,61 @@ export async function GET(request: NextRequest) {
     const state = searchParams.get("state")?.toUpperCase();
     const maxPrice = parseInt(searchParams.get("maxPrice") || "0");
 
-    const supabase = createServerComponentClient();
-    let q = supabase
-      .from("deals")
-      .select(
-        "id, source, source_url, title, year, make, model, trim, vin, mileage, condition, damage_type, ask_price, sell_estimate, mmr_value, deal_analysis, profit_score, true_net_profit, recommended_max_bid, deal_verdict, location_city, location_state, images, last_seen_at, first_seen_at, auction_end_at, seller_phone, seller_email",
-      )
-      .eq("active", true)
-      .gt("ask_price", 0)
-      .order("last_seen_at", { ascending: false })
-      .limit(5000);
+    // Cache the expensive part — the 5k-row pull + cross-source VIN dedup + grading — by state for
+    // 45s, so the main feed paints instantly on repeat loads. Personalization (For You) is rebuilt
+    // per-request below from this cached, graded set (cheap), so it stays current.
+    const { merged, rowCount } = await cached(
+      `discover:${state || "all"}:${maxPrice || 0}`,
+      45_000,
+      async (): Promise<{ merged: any[]; rowCount: number }> => {
+        const supabase = createServerComponentClient();
+        let q = supabase
+          .from("deals")
+          .select(
+            "id, source, source_url, title, year, make, model, trim, vin, mileage, condition, damage_type, ask_price, sell_estimate, mmr_value, deal_analysis, profit_score, true_net_profit, recommended_max_bid, deal_verdict, location_city, location_state, images, last_seen_at, first_seen_at, auction_end_at, seller_phone, seller_email",
+          )
+          .eq("active", true)
+          .gt("ask_price", 0)
+          .order("last_seen_at", { ascending: false })
+          .limit(5000);
+        if (state) q = q.eq("location_state", state);
+        if (maxPrice > 0) q = q.lte("ask_price", maxPrice);
 
-    if (state) q = q.eq("location_state", state);
-    if (maxPrice > 0) q = q.lte("ask_price", maxPrice);
+        const { data, error } = await q;
+        if (error) throw new Error(error.message);
+        const rows = data || [];
 
-    const { data, error } = await q;
-    if (error)
-      return NextResponse.json({ error: error.message }, { status: 500 });
+        const byVin = new Map<string, any[]>();
+        const noVin: any[] = [];
+        for (const r of rows) {
+          if (r.vin && String(r.vin).length === 17) {
+            const k = String(r.vin).toUpperCase();
+            if (!byVin.has(k)) byVin.set(k, []);
+            byVin.get(k)!.push(r);
+          } else {
+            noVin.push(r);
+          }
+        }
 
-    const rows = data || [];
-
-    // ── Cross-source dedup by VIN (the Kayak mechanism) ──
-    const byVin = new Map<string, any[]>();
-    const noVin: any[] = [];
-    for (const r of rows) {
-      if (r.vin && String(r.vin).length === 17) {
-        const k = String(r.vin).toUpperCase();
-        if (!byVin.has(k)) byVin.set(k, []);
-        byVin.get(k)!.push(r);
-      } else {
-        noVin.push(r);
-      }
-    }
-
-    const merged: any[] = [];
-    byVin.forEach((group) => {
-      // Cheapest listing is the primary; the rest become "also on".
-      group.sort((a, b) => Number(a.ask_price) - Number(b.ask_price));
-      const [primary, ...rest] = group;
-      merged.push(
-        mapDeal(
-          primary,
-          rest.map((r) => ({
-            source: r.source,
-            askPrice: Number(r.ask_price || 0),
-            url: r.source_url,
-          })),
-        ),
-      );
-    });
-    for (const r of noVin) merged.push(mapDeal(r, []));
+        const m: any[] = [];
+        byVin.forEach((group) => {
+          group.sort((a, b) => Number(a.ask_price) - Number(b.ask_price));
+          const [primary, ...rest] = group;
+          m.push(
+            mapDeal(
+              primary,
+              rest.map((r) => ({
+                source: r.source,
+                askPrice: Number(r.ask_price || 0),
+                url: r.source_url,
+              })),
+            ),
+          );
+        });
+        for (const r of noVin) m.push(mapDeal(r, []));
+        return { merged: m, rowCount: rows.length };
+      },
+    );
 
     // ── Categorized rails ──
     const byGradeRank: Record<string, number> = {
@@ -232,6 +238,7 @@ export async function GET(request: NextRequest) {
       } = await getServerUser();
       if (user?.id) {
         // Read the SAME table the app writes prefs to (user_profiles, via /api/profile + onboarding).
+        const supabase = createServerComponentClient();
         const { data: profile } = await supabase
           .from("user_profiles")
           .select("home_state, preferred_makes, budget_max, target_profit")
@@ -357,9 +364,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       rails,
-      totalListings: rows.length,
+      totalListings: rowCount,
       uniqueVehicles: merged.length,
-      mergedDuplicates: rows.length - merged.length,
+      mergedDuplicates: rowCount - merged.length,
       state: state || "nationwide",
       personalized,
     });
