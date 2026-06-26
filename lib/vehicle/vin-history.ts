@@ -134,6 +134,38 @@ export function sightingsToHistory(rows: VinSighting[]): VinHistory | null {
   };
 }
 
+// Turn VIN-graph flags into a DECISION, not decoration. The useful catch is MISREPRESENTATION: the live
+// listing claims clean/good, but our cross-market records say the car was branded, washed, or rolled
+// back. That's a trap — the dealer would pay clean-car money for a salvage car — so it must demote the
+// verdict + warn, not just show a badge. A car that already DISCLOSES its brand isn't misrepresented
+// (the price reflects it); we only fire when the listing hides the history.
+export function graphRisk(
+  currentCondition: string | null | undefined,
+  flags: string[],
+): { misrepresented: boolean; severity: "high" | "info"; warning?: string } {
+  const cond = (currentCondition || "").toLowerCase();
+  const currentClean = /clean/.test(cond) && !/salvage|rebuilt|flood|fire/.test(cond);
+  const f = flags.join(" ").toLowerCase();
+  const washing = /washing/.test(f);
+  const rollback = /rollback/.test(f);
+  const branded = /salvage|rebuilt|flood|\bfire\b|junk|auction|damage|across states/.test(f);
+  if (rollback)
+    return {
+      misrepresented: true,
+      severity: "high",
+      warning: "Odometer rollback suspected from our multi-sighting records.",
+    };
+  if (currentClean && (washing || branded))
+    return {
+      misrepresented: true,
+      severity: "high",
+      warning: washing
+        ? "VIN history shows this 'clean' car was previously branded — possible title washing."
+        : "VIN history shows prior salvage/branded records that contradict the clean listing.",
+    };
+  return { misrepresented: false, severity: "info" };
+}
+
 // Title-brand red flags (ordered most→least severe). Source text is title + condition + damage + notes.
 const BRANDS: Array<[RegExp, string]> = [
   [
