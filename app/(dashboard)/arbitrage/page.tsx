@@ -45,6 +45,16 @@ export default function ArbitragePage() {
   const local: any[] = data?.localDeals || [];
   const routes = data?.topRoutes || [];
 
+  // Land on a populated tier on first load — keep Regional (the "close money") when it has cars, else
+  // fall to National, else Local. Doesn't override a manual choice.
+  const autoSet = React.useRef(false);
+  React.useEffect(() => {
+    if (autoSet.current || !data) return;
+    autoSet.current = true;
+    if ((s.regional ?? 0) === 0)
+      setTab((s.national ?? 0) > 0 ? "national" : "local");
+  }, [data, s.regional, s.national]);
+
   const tabs = [
     {
       key: "regional" as const,
