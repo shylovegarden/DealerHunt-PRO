@@ -58,6 +58,30 @@ export async function createPatchrightBrowser(
   return { browser, page };
 }
 
+/**
+ * Run a sequence of fetches through ONE stealth browser (launch once, reuse the page). Far cheaper
+ * than fetchWithPatchright per page when paginating a source. The callback gets a `goto(url)` that
+ * navigates and returns the rendered HTML after letting any Cloudflare/PerimeterX JS challenge clear.
+ * Set tough=true (headed + real Chrome channel) for PerimeterX/Akamai sources that detect headless.
+ */
+export async function withPatchrightSession<T>(
+  fn: (goto: (url: string) => Promise<string>) => Promise<T>,
+  options: ScraperOptions & { tough?: boolean; settleMs?: number } = {},
+): Promise<T> {
+  const { browser, page } = await createPatchrightBrowser(options);
+  const settle = options.settleMs ?? 3500;
+  try {
+    const goto = async (url: string): Promise<string> => {
+      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 35000 });
+      await page.waitForTimeout(settle); // let the anti-bot JS challenge auto-resolve before snapshot
+      return page.content();
+    };
+    return await fn(goto);
+  } finally {
+    await browser.close().catch(() => {});
+  }
+}
+
 export async function fetchWithPatchright(
   url: string,
   waitForSelector?: string,

@@ -1,4 +1,5 @@
-import { paginate, type ScraperConfig } from "../engine";
+import { type ScraperConfig } from "../engine";
+import { withPatchrightSession } from "../tools/patchright-engine";
 import { enrichAndStore } from "./shared";
 import { STATE_SEED_ZIPS, US_STATES } from "@/lib/geo";
 
@@ -66,11 +67,14 @@ export function parseCarsComHtml(html: string, state = ""): any[] {
 export const CARS_COM_CONFIG: ScraperConfig = {
   name: "Cars.com",
   baseUrl: "https://www.cars.com",
-  renderMode: "static",
-  requestDelay: 1200,
-  concurrency: 4,
-  useProxies: true,
-  stealth: false,
+  // Cloudflare-walled: static fetch + FlareSolverr both 403. Render through the (Patchright) browser
+  // pool instead — stealth Chromium passes Cloudflare headless and the SRP HTML carries the same
+  // embedded listings JSON parseCarsComHtml already reads. See open-api-source-unlocks memory.
+  renderMode: "browser",
+  requestDelay: 1500,
+  concurrency: 2,
+  useProxies: false,
+  stealth: true,
   maxPages: 10,
 };
 
@@ -80,39 +84,40 @@ export async function scrapeCarsCom(
   maxPages = 5,
 ) {
   console.log("[Cars.com] Starting scrape...");
-  const all: any[] = [];
+  const zip = STATE_SEED_ZIPS[state?.toUpperCase()] || "";
+  if (!zip) return 0;
 
-  const gen = paginate<any>(
-    CARS_COM_CONFIG,
-    (page) => {
+  // Cloudflare-walled — static fetch + FlareSolverr both 403. Drive the SRP through one reused
+  // Patchright stealth browser (verified to pass Cloudflare headless and return the real listings
+  // JSON parseCarsComHtml reads). One browser per state, sequential pages, then close.
+  let saved = 0;
+  await withPatchrightSession(async (goto) => {
+    for (let page = 1; page <= maxPages; page++) {
       const q = searchTerm
         ? `&searchTerm=${encodeURIComponent(searchTerm)}`
         : "";
-      const zip = STATE_SEED_ZIPS[state?.toUpperCase()] || "";
-      const st = zip ? `&stockType=used&maximum_distance=100&zip=${zip}` : "";
-      return `https://www.cars.com/shopping/results/?page=${page}${q}${st}&sort=best_match_desc`;
-    },
-    async (input) => {
-      const html =
-        typeof input === "string"
-          ? input
-          : ((input as any)?.html?.() ?? String(input));
-      const items = parseCarsComHtml(html, state);
-      // More pages likely while a full grid comes back.
-      return { items, hasMore: items.length >= 20 };
-    },
-  );
-
-  for await (const batch of gen) {
-    for (const v of batch) {
-      await enrichAndStore(v);
-      all.push(v);
+      const url = `https://www.cars.com/shopping/results/?page=${page}${q}&stockType=used&maximum_distance=100&zip=${zip}&sort=best_match_desc`;
+      let items: any[] = [];
+      try {
+        const html = await goto(url);
+        items = parseCarsComHtml(html, state);
+      } catch (e) {
+        console.warn(
+          `[Cars.com] ${state} page ${page} failed: ${(e as Error).message}`,
+        );
+        break;
+      }
+      if (!items.length) break; // no more results
+      for (const v of items) {
+        await enrichAndStore(v);
+        saved++;
+      }
+      if (items.length < 8) break; // partial grid → last page
     }
-    if (all.length >= maxPages * 20) break;
-  }
+  });
 
-  console.log(`[Cars.com] Found ${all.length} listings`);
-  return all.length;
+  console.log(`[Cars.com] Found ${saved} listings (${state})`);
+  return saved;
 }
 
 // Nationwide Cars.com: iterate one seed ZIP per state (radius 100mi). Override the state set

@@ -203,10 +203,10 @@ export function createScraperRegistry(
     requiresAuth: false,
     stealthRequired: false,
     fn: () => scrapeCarsComAllStates(),
-    // Disabled: Cloudflare-walled — 0/50 states, "direct + FlareSolverr exhausted". AutoTempest
-    // aggregates Cars.com listings for us (2498 deals/run), so no retail data is lost. Re-enable only
-    // behind a working FlareSolverr or residential-proxy bypass (no-paid-services rules that out today).
-    enabled: false,
+    // Re-enabled: now renders through the Patchright stealth browser pool, which passes Cloudflare
+    // headless where raw fetch + FlareSolverr failed (verified — real SRP, 41 listings/page). Free,
+    // CI-friendly (no xvfb needed for headless). AutoTempest still backstops the same listings.
+    enabled: true,
     estimatedDealsPerRun: 400,
   });
 
