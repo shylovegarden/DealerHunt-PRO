@@ -8,7 +8,7 @@ import type { DiscoveryDeal } from "./types";
 import { liteDealIQ, IQ_TIER_COLOR } from "@/lib/intelligence/lite-iq";
 import { daysOnMarket, domTier } from "@/lib/intelligence/days-on-market";
 import { proxiedImage } from "@/lib/image-url";
-import { sourceMeta, buyTerms } from "@/lib/sources/source-meta";
+import { sourceMeta, buyTerms, tint } from "@/lib/sources/source-meta";
 
 const TITLE_STYLES: Record<
   string,
@@ -28,13 +28,6 @@ const LANE_LABELS: Record<string, string> = {
   "clean-retail": "Retail",
   private: "Private",
 };
-
-function cheapestPrice(deal: DiscoveryDeal): number {
-  const prices = [deal.askPrice, ...deal.alsoOn.map((a) => a.askPrice)].filter(
-    (p) => p > 0,
-  );
-  return prices.length ? Math.min(...prices) : deal.askPrice;
-}
 
 /** Graceful image placeholder when a deal has no photos / a broken URL. */
 function Placeholder() {
@@ -84,7 +77,6 @@ export const DiscoveryCard = memo(function DiscoveryCard({
     ? TITLE_STYLES[deal.titleClass]
     : undefined;
   const multi = deal.listingCount > 1;
-  const cheapest = cheapestPrice(deal);
 
   return (
     <motion.div
@@ -451,35 +443,69 @@ export const DiscoveryCard = memo(function DiscoveryCard({
             </div>
           )}
 
-          {/* Multi-source line (Kayak): from $cheapest */}
+          {/* Cross-source price compare (Kayak): the SAME car on each source, brand-chipped,
+              cheapest first + outlined — so a dealer sees who has it and for how much at a glance. */}
           {multi && (
             <div
-              className="mt-1 flex items-center gap-1.5 rounded-[var(--r2)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--t3)]"
+              className="mt-1 rounded-[var(--r2)] px-2.5 py-2"
               style={{ background: "var(--s1)" }}
             >
-              <svg
-                width="12"
-                height="12"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="var(--amber)"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <circle cx="11" cy="11" r="8" />
-                <path d="m21 21-4.35-4.35" />
-              </svg>
-              <span>
-                Found on{" "}
-                <strong className="text-[var(--t1)]">
-                  {deal.listingCount}
-                </strong>{" "}
-                sites · from{" "}
-                <span className="font-mono font-bold text-[var(--t1)]">
-                  ${cheapest.toLocaleString()}
-                </span>
-              </span>
+              <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--t4)]">
+                <svg
+                  width="11"
+                  height="11"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="var(--amber)"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="11" cy="11" r="8" />
+                  <path d="m21 21-4.35-4.35" />
+                </svg>
+                Same car on {deal.listingCount} sources
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { source: deal.source, askPrice: deal.askPrice },
+                  ...deal.alsoOn,
+                ]
+                  .slice()
+                  .sort(
+                    (a, b) =>
+                      (a.askPrice || Infinity) - (b.askPrice || Infinity),
+                  )
+                  .map((s, i) => {
+                    const m = sourceMeta(s.source);
+                    const isCheapest = i === 0;
+                    return (
+                      <span
+                        key={`${s.source}-${i}`}
+                        className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold"
+                        style={{
+                          background: tint(m.color, isCheapest ? 0.22 : 0.1),
+                          color: m.color,
+                          boxShadow: isCheapest
+                            ? `inset 0 0 0 1px ${m.color}`
+                            : undefined,
+                        }}
+                        title={`${m.label}${isCheapest ? " — cheapest" : ""}`}
+                      >
+                        <span
+                          className="inline-block h-1.5 w-1.5 rounded-full"
+                          style={{ background: m.color }}
+                        />
+                        {m.short}
+                        {s.askPrice ? (
+                          <span className="font-mono text-[var(--t2)]">
+                            ${Math.round(s.askPrice).toLocaleString()}
+                          </span>
+                        ) : null}
+                      </span>
+                    );
+                  })}
+              </div>
             </div>
           )}
         </div>
