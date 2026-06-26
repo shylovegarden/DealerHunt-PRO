@@ -25,6 +25,14 @@ import {
   SlidersHorizontal,
   Wrench,
   ArrowLeftRight,
+  CalendarDays,
+  Zap,
+  Columns3,
+  Truck,
+  Hammer,
+  ListPlus,
+  Layers,
+  Banknote,
 } from "lucide-react";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 
@@ -42,6 +50,25 @@ const PRIMARY = [
 ];
 
 const MORE_GROUPS = [
+  {
+    group: "Find deals",
+    items: [
+      { name: "Today", href: "/today", icon: CalendarDays },
+      { name: "Find", href: "/find", icon: Search },
+      { name: "Flash deals", href: "/flash-deals", icon: Zap },
+      { name: "Compare", href: "/compare", icon: Columns3 },
+    ],
+  },
+  {
+    group: "Operations",
+    items: [
+      { name: "Transport", href: "/move", icon: Truck },
+      { name: "Recon", href: "/recon", icon: Hammer },
+      { name: "List a car", href: "/list", icon: ListPlus },
+      { name: "Bulk actions", href: "/bulk", icon: Layers },
+      { name: "Finance", href: "/finance", icon: Banknote },
+    ],
+  },
   {
     group: "More",
     items: [
