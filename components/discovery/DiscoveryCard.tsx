@@ -214,10 +214,16 @@ export const DiscoveryCard = memo(function DiscoveryCard({
 
         {/* Body */}
         <div className="flex flex-1 flex-col gap-2 p-3.5">
-          {/* Title */}
-          <h3 className="truncate text-[15px] font-bold leading-tight text-[var(--t1)] transition-colors group-hover:text-[var(--amber)]">
-            {title}
-          </h3>
+          <div className="flex justify-between items-start gap-2">
+            <h3 className="truncate text-[15px] font-bold leading-tight text-[var(--t1)] transition-colors group-hover:text-[var(--amber)]">
+              {title}
+            </h3>
+            {deal.vin && (
+              <span className="font-mono text-[10px] text-[var(--t4)] shrink-0 group-hover:text-[var(--t2)] transition-colors">
+                {deal.vin.slice(-6)}
+              </span>
+            )}
+          </div>
 
           {/* Meta: lane · mileage · location */}
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[var(--t4)]">
@@ -283,26 +289,93 @@ export const DiscoveryCard = memo(function DiscoveryCard({
             </span>
           )}
 
-          {/* Price + max bid hint */}
-          <div className="mt-auto flex items-end justify-between gap-2 pt-1">
+          {/* Quick Actions (Contact, Copy, Share) */}
+          <div className="flex flex-wrap gap-2 mt-1 z-10 relative">
+            {deal.vin && (
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  navigator.clipboard.writeText(deal.vin!);
+                }}
+                className="inline-flex items-center gap-1 rounded bg-[var(--s2)] hover:bg-[var(--s3)] px-2 py-1 text-[10px] font-bold text-[var(--t3)] transition-colors border border-[var(--b1)]"
+              >
+                📋 Copy VIN
+              </button>
+            )}
+
+            {(deal.sellerPhone || deal.sellerEmail) && (
+              <div className="inline-flex items-center gap-1">
+                {deal.sellerPhone && (
+                  <>
+                    <a
+                      href={`tel:${deal.sellerPhone}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="inline-flex items-center gap-1 rounded bg-[var(--blo)] hover:bg-[var(--bbd)] px-2 py-1 text-[10px] font-bold text-[var(--blue)] transition-colors"
+                    >
+                      📞 Call
+                    </a>
+                    <a
+                      href={`sms:${deal.sellerPhone}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="inline-flex items-center gap-1 rounded bg-[var(--glo)] hover:bg-[var(--gbd)] px-2 py-1 text-[10px] font-bold text-[var(--green)] transition-colors"
+                    >
+                      💬 Text
+                    </a>
+                  </>
+                )}
+                {deal.sellerEmail && (
+                  <a
+                    href={`mailto:${deal.sellerEmail}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="inline-flex items-center gap-1 rounded bg-[var(--s2)] hover:bg-[var(--s3)] px-2 py-1 text-[10px] font-bold text-[var(--t2)] transition-colors border border-[var(--b1)]"
+                  >
+                    ✉️ Email
+                  </a>
+                )}
+              </div>
+            )}
+
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                const url = deal.sourceUrl || window.location.href;
+                if (navigator.share) {
+                  navigator.share({ url });
+                } else {
+                  navigator.clipboard.writeText(url);
+                }
+              }}
+              className="inline-flex items-center gap-1 rounded bg-[var(--s2)] hover:bg-[var(--s3)] px-2 py-1 text-[10px] font-bold text-[var(--t3)] transition-colors border border-[var(--b1)]"
+            >
+              🔗 Share
+            </button>
+          </div>
+
+          {/* Price + Est Profit grid */}
+          <div className="mt-auto grid grid-cols-2 gap-2 pt-2 border-t border-[var(--b1)]">
             <div>
-              <p className="text-[9px] font-semibold uppercase tracking-widest text-[var(--t4)]">
-                Ask Price
+              <p className="text-[9px] font-bold uppercase tracking-widest text-[var(--t4)]">
+                Purchase Price
               </p>
-              <span className="font-mono text-xl font-black leading-none text-[var(--t1)]">
+              <span className="font-mono text-lg font-black leading-none text-[var(--t1)] tracking-tight">
                 ${deal.askPrice.toLocaleString()}
               </span>
             </div>
-            {deal.recommendedMaxBid != null && deal.recommendedMaxBid > 0 && (
-              <div className="text-right">
-                <p className="text-[9px] font-semibold uppercase tracking-widest text-[var(--t4)]">
-                  Max Bid
-                </p>
-                <span className="font-mono text-sm font-bold leading-none text-[var(--green)]">
-                  ${deal.recommendedMaxBid.toLocaleString()}
+
+            <div className="text-right">
+              <p className="text-[9px] font-bold uppercase tracking-widest text-[var(--t4)]">
+                Est. Net Profit
+              </p>
+              {deal.trueNetProfit && deal.trueNetProfit > 0 ? (
+                <span className="font-mono text-[17px] font-black leading-none text-[var(--green)]">
+                  +${deal.trueNetProfit.toLocaleString()}
                 </span>
-              </div>
-            )}
+              ) : (
+                <span className="font-mono text-[17px] font-bold leading-none text-[var(--t3)]">
+                  --
+                </span>
+              )}
+            </div>
           </div>
 
           {/* Multi-source line (Kayak): from $cheapest */}

@@ -37,9 +37,9 @@
   --grad: linear-gradient(135deg, #ff7a4d, #f25b9a 55%, #9b6bff);
 
   /* Semantic colors */
-  --green: #3fae8e;
-  --glo: rgba(63, 174, 142, 0.12);
-  --gbd: rgba(63, 174, 142, 0.22);
+  --green: #00ff66;
+  --glo: rgba(0, 255, 102, 0.12);
+  --gbd: rgba(0, 255, 102, 0.22);
   --red: #ef5b6b;
   --rlo: rgba(239, 91, 107, 0.1);
   --rbd: rgba(239, 91, 107, 0.2);
@@ -115,8 +115,8 @@
   --amber-bd: rgba(242, 91, 154, 0.5);
   --clo: rgba(255, 56, 92, 0.2);
   --cbd: rgba(255, 56, 92, 0.5);
-  --glo: rgba(63, 174, 142, 0.25);
-  --gbd: rgba(63, 174, 142, 0.55);
+  --glo: rgba(0, 255, 102, 0.25);
+  --gbd: rgba(0, 255, 102, 0.55);
   --rlo: rgba(239, 91, 107, 0.2);
   --rbd: rgba(239, 91, 107, 0.5);
   --blo: rgba(91, 155, 239, 0.2);

@@ -30,6 +30,8 @@ function mapDeal(
     sourceUrl: d.source_url,
     lane,
     laneColor: LANE_COLORS[lane],
+    sellerPhone: d.seller_phone,
+    sellerEmail: d.seller_email,
     title: d.title || `${d.year || ""} ${d.make || ""} ${d.model || ""}`.trim(),
     year: d.year,
     make: d.make,
@@ -78,7 +80,7 @@ export async function GET(request: NextRequest) {
     let q = supabase
       .from("deals")
       .select(
-        "id, source, source_url, title, year, make, model, trim, vin, mileage, condition, damage_type, ask_price, sell_estimate, mmr_value, deal_analysis, profit_score, true_net_profit, recommended_max_bid, deal_verdict, location_city, location_state, images, last_seen_at, first_seen_at, auction_end_at",
+        "id, source, source_url, title, year, make, model, trim, vin, mileage, condition, damage_type, ask_price, sell_estimate, mmr_value, deal_analysis, profit_score, true_net_profit, recommended_max_bid, deal_verdict, location_city, location_state, images, last_seen_at, first_seen_at, auction_end_at, seller_phone, seller_email",
       )
       .eq("active", true)
       .gt("ask_price", 0)

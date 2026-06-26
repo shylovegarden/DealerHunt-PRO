@@ -120,7 +120,14 @@ export class DealsService {
       damageType: row.damage_type,
       seller: row.seller,
       sellerType: row.seller_type,
-      contact: row.options?.contact || undefined,
+      contact:
+        row.seller_phone || row.seller_email
+          ? {
+              phone: row.seller_phone || undefined,
+              email: row.seller_email || undefined,
+              listingUrl: row.source_url || undefined,
+            }
+          : undefined,
       repair_estimate: row.repair_estimate
         ? Number(row.repair_estimate)
         : undefined,
