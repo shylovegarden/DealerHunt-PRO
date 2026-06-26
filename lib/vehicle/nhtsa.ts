@@ -71,6 +71,38 @@ export async function decodeVin(
   }
 }
 
+/** Batch-decode up to 50 VINs per request via vPIC DecodeVINValuesBatch — ~30 calls for thousands of
+ *  VINs instead of one-at-a-time. Returns a VIN→decode map (only entries that resolved make+model). */
+export async function decodeVinBatch(
+  vins: string[],
+): Promise<Map<string, VinDecode>> {
+  const out = new Map<string, VinDecode>();
+  const valid = Array.from(new Set(vins.filter((v) => isValidVin(v)).map((v) => v.toUpperCase())));
+  for (let i = 0; i < valid.length; i += 50) {
+    const chunk = valid.slice(i, i + 50);
+    try {
+      const res = await fetch(
+        "https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVINValuesBatch/",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({ format: "json", data: chunk.join(";") }).toString(),
+        },
+      );
+      if (!res.ok) continue;
+      const body = await res.json();
+      for (const r of body?.Results || []) {
+        const d = parseDecode(r);
+        const vin = strOrNull(r?.VIN);
+        if (vin && d.make && d.model) out.set(vin.toUpperCase(), d);
+      }
+    } catch {
+      /* skip the chunk on failure */
+    }
+  }
+  return out;
+}
+
 export interface SafetyRating {
   overall: number | null;
   frontal: number | null;
