@@ -43,6 +43,7 @@ const VERDICTS = [
 ];
 
 type Filters = {
+  q: string;
   states: string[];
   lanes: string[];
   makes: string[];
@@ -61,6 +62,7 @@ type Filters = {
 };
 
 const EMPTY: Filters = {
+  q: "",
   states: [],
   lanes: [],
   makes: [],
@@ -94,6 +96,7 @@ export default function MarketPage() {
 
   const qs = React.useMemo(() => {
     const p = new URLSearchParams();
+    if (f.q.trim()) p.set("q", f.q.trim());
     if (f.states.length) p.set("states", f.states.join(","));
     if (f.lanes.length) p.set("lanes", f.lanes.join(","));
     if (f.makes.length) p.set("makes", f.makes.join(","));
@@ -137,10 +140,34 @@ export default function MarketPage() {
     (f.priceMax ? 1 : 0) +
     (f.yearMin ? 1 : 0) +
     (f.mileageMax ? 1 : 0) +
-    (f.minProfit ? 1 : 0);
+    (f.minProfit ? 1 : 0) +
+    (f.q.trim() ? 1 : 0);
 
   return (
     <div className="flex flex-col gap-4 p-4">
+      {/* Search bar — the fast way in: type a make/model and the whole market filters live. */}
+      <div
+        className="flex items-center gap-2 rounded-[var(--r3)] px-3.5 py-2.5"
+        style={{ background: "var(--s1)", boxShadow: "var(--shadow)" }}
+      >
+        <Ico name="search" size={18} className="shrink-0 text-[var(--t4)]" />
+        <input
+          value={f.q}
+          onChange={(e) => set({ q: e.target.value })}
+          placeholder="Search make or model — e.g. F-150, Grand Cherokee, Model 3…"
+          className="w-full bg-transparent text-[15px] font-medium text-[var(--t1)] outline-none placeholder:text-[var(--t4)]"
+        />
+        {f.q && (
+          <button
+            onClick={() => set({ q: "" })}
+            className="shrink-0 text-[var(--t4)] transition-colors hover:text-[var(--t1)]"
+            title="Clear search"
+          >
+            <Ico name="close" size={16} />
+          </button>
+        )}
+      </div>
+
       {/* Whole-country opportunity heatmap — where the GO/HOLD money clusters. */}
       <USHeatmap />
       <div className="flex flex-col gap-4 md:flex-row">
@@ -411,8 +438,18 @@ function ChipGroup({
       className="rounded-[var(--r3)] p-3"
       style={{ background: "var(--s1)", boxShadow: "var(--shadow)" }}
     >
-      <div className="mb-2 text-xs font-bold uppercase tracking-wide text-[var(--t3)]">
-        {title}
+      <div className="mb-2 flex items-center gap-1.5">
+        <span className="text-xs font-bold uppercase tracking-wide text-[var(--t3)]">
+          {title}
+        </span>
+        {selected.length > 0 && (
+          <span
+            className="rounded-full px-1.5 text-[9px] font-black text-white"
+            style={{ background: "var(--grad)" }}
+          >
+            {selected.length}
+          </span>
+        )}
       </div>
       <div className="flex flex-wrap gap-1.5">
         {options.map((o) => {
@@ -423,12 +460,13 @@ function ChipGroup({
               onClick={() =>
                 onToggle(lowercaseMatch ? o.key.toLowerCase() : o.key)
               }
-              className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold capitalize transition-all"
+              className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold capitalize transition-all hover:brightness-110 active:scale-95"
               style={
                 on
                   ? {
                       background: o.color || "var(--grad)",
                       color: "#fff",
+                      boxShadow: `0 0 0 2px ${o.color ? o.color + "44" : "var(--s3)"}`,
                     }
                   : { background: "var(--s2)", color: "var(--t3)" }
               }

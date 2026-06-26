@@ -46,6 +46,11 @@ export async function GET(req: NextRequest) {
     const sortDir = sp.get("sortDir") === "asc" ? "asc" : "desc";
     const page = Math.max(0, parseInt(sp.get("page") || "0") || 0);
     const pageSize = Math.min(200, parseInt(sp.get("pageSize") || "50") || 50);
+    // Free-text search across make/model/title (sanitized so it can't break the PostgREST or-filter).
+    const search = (sp.get("q") || "")
+      .trim()
+      .replace(/[,()%]/g, " ")
+      .slice(0, 60);
 
     // Same filter combo within 30s → serve the computed result instantly (no re-scan/re-facet).
     const payload = await cached(
@@ -64,6 +69,10 @@ export async function GET(req: NextRequest) {
 
         // SQL-able filters (push down what we can).
         if (states.length) q = q.in("location_state", states);
+        if (search)
+          q = q.or(
+            `make.ilike.%${search}%,model.ilike.%${search}%,title.ilike.%${search}%`,
+          );
         if (makes.length)
           q = q.or(makes.map((m) => `make.ilike.${m}`).join(",")); // case-insensitive make match
         if (conditions.length) q = q.in("condition", conditions);
