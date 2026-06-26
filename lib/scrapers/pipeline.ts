@@ -11,6 +11,7 @@ import { detectAvailability } from "@/lib/discovery/categorize";
 import { extractOptions } from "./extract-options";
 import { normalizeCondition } from "./normalize-condition";
 import { extractContactInfo } from "./tools/extract-contact";
+import { enrichVins } from "./enrich-vin";
 import { sendAlertMatchEmail } from "@/lib/notifications/email";
 import { sendAlertMatchSMS } from "@/lib/notifications/sms";
 import { resolvePlaces } from "@/lib/geo/geocode";
@@ -37,6 +38,11 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
 
   const source = deals[0]?.source || "unknown";
   const normalized = normalizeDeals(deals);
+  // Authoritative make/model/year from the VIN (cache-first, vPIC for misses) BEFORE quality-control +
+  // valuation — so deals are QC'd and valued on the correct vehicle and pool with their real comps.
+  const vinApplied = await enrichVins(getSupabase(), normalized);
+  if (vinApplied)
+    console.log(`[Pipeline] VIN-decoded make/model on ${vinApplied} deals`);
   const report = quality.validateBatch(source, normalized);
   if (report.issues.length > 0) {
     console.warn(`[Pipeline] quality report for ${source}:`, report);
