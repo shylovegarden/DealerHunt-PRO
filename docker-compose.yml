@@ -30,6 +30,25 @@ services:
     depends_on:
       - redis
 
+  # Browser-capable scrape fleet. Runs smartFetch headed (Patchright + real Chrome under xvfb), beating
+  # Cloudflare/PerimeterX/Akamai for free. Scale with `docker compose up --scale scraper=N` — but note
+  # replicas on ONE host share ONE IP; for anti-bot reputation spread, run replicas on DIFFERENT hosts.
+  scraper:
+    build:
+      context: .
+      dockerfile: Dockerfile.scraper
+    restart: unless-stopped
+    shm_size: "1gb" # Chrome needs ample /dev/shm or it crashes under load
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - ENABLE_HEADED_SCRAPERS=1
+      - SCRAPE_INTERVAL_MS=1800000
+      # Dedicate a worker to the walled trio by uncommenting (else it runs the full enabled set):
+      # - SCRAPE_SOURCES=cars_com,autotrader,truecar
+
   redis:
     image: redis:7-alpine
     ports:

@@ -43,8 +43,15 @@ const HEADED_AVAILABLE =
   !!process.env.DISPLAY ||
   process.env.ENABLE_HEADED_SCRAPERS === "1";
 
-// Per-host learned winner. "none" = no available tier beat this host this run → short-circuit.
-const hostWinner = new Map<string, FetchTier | "none">();
+// Per-host learned winner (the tier that last got real data).
+const hostWinner = new Map<string, FetchTier>();
+
+// Per-host cooldown. When every available tier is blocked, we DON'T keep hammering — that's exactly how
+// an IP gets reputation-flagged (Cloudflare/DataDome track request volume per IP). Instead we park the
+// host until this timestamp and skip it, giving the IP time to cool off. A distributed worker fleet on
+// different IPs is the real fix; this stops a single box from burning itself.
+const hostCooldownUntil = new Map<string, number>();
+const COOLDOWN_MS = 10 * 60_000;
 
 // One warm browser/page per host, per browser tier (isolation = concurrency safety). Keyed
 // "tier:host". Persistent contexts (Patchright's strongest stealth mode) — closed in closeSmartFetch.
@@ -116,6 +123,27 @@ async function browserPageFor(
   return page;
 }
 
+// Light human-like activity — mouse drift + scrolling. Anti-bot scoring (DataDome, PerimeterX) weighs
+// behavioral signals heavily; a page that loads with zero interaction reads as a bot. Best-effort.
+async function humanize(page: Page): Promise<void> {
+  try {
+    for (let i = 0; i < 4; i++) {
+      await page.mouse.move(
+        150 + Math.random() * 1000,
+        120 + Math.random() * 600,
+        { steps: 8 },
+      );
+      await page.waitForTimeout(140 + Math.random() * 200);
+    }
+    await page.mouse.wheel(0, 500 + Math.random() * 600);
+    await page.waitForTimeout(450 + Math.random() * 400);
+    await page.mouse.wheel(0, 400 + Math.random() * 600);
+    await page.waitForTimeout(350);
+  } catch {
+    /* mouse/scroll best-effort */
+  }
+}
+
 async function fetchViaBrowser(
   url: string,
   host: string,
@@ -127,6 +155,7 @@ async function fetchViaBrowser(
   // settle would snapshot the "Just a moment" page and wrongly escalate. Cap the wait so a truly
   // unbeatable wall still gives up. A quick first settle covers fast-rendering SPAs.
   await page.waitForTimeout(2500);
+  await humanize(page); // behavioral signal to lower the bot score before we judge the page
   let html = await page.content();
   const deadline = Date.now() + (tier === "headed" ? 13_000 : 9000);
   while (isBlocked(html, 200) && Date.now() < deadline) {
@@ -153,8 +182,12 @@ export async function smartFetch(
 ): Promise<SmartFetchResult> {
   const host = hostOf(url);
 
+  // Parked on cooldown after a full block — skip without touching the IP again.
+  const cooldown = hostCooldownUntil.get(host);
+  if (cooldown && cooldown > Date.now())
+    return { html: "", tier: "static", blocked: true };
+
   const learned = hostWinner.get(host);
-  if (learned === "none") return { html: "", tier: "static", blocked: true };
 
   // Try the learned winner first, then climb the rest of the ladder as a fallback.
   const order: FetchTier[] = learned
@@ -207,11 +240,13 @@ export async function smartFetch(
   if (cleanEmpty)
     return { html: cleanEmpty.html, tier: cleanEmpty.tier, blocked: false };
 
-  // Every tier was actually blocked — remember so the rest of this run's pages short-circuit instead
-  // of re-probing every tool. Resets next process (a wall may lift, or xvfb may appear).
+  // Every tier was actually blocked — park the host on cooldown so we stop hammering (and flagging) the
+  // IP. The rest of this run's pages for this host short-circuit; a fresh worker/IP can still get it.
   if (sawBlock) {
-    hostWinner.set(host, "none");
-    console.warn(`[smartFetch] ${host} → no tier passed (blocked)`);
+    hostCooldownUntil.set(host, Date.now() + COOLDOWN_MS);
+    console.warn(
+      `[smartFetch] ${host} → no tier passed; cooling down ${COOLDOWN_MS / 60000}m`,
+    );
   }
   return { html: "", tier: lastTier, blocked: true };
 }
@@ -224,7 +259,16 @@ export async function closeSmartFetch(): Promise<void> {
   browserByKey.clear();
 }
 
-/** Introspection for the status surface — which tool each host is currently being solved by. */
-export function getHostTierMap(): Record<string, FetchTier | "none"> {
-  return Object.fromEntries(Array.from(hostWinner.entries()));
+/** Introspection for the status surface — which tool each host is solved by, and any active cooldowns. */
+export function getHostTierMap(): {
+  solved: Record<string, FetchTier>;
+  cooling: string[];
+} {
+  const now = Date.now();
+  return {
+    solved: Object.fromEntries(Array.from(hostWinner.entries())),
+    cooling: Array.from(hostCooldownUntil.entries())
+      .filter(([, until]) => until > now)
+      .map(([host]) => host),
+  };
 }
