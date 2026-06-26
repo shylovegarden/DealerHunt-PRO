@@ -737,6 +737,58 @@ export const CURATED_SITES: CuratedSite[] = [
   { url: "https://autols.com", name: "Auto LifeStyle", state: "UT", type: "rebuilder_dealer" },
   { url: "https://bestwesternmotors.com", name: "Best Western Motors", state: "AZ", type: "rebuilder_dealer" },
   { url: "https://www.autogator.com", name: "Auto Gator", state: "CA", type: "rebuilder_dealer" },
+
+  // ════ Wave 2 — deep gap-fill (per-metro + auction-proxy resellers) ════
+  // ── Auction-proxy resellers (national, public buys Copart/IAA lots) — cover regions thin on
+  //    standalone local dealers (most of the Northeast/Deep-South salvage supply flows through these) ──
+  { url: "https://sca.auction", name: "SCA Auctions", type: "auction_proxy" },
+  { url: "https://abetter.bid", name: "A Better Bid", type: "auction_proxy" },
+  { url: "https://www.autobidmaster.com", name: "AutoBidMaster", type: "auction_proxy" },
+  { url: "https://www.salvagereseller.com", name: "SalvageReseller", type: "auction_proxy" },
+  { url: "https://www.salvagebid.com", name: "Salvagebid", type: "auction_proxy" },
+  { url: "https://cars4.bid", name: "CARS4.BID", type: "auction_proxy" },
+  { url: "https://www.bidgodrive.com", name: "BidGoDrive", type: "auction_proxy" },
+  { url: "https://www.eliteautoauctions.com", name: "Elite Auto Auctions", type: "auction_proxy" },
+  { url: "https://salvageagent.com", name: "SalvageAgent", type: "auction_proxy" },
+  { url: "https://go2auctionsnow.com", name: "Go2AuctionsNow", type: "auction_proxy" },
+  { url: "https://www.govdeals.com", name: "GovDeals", type: "auction_proxy" },
+  { url: "https://municibid.com", name: "Municibid", type: "auction_proxy" },
+  { url: "https://www.gsaauctions.gov", name: "GSA Auctions", type: "auction_proxy" },
+  { url: "https://www.propertyroom.com", name: "PropertyRoom", type: "auction_proxy" },
+  { url: "https://www.capitalautoauction.com", name: "Capital Auto Auction", type: "auction_proxy" },
+  { url: "https://barnoneauction.com", name: "Bar None Auction", state: "CA", type: "auction_proxy" },
+
+  // ── Northeast / Mid-Atlantic ──
+  { url: "https://www.maxsauto.com", name: "Max's Auto Sales", state: "PA", type: "rebuilder_dealer" },
+
+  // ── South / Southeast ──
+  { url: "https://www.quickautonc.com", name: "Quick Auto Sales", state: "NC", type: "rebuilder_dealer" },
+  { url: "https://www.axautosga.com", name: "AX Auto (America's Xtreme Auto)", state: "GA", type: "rebuilder_dealer" },
+  { url: "https://www.wolfgangsautos.com", name: "Wolfgang's Auto Sales", state: "GA", type: "rebuilder_dealer" },
+  { url: "https://www.a-autosalvage.com", name: "A-Auto Salvage", state: "AR", type: "salvage_yard" },
+
+  // ── Midwest / Plains ──
+  { url: "https://wellerrepairables.com", name: "Weller Repairables", state: "MI", type: "rebuilder_dealer" },
+  { url: "https://superiorusedautosales.com", name: "Superior Used Auto Sales", state: "MI", type: "rebuilder_dealer" },
+  { url: "https://www.garysautoia.net", name: "Gary's Auto", state: "IA", type: "rebuilder_dealer" },
+  { url: "https://www.premiersalvage.com", name: "Premier Auto Rebuilders & Truck Salvage", state: "MO", type: "salvage_yard" },
+  { url: "https://midwaycarlot.com", name: "Midway Auto", state: "MO", type: "rebuilder_dealer" },
+  { url: "https://americanauto.com", name: "American Auto Parts", state: "NE", type: "salvage_yard" },
+  { url: "https://nordstromsrepairables.com", name: "Nordstrom's Repairables", state: "SD", type: "rebuilder_dealer" },
+  { url: "https://www.kelolandautomall.com", name: "KELOLAND Automall (Repairables)", state: "SD", type: "auction_proxy" },
+  { url: "https://www.seventhavenueauto.com", name: "7th Avenue Auto", state: "ND", type: "rebuilder_dealer" },
+
+  // ── West / Mountain / Pacific ──
+  { url: "https://zaraauto.net", name: "Zara Auto Sales", state: "CO", type: "rebuilder_dealer" },
+  { url: "https://www.imageautosales.com", name: "Image Auto", state: "UT", type: "rebuilder_dealer" },
+  { url: "https://www.highlineauto.net", name: "High Line Auto Sales", state: "UT", type: "rebuilder_dealer" },
+  { url: "https://www.parklinemotors.com", name: "Parkline Motors", state: "UT", type: "rebuilder_dealer" },
+  { url: "https://www.autolocitymotors.com", name: "Autolocity Motors", state: "UT", type: "rebuilder_dealer" },
+  { url: "https://www.summitautoutah.com", name: "Summit Auto Sales", state: "UT", type: "rebuilder_dealer" },
+  { url: "https://www.tjchapmanauto.com", name: "TJ Chapman Auto", state: "UT", type: "rebuilder_dealer" },
+  { url: "https://www.familyautonv.com", name: "Family Auto LLC", state: "NV", type: "rebuilder_dealer" },
+  { url: "https://www.columbia-motors.com", name: "Columbia Motors", state: "OR", type: "rebuilder_dealer" },
+  { url: "https://www.sandiegototalcars.com", name: "San Diego Total Cars", state: "CA", type: "rebuilder_dealer" },
 ];
 
 /** Crawl the curated salvage/dealer network — bounded + polite. Each site ingested from its URL.
