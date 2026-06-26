@@ -37,6 +37,24 @@ export interface VinSighting {
   damage_type?: string | null;
   mileage?: number | null;
   created_at?: string | null;
+  location_state?: string | null;
+}
+
+// A sighting is "branded" if its condition/damage marks it as anything but a clean retail car.
+const BRANDED_RE = /salvage|rebuilt|reconstruct|flood|fire|junk|parts|hail|wreck|prior salvage/;
+function isBrandedSighting(r: VinSighting): boolean {
+  const cond = (r.condition || "").toLowerCase();
+  const dmg = (r.damage_type || "").toLowerCase();
+  return (
+    BRANDED_RE.test(cond) ||
+    !!AUCTION_SRC[(r.source || "").toLowerCase().trim()] ||
+    (dmg !== "" && dmg !== "none" && dmg !== "unknown")
+  );
+}
+function isCleanClaim(r: VinSighting): boolean {
+  const cond = (r.condition || "").toLowerCase();
+  const dmg = (r.damage_type || "").toLowerCase();
+  return /clean/.test(cond) && !BRANDED_RE.test(cond) && (dmg === "" || dmg === "none");
 }
 
 const mi = (v: unknown) => Number(v) || 0;
@@ -79,6 +97,32 @@ export function sightingsToHistory(rows: VinSighting[]): VinHistory | null {
       );
     peak = Math.max(peak, m);
   }
+
+  // TITLE WASHING — the headline fraud catch. A VIN that was branded (salvage/auction/damage) in an
+  // earlier sighting but is later listed as "clean" had its title laundered (often re-titled across a
+  // lenient state). No single-site report can see this; only watching the whole market over time can.
+  const byTime = rows
+    .filter((r) => r.created_at)
+    .sort(
+      (a, b) =>
+        new Date(a.created_at!).getTime() - new Date(b.created_at!).getTime(),
+    );
+  let sawBranded = false;
+  for (const r of byTime) {
+    if (isBrandedSighting(r)) sawBranded = true;
+    else if (sawBranded && isCleanClaim(r))
+      flags.add(
+        "⚠️ Possible title washing — branded in an earlier sighting, now listed clean",
+      );
+  }
+
+  // Cross-state movement — a branded car retitled in another state is the classic washing route. On its
+  // own it's mild; alongside a brand flag it strengthens the case.
+  const states = new Set(
+    rows.map((r) => (r.location_state || "").toUpperCase().trim()).filter(Boolean),
+  );
+  if (states.size > 1 && sawBranded)
+    flags.add(`Seen branded then moved across states (${Array.from(states).join(" → ")})`);
 
   if (!flags.size) return null;
   return {
