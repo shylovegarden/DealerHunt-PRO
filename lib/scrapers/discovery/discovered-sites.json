@@ -1,0 +1,82 @@
+[
+  {
+    "url": "https://junkcarsus.com",
+    "name": "Junk Cars US",
+    "state": "TX",
+    "type": "rebuilder_dealer",
+    "status": "live",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://texassalvage.com",
+    "name": "Texas Salvage",
+    "state": "TX",
+    "type": "salvage_yard",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://houstonautosalvage.com",
+    "name": "Houston Auto Salvage",
+    "state": "TX",
+    "type": "salvage_yard",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://rebuildablevehicles.com",
+    "name": "Rebuildable Vehicles",
+    "state": "TX",
+    "type": "rebuilder_dealer",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://repairablecarsforsale.com",
+    "name": "Repairable Cars for Sale",
+    "state": "TX",
+    "type": "rebuilder_dealer",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://savvyautobrokers.com",
+    "name": "Savvy Auto Brokers",
+    "state": "TX",
+    "type": "auction_proxy",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://automotiveauctions.com",
+    "name": "Automotive Auctions",
+    "state": "TX",
+    "type": "auction_proxy",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://surplusautos.com",
+    "name": "Surplus Autos",
+    "state": "FL",
+    "type": "salvage_yard",
+    "status": "live",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://floridarebuildables.com",
+    "name": "Florida Rebuildables",
+    "state": "FL",
+    "type": "rebuilder_dealer",
+    "status": "live",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://salvagecarsauction.com",
+    "name": "Salvage Cars Auction",
+    "state": "FL",
+    "type": "auction_proxy",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  }
+]
