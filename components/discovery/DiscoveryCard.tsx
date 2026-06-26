@@ -225,6 +225,26 @@ export const DiscoveryCard = memo(function DiscoveryCard({
             )}
           </div>
 
+          {/* VIN-graph red flag — the moat made visible. Loud red for misrepresentation traps (a
+              "clean" car our cross-market records show was salvaged/washed/rolled-back); a subtle chip
+              for a car that already discloses its history. */}
+          {deal.vinFlags && deal.vinFlags.length > 0 && (
+            <span
+              className="inline-flex w-fit items-center gap-1 rounded-[var(--r1)] px-2 py-0.5 text-[10px] font-bold"
+              style={
+                deal.vinFlagSeverity === "high"
+                  ? { background: "var(--rlo)", color: "var(--red)" }
+                  : { background: "var(--amber-lo)", color: "var(--amber-d)" }
+              }
+              title={deal.vinFlags.join(" · ")}
+            >
+              {deal.vinFlagSeverity === "high" ? "⚠ " : ""}
+              {deal.vinFlags.find((f) =>
+                /washing|rollback|salvage|flood|fire/i.test(f),
+              ) || deal.vinFlags[0]}
+            </span>
+          )}
+
           {/* Meta: lane · mileage · location */}
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[var(--t4)]">
             {deal.lane && deal.laneColor && (

@@ -168,8 +168,21 @@ export function DealTable({ rows }: { rows: TableRow[] }) {
                 }}
               >
                 <td className="px-3 py-2.5 max-w-[280px]">
-                  <div className="truncate font-semibold text-[var(--t1)]">
-                    {r.year} {r.make} {r.model}
+                  <div className="flex items-center gap-1.5 truncate font-semibold text-[var(--t1)]">
+                    {(r as any).deal_analysis?.vinFlagSeverity === "high" && (
+                      <span
+                        className="shrink-0"
+                        style={{ color: "var(--red)" }}
+                        title={((r as any).deal_analysis?.vinFlags || []).join(
+                          " · ",
+                        )}
+                      >
+                        ⚠
+                      </span>
+                    )}
+                    <span className="truncate">
+                      {r.year} {r.make} {r.model}
+                    </span>
                   </div>
                   {r.trim && (
                     <div className="truncate text-[11px] text-[var(--t4)]">

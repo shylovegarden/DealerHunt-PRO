@@ -30,6 +30,12 @@ function mapDeal(
     sourceUrl: d.source_url,
     lane,
     laneColor: LANE_COLORS[lane],
+    // VIN-graph red flags (prior salvage / title-washing / rollback) — the moat, surfaced on the card.
+    vinFlags: d.deal_analysis?.vinFlags as string[] | undefined,
+    vinFlagSeverity: d.deal_analysis?.vinFlagSeverity as
+      | "high"
+      | "info"
+      | undefined,
     sellerPhone: d.seller_phone,
     sellerEmail: d.seller_email,
     title: d.title || `${d.year || ""} ${d.make || ""} ${d.model || ""}`.trim(),

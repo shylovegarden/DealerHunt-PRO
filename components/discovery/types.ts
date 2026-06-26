@@ -45,6 +45,9 @@ export interface DiscoveryDeal {
   distanceMiles?: number;
   sellerPhone?: string;
   sellerEmail?: string;
+  /** VIN-graph cross-market history red flags + severity (the proprietary moat, surfaced). */
+  vinFlags?: string[];
+  vinFlagSeverity?: "high" | "info";
 }
 
 export interface DiscoveryRail {
