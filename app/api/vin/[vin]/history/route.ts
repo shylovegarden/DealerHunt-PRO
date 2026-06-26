@@ -22,16 +22,29 @@ export async function GET(
   if (!vin || vin.length !== 17)
     return NextResponse.json({ authoritative: false, source: "none" });
 
-  // Tier 1.5 — our own VIN graph.
+  // Tier 1.5 — our own VIN graph + the raw sighting timeline.
   let graph: VinHistory | null = null;
+  let sightings: any[] = [];
   try {
     const sb = createServerComponentClient();
     const { data } = await sb
       .from("deals")
-      .select("source, condition, damage_type, mileage, created_at, location_state")
+      .select(
+        "source, condition, damage_type, mileage, created_at, location_state, ask_price",
+      )
       .eq("vin", vin)
+      .order("created_at", { ascending: true })
       .limit(40);
     graph = sightingsToHistory(data || []);
+    sightings = (data || []).map((r) => ({
+      source: r.source,
+      date: r.created_at,
+      condition: r.condition,
+      damage: r.damage_type,
+      mileage: r.mileage,
+      state: r.location_state,
+      askPrice: r.ask_price,
+    }));
   } catch {
     /* graph best-effort */
   }
@@ -39,17 +52,27 @@ export async function GET(
   // Tier 2 — authoritative NMVTIS (only when a key is configured).
   const nmvtis = await fetchNmvtis(vin);
 
-  if (!nmvtis && !graph)
+  // Nothing to say only if no flags, no NMVTIS, AND fewer than 2 sightings (a single listing is no
+  // history). 2+ sightings is itself a story worth showing even without a red flag.
+  if (!nmvtis && !graph && sightings.length < 2)
     return NextResponse.json({ authoritative: false, source: "none" });
 
-  // NMVTIS wins the "verified" badge; the graph flags are always folded in (dedup).
-  const base = nmvtis || graph!;
-  const merged: VinHistory = {
+  const base: VinHistory = nmvtis ||
+    graph || {
+      source: "vin-graph",
+      authoritative: false,
+      titleBrands: [],
+      cleanClaims: [],
+      note: "",
+    };
+  const merged: any = {
     ...base,
     titleBrands: Array.from(
       new Set([...(nmvtis?.titleBrands || []), ...(graph?.titleBrands || [])]),
     ),
     note: nmvtis && graph ? `${nmvtis.note} · ${graph.note}` : base.note,
+    sightings,
+    sightingCount: sightings.length,
   };
   return NextResponse.json(merged);
 }

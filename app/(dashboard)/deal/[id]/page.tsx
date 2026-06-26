@@ -413,6 +413,27 @@ export default function DealPage({
                     <p className="text-[10px] text-[var(--t4)]">
                       via {basisLabel}
                     </p>
+                    {(() => {
+                      // Honest confidence from the valuation basis: real comps (sold-anchored) = high;
+                      // comps = good; market aggregate = fair; offline baseline = estimate only.
+                      const conf =
+                        a.sellBasis === "comps" && a.soldAnchored
+                          ? { label: "High", c: "var(--green)" }
+                          : a.sellBasis === "comps"
+                            ? { label: "Good", c: "var(--green)" }
+                            : a.sellBasis === "market"
+                              ? { label: "Fair", c: "var(--amber-d)" }
+                              : { label: "Estimate", c: "var(--t4)" };
+                      return (
+                        <span
+                          className="mt-0.5 inline-block rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
+                          style={{ background: `${conf.c}1f`, color: conf.c }}
+                          title="Confidence = how much real market data backs this number"
+                        >
+                          {conf.label} confidence
+                        </span>
+                      );
+                    })()}
                     {a.conditionTag && a.conditionTag !== "clean" && (
                       <p className="text-[10px] font-bold text-[var(--amber-d)] mt-0.5">
                         {a.conditionTag} pricing

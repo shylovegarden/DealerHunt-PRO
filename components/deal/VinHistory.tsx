@@ -39,6 +39,9 @@ export function VinHistory({
     data && data.source && data.source !== "none"
       ? (data as VinHistoryT)
       : null;
+  // The raw cross-market sighting timeline (where/when we've seen this exact VIN).
+  const sightings: any[] = (data as any)?.sightings || [];
+  const multiSighting = sightings.length >= 2;
 
   // Merge all tiers: NMVTIS/graph red flags + the local listing-text flags & claims.
   const h: VinHistoryT = {
@@ -57,8 +60,15 @@ export function VinHistory({
   };
 
   const hasFlags = h.titleBrands.length > 0;
-  // Show only when we have something meaningful (flags, claims, or an authoritative all-clear).
-  if (!hasFlags && h.cleanClaims.length === 0 && !h.authoritative) return null;
+  // Show when we have something meaningful — flags, claims, an authoritative all-clear, OR a multi-
+  // sighting timeline (seeing the same VIN twice is itself a story no single-site report has).
+  if (
+    !hasFlags &&
+    h.cleanClaims.length === 0 &&
+    !h.authoritative &&
+    !multiSighting
+  )
+    return null;
 
   return (
     <Card
@@ -119,6 +129,60 @@ export function VinHistory({
         )}
 
         <p className="text-[11px] text-[var(--t4)] leading-relaxed">{h.note}</p>
+
+        {/* Cross-market sighting timeline — where & when we've seen THIS VIN. The moat made tangible. */}
+        {multiSighting && (
+          <div className="mt-4 border-t border-[var(--s2)] pt-3">
+            <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-[var(--t4)]">
+              Sighting timeline · seen {sightings.length}× across our market
+              scans
+            </p>
+            <div className="flex flex-col gap-2">
+              {sightings.map((s, i) => {
+                const branded =
+                  /salvage|rebuilt|flood|fire|junk|parts|wreck/.test(
+                    (s.condition || "").toLowerCase(),
+                  );
+                return (
+                  <div key={i} className="flex items-center gap-2 text-[11px]">
+                    <span
+                      className="h-1.5 w-1.5 shrink-0 rounded-full"
+                      style={{
+                        background: branded ? "var(--red)" : "var(--t5)",
+                      }}
+                    />
+                    <span className="w-[68px] shrink-0 text-[var(--t4)]">
+                      {s.date ? new Date(s.date).toLocaleDateString() : "—"}
+                    </span>
+                    <span className="font-bold text-[var(--t2)]">
+                      {s.source}
+                    </span>
+                    {s.state && (
+                      <span className="text-[var(--t4)]">{s.state}</span>
+                    )}
+                    {s.condition && (
+                      <span
+                        style={{ color: branded ? "var(--red)" : "var(--t3)" }}
+                      >
+                        {s.condition}
+                      </span>
+                    )}
+                    {s.mileage > 0 && (
+                      <span className="font-mono text-[var(--t4)]">
+                        {Number(s.mileage).toLocaleString()}mi
+                      </span>
+                    )}
+                    {s.askPrice > 0 && (
+                      <span className="ml-auto font-mono text-[var(--t3)]">
+                        ${Number(s.askPrice).toLocaleString()}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
