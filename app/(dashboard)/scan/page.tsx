@@ -18,6 +18,7 @@ import { DealCard, DealCardSkeleton } from "@/components/shared/DealCard";
 import { isValidVin } from "@/lib/vehicle/vin";
 import { ErrorState as SharedErrorState } from "@/components/shared/ErrorState";
 import { ALL_VEHICLE_SOURCES } from "@/lib/utils/sources";
+import { sourceMeta, tint } from "@/lib/sources/source-meta";
 import { cn } from "@/lib/utils";
 import { Deal } from "@/lib/data/deals-service";
 import { US_STATES } from "@/lib/utils/titleRules";
@@ -222,16 +223,24 @@ function StatusStrip({
       {topSources.length > 0 && (
         <>
           <span className="text-[var(--b3)] hidden md:inline">·</span>
-          <span className="text-[var(--t4)] hidden md:inline">
-            {topSources.map(([src, n], i) => (
-              <span key={src}>
-                {i > 0 && <span className="mx-1.5 opacity-30">·</span>}
-                <span className="text-[var(--t2)]">
-                  {src.charAt(0).toUpperCase() + src.slice(1)}
+          <span className="hidden items-center gap-1.5 md:inline-flex">
+            {topSources.map(([src, n]) => {
+              const m = sourceMeta(src);
+              return (
+                <span
+                  key={src}
+                  className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold"
+                  style={{ background: tint(m.color), color: m.color }}
+                  title={`${n} from ${m.label}`}
+                >
+                  <span
+                    className="inline-block h-1.5 w-1.5 rounded-full"
+                    style={{ background: m.color }}
+                  />
+                  {m.short} {n}
                 </span>
-                <span className="text-[var(--t4)">: {n}</span>
-              </span>
-            ))}
+              );
+            })}
           </span>
         </>
       )}
