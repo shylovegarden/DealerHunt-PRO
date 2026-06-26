@@ -32,6 +32,12 @@ export function ContactSeller({
       >
         Contact seller
       </div>
+      {!phone && !email && (
+        <p className="mb-2 text-[11px] text-[var(--t4)]">
+          No saved phone or email for this listing — reach the seller through
+          the original listing.
+        </p>
+      )}
       <div className="flex flex-wrap gap-2">
         {phone && (
           <>

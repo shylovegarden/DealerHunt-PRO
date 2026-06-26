@@ -61,7 +61,7 @@ async function enrichGoBacklog(limit: number): Promise<void> {
     .from("deals")
     .select("id, source_url, vin")
     .eq("active", true)
-    .eq("deal_verdict", "go")
+    .in("deal_verdict", ["go", "hold"])
     .in("source", ["craigslist", "craigslist_dealer"])
     .not("source_url", "is", null)
     .or("images.is.null,images.eq.{}")
@@ -371,7 +371,7 @@ async function main() {
   // detail page. Keeps the surfaces the dealer sees fully illustrated, every cycle. Real data only.
   if (sources.includes("craigslist")) {
     try {
-      await enrichGoBacklog(parseInt(process.env.GO_ENRICH_MAX || "30", 10));
+      await enrichGoBacklog(parseInt(process.env.GO_ENRICH_MAX || "80", 10));
     } catch (e) {
       console.warn("GO photo top-up skipped:", (e as Error).message);
     }
