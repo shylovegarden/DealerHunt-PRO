@@ -25,6 +25,7 @@ import { scrapeCarGurus } from "./sources/cargurus";
 import { scrapeAutoTrader } from "./sources/autotrader";
 import { scrapeOfferUp } from "./sources/offerup";
 import { scrapePublicSurplus } from "./sources/publicsurplus";
+import { scrapeGovDeals } from "./sources/govdeals";
 import { scrapeAutotempest } from "./sources/autotempest";
 import { scrapeEbaySold } from "./sources/ebay-sold";
 import { ScraperRegistry } from "./tools/registry";
@@ -378,6 +379,21 @@ export function createScraperRegistry(
     fn: () => scrapePublicSurplus(),
     enabled: true,
     estimatedDealsPerRun: 130,
+  });
+
+  // GovDeals — the largest U.S. gov-surplus auction marketplace (Liquidity Services). Public JSON search
+  // API (no login, anonymous keys). Police/fleet sedans + municipal trucks, sibling to PublicSurplus.
+  registry.register({
+    id: "govdeals",
+    name: "GovDeals (gov surplus)",
+    type: "auction",
+    priority: "high",
+    frequencyMinutes: 360,
+    requiresAuth: false,
+    stealthRequired: false,
+    fn: () => scrapeGovDeals(),
+    enabled: true,
+    estimatedDealsPerRun: 300,
   });
 
   registry.register({
