@@ -405,6 +405,20 @@ export function analyzeDeal(deal: Partial<Deal>): DealAnalysis {
     ];
   }
 
+  // TRUST GATE: a GO is a promise about resale value, made with the dealer's money. We never make that
+  // promise on a baseline-only estimate (offline depreciation curve, no real market comps) — even if the
+  // math pencils out, we can't VERIFY the resale price. Demote those to HOLD so a GO always means
+  // "backed by real comps or a third-party market value (KBB/aggregate)". PASS stays PASS. This is the
+  // line between a tip and a guarantee, and it's why the GO/PASS can be trusted.
+  if (verdict === "go" && sellBasis === "baseline") {
+    verdict = "hold";
+    score = Math.min(score, 84); // strong HOLD ("great on paper, unverified"), just below the GO band
+    warnings = [
+      "Resale value here is an offline estimate — we don't yet have real market comps for this exact car, so it's a HOLD, not a confident GO. Verify the resale price before you buy.",
+      ...warnings,
+    ];
+  }
+
   return {
     ...result,
     score,
