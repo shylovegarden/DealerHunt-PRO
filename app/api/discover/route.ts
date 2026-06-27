@@ -54,6 +54,10 @@ function mapDeal(
       d.deal_analysis?.sellBasis,
       d.deal_analysis?.soldAnchored,
     ),
+    // Evidence count behind the number (real comps + sold) — surfaces the "backed by N" trust hint.
+    valueEvidence:
+      (d.deal_analysis?.valuation?.compCount ?? 0) +
+      (d.deal_analysis?.valuation?.soldCount ?? 0),
     profitScore: d.profit_score != null ? Number(d.profit_score) : undefined,
     trueNetProfit:
       d.true_net_profit != null ? Number(d.true_net_profit) : undefined,

@@ -22,6 +22,8 @@ export interface DiscoveryDeal {
   sellEstimate?: number;
   /** Honest confidence for the resale estimate (comp-backed vs baseline guess). */
   valueConfidence?: "high" | "good" | "fair" | "estimate";
+  /** How many real comps + sales back the resale number (the "backed by N" trust hint). */
+  valueEvidence?: number;
   profitScore?: number;
   trueNetProfit?: number;
   recommendedMaxBid?: number;

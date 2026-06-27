@@ -429,7 +429,11 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                       style={{
                         background: CONFIDENCE_META[deal.valueConfidence].color,
                       }}
-                      title={`${CONFIDENCE_META[deal.valueConfidence].label} confidence — ${CONFIDENCE_META[deal.valueConfidence].blurb}`}
+                      title={`${CONFIDENCE_META[deal.valueConfidence].label} confidence — ${CONFIDENCE_META[deal.valueConfidence].blurb}${
+                        deal.valueEvidence
+                          ? ` · backed by ${deal.valueEvidence} real comps/sales`
+                          : ""
+                      }`}
                     />
                   )}
                 </span>
