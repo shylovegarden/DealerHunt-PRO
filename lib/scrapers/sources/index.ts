@@ -456,7 +456,9 @@ export async function scrapeIndependentDealer(
           // Prefer what the listing text says; else the site's type default (salvage yard → salvage,
           // rebuilder → rebuilt). Drives the correct lane/color downstream via dealLane().
           condition:
-            conditionFromTitle(title) ?? profile.conditionDefault ?? "run_drive",
+            conditionFromTitle(title) ??
+            profile.conditionDefault ??
+            "run_drive",
           damage_type: profile.damageDefault,
           seller_type: profile.sellerDefault as Deal["seller_type"],
           location_city: profile.city,
@@ -465,9 +467,57 @@ export async function scrapeIndependentDealer(
         });
       });
 
-      // AI rescue: generic selectors match nothing on many dealer layouts. When that happens (and
-      // the page genuinely has content), let the LLM extract the listings. Cost-gated — only fires
-      // on a selector miss, only when a provider key + AI_SCRAPE_EXTRACT are configured.
+      // FREE structured rescue (no API cost) — runs BEFORE the paid LLM rescue. Many dealer sites embed
+      // their inventory as JSON-LD or __NEXT_DATA__ even when our CSS selectors miss; the generic
+      // extractor recovers those for $0. No-paid-first (standing constraint): only if this also finds
+      // nothing do we fall through to the cost-gated AI rescue below.
+      if (
+        items.length === 0 &&
+        typeof rawHtml === "string" &&
+        rawHtml.length > 1500
+      ) {
+        const { genericExtract } = await import("../generic-extractor");
+        for (const g of genericExtract(rawHtml, "independent_dealer")) {
+          if (!g.make && !g.title) continue;
+          items.push({
+            source: "independent_dealer",
+            source_deal_id:
+              (g.source_url && g.source_url !== baseUrl
+                ? g.source_url.split("/").filter(Boolean).pop()
+                : "") ||
+              `${profile.dealerId}-${[g.year, g.make, g.model, g.ask_price, g.mileage].filter(Boolean).join("-")}`,
+            source_url: g.source_url
+              ? normalizeUrl(g.source_url, baseUrl)
+              : baseUrl,
+            title:
+              [g.year, g.make, g.model].filter(Boolean).join(" ") ||
+              g.title ||
+              "",
+            year: g.year,
+            make: g.make || "",
+            model: g.model || "",
+            ask_price: g.ask_price || 0,
+            mileage: g.mileage,
+            condition:
+              conditionFromTitle(g.title || "") ||
+              profile.conditionDefault ||
+              "run_drive",
+            damage_type: profile.damageDefault,
+            seller_type: profile.sellerDefault as Deal["seller_type"],
+            location_city: profile.city,
+            location_state: profile.state,
+            images: g.images || [],
+          });
+        }
+        if (items.length)
+          console.log(
+            `[IndiDealer] ${profile.name}: genericExtract rescued ${items.length} (selector miss, free)`,
+          );
+      }
+
+      // AI rescue: generic selectors AND the free structured rescue both matched nothing. When that
+      // happens (and the page genuinely has content), let the LLM extract the listings. Cost-gated —
+      // only fires on a double miss, only when a provider key + AI_SCRAPE_EXTRACT are configured.
       if (
         items.length === 0 &&
         typeof rawHtml === "string" &&
@@ -574,7 +624,8 @@ export async function autoDiscoverAndCrawl(
     href &&
     !/^(javascript:|#|mailto:|tel:|data:)/i.test(href.trim()) &&
     href.trim() !== "/";
-  const INV_PATH = /inventory|vehicles|\/used|for-sale|listings|stock|showroom/i;
+  const INV_PATH =
+    /inventory|vehicles|\/used|for-sale|listings|stock|showroom/i;
   const INV_TEXT = /inventory|vehicles|stock|cars|used|available|repairable/i;
 
   let inventoryUrl = "";
@@ -672,7 +723,11 @@ export const SITE_TYPE_DEFAULTS: Record<
   { condition?: string; damage_type?: string; seller_type?: string }
 > = {
   salvage_yard: { condition: "salvage_title", seller_type: "dealer" },
-  rebuilder_dealer: { condition: "rebuilt_title", damage_type: "repairable", seller_type: "dealer" },
+  rebuilder_dealer: {
+    condition: "rebuilt_title",
+    damage_type: "repairable",
+    seller_type: "dealer",
+  },
   independent_dealer: { condition: "run_drive", seller_type: "dealer" },
   auction_proxy: { condition: "salvage_title", seller_type: "auction" },
   clean_retail: { condition: "clean", seller_type: "dealer" },
@@ -829,7 +884,12 @@ export async function scrapeCuratedSites(
       total += n;
     } catch (e) {
       console.warn(`[CuratedSites] ${site.name} failed:`, (e as Error).message);
-      yields.push({ name: site.name, state: site.state, type: site.type, n: 0 });
+      yields.push({
+        name: site.name,
+        state: site.state,
+        type: site.type,
+        n: 0,
+      });
     }
     await new Promise((r) => setTimeout(r, 2000)); // be polite between sites
   }
