@@ -18,6 +18,7 @@ import { Mono } from "@/components/shared/Mono";
 import { useDealerId } from "@/hooks/useDealerId";
 import { Skeleton } from "@/components/shared/Skeleton";
 import { MaxBidWidget } from "@/components/deal/MaxBidWidget";
+import { ValuationBreakdown } from "@/components/deal/ValuationBreakdown";
 import { PriceSparkline } from "@/components/deal/PriceSparkline";
 import { SimilarDeals } from "@/components/deal/SimilarDeals";
 import { MarketTiming } from "@/components/deal/MarketTiming";
@@ -584,6 +585,22 @@ export default function DealPage({
         </div>
         <PriceSparkline dealId={id} />
       </motion.div>
+
+      {/* HOW WE VALUED THIS — the moat made transparent (evidence + adjustments behind the resale #) */}
+      {dealData?.deal?.dealAnalysis?.valuation &&
+        dealData?.deal?.sellEstimate != null && (
+          <motion.div
+            variants={{
+              hidden: { opacity: 0, y: 20 },
+              visible: { opacity: 1, y: 0 },
+            }}
+          >
+            <ValuationBreakdown
+              v={dealData.deal.dealAnalysis.valuation}
+              sellEstimate={Number(dealData.deal.sellEstimate)}
+            />
+          </motion.div>
+        )}
 
       {/* MARKET TIMING — buy-now/wait + real days-to-sell */}
       <motion.div

@@ -162,10 +162,25 @@ function estimateSellValue(
   return Math.round(askPrice * markup);
 }
 
+export interface ValuationBreakdown {
+  basis: "comps" | "market" | "baseline";
+  compCount: number;
+  compConfidence: "high" | "medium" | "low" | "none";
+  cleanComp: number | null;
+  soldCount: number;
+  soldAnchored: boolean;
+  kbbValue: number | null;
+  mileageMult: number;
+  titleMult: number;
+  titleTag: string;
+  baseline: number;
+}
+
 export interface DealAnalysis extends ProfitResult {
   sellEstimate: number;
   mmrValue?: number;
   sellBasis: "comps" | "market" | "baseline";
+  valuation?: ValuationBreakdown;
   recommendedMaxBid: number;
   miles: number | null;
   priceImplausible: boolean;
@@ -476,5 +491,20 @@ export function analyzeDeal(deal: Partial<Deal>): DealAnalysis {
     wholesaleEstimate,
     priceSanity: sanity.status,
     inferredPrice: sanity.inferredPrice,
+    // The evidence + adjustments behind the resale number — so the UI can show HOW we valued it.
+    // This is the moat made transparent: real comps, KBB, sold prices, and the exact title/mileage cuts.
+    valuation: {
+      basis: sellBasis,
+      compCount: comps?.nRetail ?? 0,
+      compConfidence: comps?.confidence ?? "none",
+      cleanComp: comps?.retail ?? null,
+      soldCount: realSold?.n ?? 0,
+      soldAnchored,
+      kbbValue: deal.mmr_value || null,
+      mileageMult: (compAdj ?? mmrAdj ?? aggAdj)?.mileageMult ?? 1,
+      titleMult: (compAdj ?? mmrAdj ?? aggAdj)?.titleMult ?? 1,
+      titleTag: conditionTag,
+      baseline,
+    },
   };
 }
