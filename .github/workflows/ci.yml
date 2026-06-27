@@ -1,0 +1,35 @@
+name: CI
+
+# Quality gate — runs on every push + PR so no regression (from any agent, including Claude) reaches
+# main without tsc/lint/tests passing. Validated locally before wiring: `next lint` was broken (removed
+# in Next 16 → now `eslint .`), and eslint surfaced 3 real errors (require() in .js — now overridden).
+# tsc clean · eslint 0 errors · 265 tests pass.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel superseded runs on the same ref to save minutes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Lint (fails on errors; warnings allowed)
+        run: npm run lint
+      - name: Tests
+        run: npm test
