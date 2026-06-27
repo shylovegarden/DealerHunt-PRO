@@ -11,9 +11,10 @@ on:
         description: 'Comma-separated source ids (blank = curated default set)'
         required: false
         default: ''
-  schedule:
-    # Staggered to spread free-minute usage. Times are UTC.
-    - cron: '0 */6 * * *'   # every 6h — full default set
+  # schedule:
+  #   # Staggered to spread free-minute usage. Times are UTC.
+  #   # DISABLED due to GitHub Actions billing limit for this private repo
+  #   - cron: '0 */6 * * *'   # every 6h — full default set
 
 concurrency:
   group: scrape
@@ -37,6 +38,7 @@ jobs:
       FLARESOLVERR_URL: http://localhost:8191/v1
       GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
       RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      SCRAPE_SECRET: ${{ secrets.SCRAPE_SECRET }}
       SCRAPE_SOURCES: ${{ github.event.inputs.sources }}
       # Lets smartFetch use its headed real-Chrome tier (the only free path past PerimeterX/Akamai —
       # truecar, autotrader). The run is wrapped in xvfb-run below to give headed Chrome a display.
