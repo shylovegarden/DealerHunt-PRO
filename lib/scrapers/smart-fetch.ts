@@ -102,6 +102,53 @@ async function fetchStatic(
   return { html: await res.text(), status: res.status };
 }
 
+// Browser fingerprint pool. Even on the same IP, presenting a varied (but internally-consistent) UA +
+// viewport + locale + timezone makes requests look like different real users — anti-bot scores the
+// fingerprint alongside the IP. One fingerprint is picked PER HOST (stable within a run so a session
+// stays consistent — flip-flopping is itself a bot tell) and differs across fleet replicas (each is a
+// separate process), so N nodes look like N different browsers, not N clones.
+interface Fingerprint {
+  ua: string;
+  viewport: { width: number; height: number };
+  locale: string;
+  tz: string;
+}
+const FINGERPRINTS: Fingerprint[] = [
+  {
+    ua: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    viewport: { width: 1440, height: 900 },
+    locale: "en-US",
+    tz: "America/New_York",
+  },
+  {
+    ua: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    viewport: { width: 1920, height: 1080 },
+    locale: "en-US",
+    tz: "America/Chicago",
+  },
+  {
+    ua: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+    viewport: { width: 1536, height: 864 },
+    locale: "en-US",
+    tz: "America/Los_Angeles",
+  },
+  {
+    ua: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+    viewport: { width: 1680, height: 1050 },
+    locale: "en-US",
+    tz: "America/Denver",
+  },
+];
+const fpByHost = new Map<string, Fingerprint>();
+function fingerprintFor(host: string): Fingerprint {
+  let fp = fpByHost.get(host);
+  if (!fp) {
+    fp = FINGERPRINTS[Math.floor(Math.random() * FINGERPRINTS.length)];
+    fpByHost.set(host, fp);
+  }
+  return fp;
+}
+
 // ── Browser tiers (Patchright persistent context = strongest stealth) ──────
 // stealth = headless Chromium (beats Cloudflare). headed = visible real Chrome (beats PerimeterX/
 // Akamai, needs a display). NB: deliberately NO page.route() — request interception enables the CDP
@@ -113,12 +160,15 @@ async function browserPageFor(
   const key = `${tier}:${host}`;
   const existing = browserByKey.get(key);
   if (existing && !existing.page.isClosed()) return existing.page;
+  const fp = fingerprintFor(host);
   const ctx = await chromium.launchPersistentContext("", {
     headless: tier === "stealth",
     channel: tier === "headed" ? "chrome" : undefined,
-    viewport: { width: 1400, height: 900 },
+    viewport: fp.viewport,
+    locale: fp.locale,
+    timezoneId: fp.tz,
     // Override the UA on headless so it doesn't advertise "HeadlessChrome"; headed real Chrome is fine.
-    userAgent: tier === "stealth" ? UA : undefined,
+    userAgent: tier === "stealth" ? fp.ua : undefined,
     args: [
       "--no-sandbox",
       "--disable-blink-features=AutomationControlled",
