@@ -101,6 +101,10 @@ export function parseAutotraderNextData(html: string): Partial<Deal>[] {
         kbbFppLow: Number(pd.kbbFppLowAmount) || undefined,
         kbbFppHigh: Number(pd.kbbFppHighAmount) || undefined,
         daysOnSite: Number(o.daysOnSite) || undefined,
+        // Structured config — drivetrain/fuel are major value drivers (4WD/diesel trucks). Captured
+        // here so config-aware comp matching becomes possible as this data accumulates.
+        driveType: o.driveType || undefined,
+        fuelType: o.fuelType || undefined,
         contact: o.phone ? { phone: String(o.phone) } : undefined,
       },
       scraped_at: new Date().toISOString(),

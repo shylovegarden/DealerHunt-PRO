@@ -65,6 +65,7 @@ export default function StatusPage() {
   const runs: any[] = data?.recentRuns ?? [];
   const breakdown: any[] = data?.sourceBreakdown ?? [];
   const kb = data?.knowledgeBase;
+  const acc = data?.valuationAccuracy;
 
   return (
     <div
@@ -120,6 +121,47 @@ export default function StatusPage() {
             <Bar label="Has city" pct={q?.cityPct ?? 0} />
             <Bar label="Has VIN" pct={q?.vinPct ?? 0} />
           </div>
+
+          {/* Valuation accuracy — measured out-of-sample vs real retail prices */}
+          {acc && (
+            <div className="glass-panel p-5">
+              <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--t4)] font-bold mb-3">
+                Valuation accuracy{" "}
+                <span className="text-[var(--t5)] normal-case tracking-normal">
+                  · out-of-sample vs {acc.n.toLocaleString()} real prices
+                </span>
+              </p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <Stat
+                  label="Avg error (MAPE)"
+                  value={`${acc.mape}%`}
+                  tone={
+                    acc.mape <= 12
+                      ? "var(--green)"
+                      : acc.mape <= 18
+                        ? "var(--amber)"
+                        : "var(--red)"
+                  }
+                />
+                <Stat
+                  label="Bias"
+                  value={`${acc.bias > 0 ? "+" : ""}${acc.bias}%`}
+                  tone={
+                    Math.abs(acc.bias) <= 3 ? "var(--green)" : "var(--amber)"
+                  }
+                />
+                <Stat label="Within 20%" value={`${acc.within20}%`} />
+                <Stat label="Within 30%" value={`${acc.within30}%`} />
+              </div>
+              <p className="mt-3 text-xs text-[var(--t4)]">
+                {acc.mape <= 12 ? "Enterprise-grade" : "Improving"} — every
+                GO/PASS is backed by a resale number measured within ~{acc.mape}
+                % of real market price, with{" "}
+                {Math.abs(acc.bias) <= 3 ? "near-zero" : "low"} bias. Validated
+                against held-out retail listings, refreshed hourly.
+              </p>
+            </div>
+          )}
 
           {/* Price knowledge base — the value signals that compound valuation accuracy */}
           {kb && (

@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { createServerComponentClient } from "@/lib/supabase";
 import { loadProfitableMakes } from "@/lib/intelligence/profitable-segments";
 import { cached } from "@/lib/cache";
+import { computeValuationAccuracy } from "@/lib/scoring/accuracy";
 
 const KNOWN_SOURCES = [
   "copart",
@@ -158,8 +159,17 @@ export async function GET() {
     ),
   );
 
+  // Live valuation accuracy — out-of-sample backtest vs real retail prices. Heavy (loads the comp
+  // index + scores a held-out slice), so cache it an hour. Null until there's enough data.
+  const valuationAccuracy = await cached(
+    "status:valuation-accuracy",
+    3600_000,
+    () => computeValuationAccuracy(sb).catch(() => null),
+  );
+
   return NextResponse.json({
     sourceBreakdown,
+    valuationAccuracy,
     knowledgeBase: {
       marketValueBacked,
       marketValuePct: pct(marketValueBacked),
