@@ -1,14 +1,15 @@
 name: CI
 
-# Quality gate — runs on every push + PR so no regression (from any agent, including Claude) reaches
-# main without tsc/lint/tests passing. Validated locally before wiring: `next lint` was broken (removed
-# in Next 16 → now `eslint .`), and eslint surfaced 3 real errors (require() in .js — now overridden).
-# tsc clean · eslint 0 errors · 265 tests pass.
+# Quality gate — tsc/lint/tests. NOTE (2026-06-27): GitHub Actions billing is exhausted, so automatic
+# runs only fail instantly (no compute) and add noise. The REAL gate is now LOCAL: `npm run verify`
+# (scripts/verify.mjs), enforced on every push by the .husky/pre-push hook — same three checks, zero
+# Actions minutes. Kiro owns keeping it green (docs/handouts/KIRO.md). This workflow is kept manual-only
+# (workflow_dispatch) so it's here to re-enable the moment billing is restored — just add back:
+#   push: { branches: [main] }
+#   pull_request:
 
 on:
-  push:
-    branches: [main]
-  pull_request:
+  workflow_dispatch:
 
 # Cancel superseded runs on the same ref to save minutes.
 concurrency:

@@ -1,7 +1,43 @@
 # KIRO QA/Data Lane Tasks
 
 **Date:** June 27, 2026  
-**Focus:** Unit tests, data quality audits, empty-state copy
+**Focus:** **Own the LOCAL CI gate** (Task 0, top priority) · unit tests · data quality audits · empty-state copy
+
+**Owner of merges + scope: Claude Code.** Stay in the QA/tests/data lane. Work in your **own clone or
+`git worktree`** — NEVER share Claude's working dir. **NEVER** `git reset --hard`, `git checkout .`,
+`git clean`, or force-push (these wiped work twice). One PR per task; tag Claude; don't self-merge.
+
+---
+
+## Task 0 — OWN THE LOCAL CI GATE 🟢 (HIGHEST — this is your new standing job)
+
+GitHub Actions billing is exhausted, so we no longer rely on cloud CI — **the gate runs locally now.**
+Claude wired it; **you keep it green and grow it.** This is your standing responsibility every cycle.
+
+**The gate:** `npm run verify` (→ `scripts/verify.mjs`) runs the exact three checks cloud CI ran —
+**Typecheck** (`tsc --noEmit`) → **Lint** (`eslint .`, fails on errors only) → **Tests** (`vitest run`) —
+and prints a pass/fail summary. It's enforced automatically on every `git push` by `.husky/pre-push`, so
+a red gate physically blocks the push. Green = safe to push.
+
+**Your loop, each cycle:**
+
+1. `git fetch && git pull` latest `main`, then `npm ci` if `package.json`/lockfile changed.
+2. Run `npm run verify`. If green, move to growing coverage (step 4).
+3. **If RED — fix it (this is the core job):**
+   - **Typecheck red** → open the file:line tsc names, fix the type error. Don't `// @ts-ignore` to
+     silence it — fix the actual mismatch, or if it's a real API-shape question, flag Claude in the PR.
+   - **Lint red** (errors only) → `npm run lint` to see them; `npx eslint . --fix` for autofixable; hand-fix
+     the rest. Warnings are allowed — don't chase the 123 existing warnings unless you're reducing them.
+   - **Tests red** → run the single file (`npx vitest run path/to.test.ts`) to iterate. If a test is wrong,
+     fix the test; if the CODE is wrong, fix the code only if it's clearly in your lane (a test/data util) —
+     otherwise write a failing test that pins the bug and flag Claude. **Never delete a test to make the
+     gate pass.** Never mark a task done with the gate red.
+4. **Grow coverage** (when green): add unit tests for untested pure functions — start with Tasks 1–2 below,
+   then scraper `parse*`/mapper fns (e.g. `lib/scrapers/sources/*.ts` exports) and `lib/scoring/*`. Every
+   new test must pass `npm run verify` before you push.
+
+**Definition of done for Task 0:** `npm run verify` is green on `main` at all times; when you push, the
+pre-push hook passes without `--no-verify`. Report each cycle: what was red, what you fixed, new test count.
 
 ---
 
