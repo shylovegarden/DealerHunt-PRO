@@ -1,65 +1,72 @@
-# Handout — Antigravity (CI/CD + infra lane)
+# Handout — Antigravity (CI/CD + infra + browser-capture lane)
 
 **Owner of merges + scope: Claude Code.** You work only in your lane below. Claude reviews every PR and
 will fix anything not to standard. Read `docs/ORCHESTRATION.md` first.
 
+> **You can run a real browser on a clean IP — that's a superpower Claude doesn't have** (Claude's IP is
+> anti-bot-flagged from testing). So you now also own **browser-based capture/inspection** of gated
+> sources. This is the highest-value thing you can do right now (A5/A6 below).
+
 ## Hard rules
 
-- **Work in your OWN clone or `git worktree`** — NEVER share Claude's working directory. Branch collisions in a shared checkout have tangled commits onto the wrong branch. Clone the repo separately or `git worktree add ../wt-<you> <branch>`.
+- **Work in your OWN clone or `git worktree`** — NEVER share Claude's working directory (it tangles
+  branches). `git worktree add ../wt-antigravity <branch>`.
+- **NEVER** `git reset --hard`, `git checkout .`, `git clean`, or force-push.
+- **Lane** = `.github/`, Docker/`fly.toml`/deploy configs, AND new `docs/findings/*.md` capture reports.
+  For A5/A6 you may RUN scripts (`scripts/capture-value-schemas.ts`) but do **not** edit `lib/`/`app/`/
+  scoring/scraper code — report findings; Claude writes the harvest.
+- Every change: `npx tsc --noEmit` green.
 
-- **NEVER** run `git reset --hard`, `git checkout .`, `git clean`, or force-push. (These wiped work
-  twice.) Commit your own work on a branch; Claude merges.
-- **Lane = `.github/`, `Dockerfile*`, `docker-compose.yml`, `fly.toml`, deploy/infra configs ONLY.**
-  Do **NOT** edit `lib/`, `app/`, `components/`, `scripts/`, or any scoring/scraper/pipeline code.
-- Every change: `npx tsc --noEmit` must stay green; don't break the build.
+## Tasks (priority order)
 
-## Tasks (in priority order)
+### A5 — Capture value-field schemas (HIGHEST — unblocks accuracy) 🌐 browser
 
-### A1 — CI quality gate (HIGH) ✅ biggest value
-
-> ⚠️ Claude: do A1 + A2 BEFORE low-priority tasks. A4 (dependabot) shipped first — A1 (the CI gate) is what actually protects the repo. Prioritize it.
-
-There is currently **no CI that runs tsc/lint/tests** — only scrape workflows. Add
-`.github/workflows/ci.yml` that on every push + PR runs, in one job:
+Claude can't inspect these sources (flagged IP); you can. Run, on your clean-IP browser machine:
 
 ```
-npm ci
-npx tsc --noEmit
-npm run lint
-npm test            # vitest run
+npx tsx scripts/capture-value-schemas.ts
 ```
 
-Fail the build on any error. This is the single most valuable thing you can add — it stops
-regressions from any agent (including Claude) reaching main.
+It loads cars.com / TrueCar / AutoTrader, finds the embedded third-party market value (KBB/IMV/market-
+average), and prints the real field names + paths. **Paste the FULL output into a new
+`docs/findings/value-schemas.md`** and open a PR. Claude reads it and writes the precise market-value
+harvest (grows the valuation knowledge base — directly improves GO/PASS accuracy). If a source is blocked
+even for you, say so in the file.
+
+### A6 — Capture the GovDeals listing API (HIGH — net-new free source) 🌐 browser
+
+GovDeals is a PUBLIC gov-auction site (Angular SPA, Liquidity Services). In your browser: open
+`https://www.govdeals.com/vehicles-cars-trucks`, open DevTools → Network, filter XHR, and find the call
+that returns the vehicle results (look for `api`/`search`/`asset`/`lqdt`). Capture into a new
+`docs/findings/govdeals-api.md`: the request **URL + method + key headers** and a **trimmed sample of the
+JSON response** (one listing object). Claude wires the scraper → net-new free inventory like PublicSurplus.
 
 ### A2 — Accuracy regression gate (HIGH)
 
-Add `.github/workflows/accuracy.yml`, scheduled weekly (and on `workflow_dispatch`):
+Add `.github/workflows/accuracy.yml`, scheduled weekly + `workflow_dispatch`:
 
 ```
 npm ci
 npx tsx scripts/valuation-backtest.ts | tee /tmp/acc.txt
 ```
 
-Parse the printed `MAPE: X%`. If MAPE > 15, exit non-zero (fail). This guards the valuation moat from
-silent regressions. Needs the Supabase secrets (below). Do NOT modify the script itself — Claude owns it.
+Parse the printed `MAPE: X%`; if MAPE > 15, exit non-zero. Needs the Supabase secrets. Don't modify the
+script — Claude owns it.
 
-### A3 — Finish + verify the headed-scrape CI (MEDIUM)
+### A3 — Headed-scrape CI secrets + green run (MEDIUM)
 
-`.github/workflows/scrape.yml` already installs real Chrome + xvfb and runs under `xvfb-run` with
-`ENABLE_HEADED_SCRAPERS=1` (Claude wired it). Your job: make it actually green.
+`.github/workflows/scrape.yml` is wired (real Chrome + xvfb + `ENABLE_HEADED_SCRAPERS=1`). Add the repo
+secrets (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`,
+`SCRAPE_SECRET`, AI keys), confirm a manual `workflow_dispatch` saves deals, and **resolve the GitHub
+Actions billing** (blocking scheduled runs).
 
-- Add the GitHub **repo secrets**: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
-  `SUPABASE_SERVICE_ROLE_KEY`, `SCRAPE_SECRET` (new — used to guard `/api/scrape`), and the existing AI keys.
-- Confirm a manual `workflow_dispatch` run completes and saves deals; fix any env/install breakage.
-- **The GitHub Actions billing issue is yours to resolve** (it's blocking scheduled runs).
+### ✅ Done (don't redo)
 
-### A4 — Dependabot + npm audit (LOW)
-
-Add `.github/dependabot.yml` (weekly npm updates, grouped) and a CI step `npm audit --omit=dev` that
-warns (does not fail) on high-severity advisories.
+- **A1 — CI quality gate**: Claude shipped `.github/workflows/ci.yml` (caught that `next lint` was dead
+  in Next 16 + 3 hidden errors; fixed). tsc + lint + 265 tests run on every push.
+- **A4 — dependabot**: you shipped it, reviewed, to standard.
 
 ## Definition of done
 
-- `ci.yml` green on a test PR; `accuracy.yml` runs and reports a MAPE; `scrape.yml` completes a manual
-  dispatch with deals saved; secrets set. Open a PR per task, tag Claude, don't merge yourself.
+A5: `docs/findings/value-schemas.md` with the real fields. A6: `docs/findings/govdeals-api.md` with the
+endpoint + sample. A2/A3: workflows green. One PR per task, tag Claude, don't self-merge.
