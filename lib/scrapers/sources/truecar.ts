@@ -57,6 +57,24 @@ export function parseTrueCarHtml(html: string): Partial<Deal>[] {
       : [];
     const make = nameOf(veh.make);
     const model = nameOf(veh.model);
+    // TrueCar's price rating (its "deal indicator") lives as marketAnalysis.priceQuality — a label, not a
+    // dollar value (captured in docs/findings/value-schemas.md). Normalize its scale to AutoTrader's
+    // vocabulary so options.priceRating means the same thing across sources for the UI + Deal IQ.
+    const ma = deref(L.marketAnalysis) || deref(pr?.marketAnalysis) || {};
+    const rawQuality = String(
+      ma.priceQuality || pr?.priceQuality || "",
+    ).toUpperCase();
+    const priceRating =
+      (
+        {
+          EXCELLENT: "Great",
+          GREAT: "Great",
+          GOOD: "Good",
+          FAIR: "Fair",
+          HIGH: "High",
+          OVERPRICED: "High",
+        } as Record<string, string>
+      )[rawQuality] || undefined;
     items.push({
       source: "truecar",
       source_deal_id: veh.vin,
@@ -74,8 +92,9 @@ export function parseTrueCarHtml(html: string): Partial<Deal>[] {
       images,
       seller_type: "dealer",
       seller: dl?.name || "TrueCar",
+      options: priceRating ? { priceRating } : undefined,
       scraped_at: new Date().toISOString(),
-    });
+    } as any);
   }
   return items;
 }

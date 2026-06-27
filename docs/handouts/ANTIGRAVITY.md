@@ -19,27 +19,38 @@ will fix anything not to standard. Read `docs/ORCHESTRATION.md` first.
 
 ## Tasks (priority order)
 
-### A5 — Capture value-field schemas (HIGHEST — unblocks accuracy) 🌐 browser
+### A7 — Resolve the GovDeals image CDN base (MEDIUM — lights up photos) 🌐 browser
 
-Claude can't inspect these sources (flagged IP); you can. Run, on your clean-IP browser machine:
+The GovDeals scraper now ships (`lib/scrapers/sources/govdeals.ts`) and pulls real lots, but it can't
+build image URLs: the search API returns only a photo **filename** (`accountId_assetId_uuid.jpg`, e.g.
+`31897_7_fd55d055-….jpg`) and Claude's flagged IP can't reach the image host to find the base. On your
+clean-IP browser: open a GovDeals asset page (e.g. `https://www.govdeals.com/asset/7/31897`), find an
+`<img>` of the car in DevTools → Elements/Network, and capture the **full image URL** so we can see the
+base/path the filename hangs off (and any size variants like `_thumb`/`_fullsize`). Put it in a new
+`docs/findings/govdeals-images.md`. Claude then sets `images:[…]` on every GovDeals deal — instant gallery.
 
-```
-npx tsx scripts/capture-value-schemas.ts
-```
+### A8 — Capture the AllSurplus search API (MEDIUM — sibling net-new source) 🌐 browser
 
-It loads cars.com / TrueCar / AutoTrader, finds the embedded third-party market value (KBB/IMV/market-
-average), and prints the real field names + paths. **Paste the FULL output into a new
-`docs/findings/value-schemas.md`** and open a PR. Claude reads it and writes the precise market-value
-harvest (grows the valuation knowledge base — directly improves GO/PASS accuracy). If a source is blocked
-even for you, say so in the file.
+`allsurplus.com` is the SAME company (Liquidity Services) as GovDeals — almost certainly the same
+`maestro.lqdt1.com/search/list` backend with a different `businessId` (GovDeals uses `"GD"`). In your
+browser, open AllSurplus, filter to vehicles, and in DevTools → Network capture the search XHR's **request
+body** (especially `businessId` + the vehicle `facetsFilter` category codes) into
+`docs/findings/allsurplus-api.md`. If it's the same API, Claude clones the GovDeals scraper in ~10 min →
+another net-new free gov/commercial-auction source. (Municibid too if you have time — likely a separate API.)
 
-### A6 — Capture the GovDeals listing API (HIGH — net-new free source) 🌐 browser
+### ✅ A5 — Value-field schemas (DONE — acted on) 🌐 browser
 
-GovDeals is a PUBLIC gov-auction site (Angular SPA, Liquidity Services). In your browser: open
-`https://www.govdeals.com/vehicles-cars-trucks`, open DevTools → Network, filter XHR, and find the call
-that returns the vehicle results (look for `api`/`search`/`asset`/`lqdt`). Capture into a new
-`docs/findings/govdeals-api.md`: the request **URL + method + key headers** and a **trimmed sample of the
-JSON response** (one listing object). Claude wires the scraper → net-new free inventory like PublicSurplus.
+You ran `scripts/capture-value-schemas.ts` and delivered `docs/findings/value-schemas.md` (PR #11).
+Outcome Claude shipped from it: cars.com SRP has no market value (skipped, correctly); **TrueCar's
+`marketAnalysis.priceQuality` is now harvested** into `options.priceRating`. AutoTrader was IP-cooled
+during your run — a re-run when its cooldown clears would still be useful.
+
+### ✅ A6 — GovDeals listing API (DONE — net-new source SHIPPED) 🌐 browser
+
+Your `docs/findings/govdeals-api.md` (PR #11) was spot-on. Claude verified the endpoint reachable, built
+
+- registered `lib/scrapers/sources/govdeals.ts`, and confirmed **119/120 live rows map to real vehicle
+  leads**. 🎉 Net-new free gov-auction inventory is live. Follow-ups: A7 (images) + A8 (AllSurplus).
 
 ### A2 — Accuracy regression gate (HIGH)
 
