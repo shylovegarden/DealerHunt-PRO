@@ -1,123 +1,74 @@
 import { NextRequest, NextResponse } from "next/server";
+import { STATE_COORDS } from "@/lib/geo";
+import { roadRoute, type LatLng } from "@/lib/geo/routing";
 
-// Rough center coordinates for all 50 states to compute distance
-const STATE_COORDS: Record<string, { lat: number; lon: number }> = {
-  AL: { lat: 32.806671, lon: -86.79113 },
-  AK: { lat: 61.370716, lon: -152.404419 },
-  AZ: { lat: 33.729759, lon: -111.431221 },
-  AR: { lat: 34.969704, lon: -92.373123 },
-  CA: { lat: 36.116203, lon: -119.681564 },
-  CO: { lat: 39.059811, lon: -105.311104 },
-  CT: { lat: 41.597782, lon: -72.755371 },
-  DE: { lat: 39.318523, lon: -75.507141 },
-  FL: { lat: 27.766279, lon: -81.686783 },
-  GA: { lat: 33.040619, lon: -83.643074 },
-  HI: { lat: 21.094318, lon: -157.498337 },
-  ID: { lat: 44.240459, lon: -114.478828 },
-  IL: { lat: 40.349457, lon: -88.986137 },
-  IN: { lat: 39.849426, lon: -86.258278 },
-  IA: { lat: 42.011539, lon: -93.210526 },
-  KS: { lat: 38.5266, lon: -96.726486 },
-  KY: { lat: 37.66814, lon: -84.670067 },
-  LA: { lat: 31.169546, lon: -91.867805 },
-  ME: { lat: 44.693947, lon: -69.381927 },
-  MD: { lat: 39.063946, lon: -76.802101 },
-  MA: { lat: 42.230171, lon: -71.530106 },
-  MI: { lat: 43.326618, lon: -84.536095 },
-  MN: { lat: 45.694454, lon: -93.900192 },
-  MS: { lat: 32.741646, lon: -89.678696 },
-  MO: { lat: 38.456085, lon: -92.288368 },
-  MT: { lat: 46.921925, lon: -110.454353 },
-  NE: { lat: 41.12537, lon: -98.268082 },
-  NV: { lat: 38.313515, lon: -117.055374 },
-  NH: { lat: 43.452492, lon: -71.563896 },
-  NJ: { lat: 40.298904, lon: -74.521011 },
-  NM: { lat: 34.840515, lon: -106.248482 },
-  NY: { lat: 42.165726, lon: -74.948051 },
-  NC: { lat: 35.630066, lon: -79.806419 },
-  ND: { lat: 47.528912, lon: -99.784012 },
-  OH: { lat: 40.388783, lon: -82.764915 },
-  OK: { lat: 35.565342, lon: -96.928917 },
-  OR: { lat: 44.572021, lon: -122.070938 },
-  PA: { lat: 40.590752, lon: -77.209755 },
-  RI: { lat: 41.680893, lon: -71.51178 },
-  SC: { lat: 33.856892, lon: -80.945007 },
-  SD: { lat: 44.299782, lon: -99.438828 },
-  TN: { lat: 35.747845, lon: -86.692345 },
-  TX: { lat: 31.054487, lon: -97.563461 },
-  UT: { lat: 40.150032, lon: -111.862434 },
-  VT: { lat: 44.045876, lon: -72.710686 },
-  VA: { lat: 37.769337, lon: -78.169968 },
-  WA: { lat: 47.382679, lon: -121.512054 },
-  WV: { lat: 38.491226, lon: -80.954453 },
-  WI: { lat: 44.268543, lon: -89.616508 },
-  WY: { lat: 42.755966, lon: -107.30249 },
-};
+// GET /api/transport/quote — driving-distance transport quote via OSRM (OpenStreetMap routing).
+//
+// Accepts, most-precise first:
+//   • fromLat/fromLng + toLat/toLng  → exact lot-to-home routing (the deal page passes these)
+//   • from/to state codes            → state-centroid routing (backward-compatible fallback)
+// Real road miles + drive time replace the old straight-line × 1.3 fudge, so the transport cost that
+// feeds true_net_profit is honest (e.g. intra-state hauls like San Diego→Sacramento are 504mi, not "45").
 
-// Haversine formula to get straight-line distance, multiplied by ~1.3 for driving distance
-function getDrivingMiles(
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number,
-) {
-  const R = 3958.8; // Radius of Earth in miles
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  const straightLine = R * c;
+const PER_MILE = 0.78; // North Star rate
+const HOOKUP_FEE = 50;
+const MIN_QUOTE = 150;
 
-  // Real driving distance is rarely a straight line. 30% overhead is typical.
-  return Math.round(straightLine * 1.3);
+function coord(latRaw: string | null, lngRaw: string | null): LatLng | null {
+  const lat = Number(latRaw);
+  const lng = Number(lngRaw);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+  return { lat, lng };
+}
+
+function stateCoord(code: string | null): LatLng | null {
+  if (!code) return null;
+  const c = STATE_COORDS[code.toUpperCase()];
+  return c ? { lat: c.lat, lng: c.lon } : null;
 }
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const from = searchParams.get("from")?.toUpperCase();
-    const to = searchParams.get("to")?.toUpperCase();
+    const sp = new URL(request.url).searchParams;
+
+    // Precise coords win; else fall back to state centroids.
+    const from =
+      coord(sp.get("fromLat"), sp.get("fromLng")) || stateCoord(sp.get("from"));
+    const to =
+      coord(sp.get("toLat"), sp.get("toLng")) || stateCoord(sp.get("to"));
 
     if (!from || !to) {
       return NextResponse.json(
-        { error: "Missing from or to state code" },
+        {
+          error:
+            "Provide fromLat/fromLng+toLat/toLng or valid from/to state codes",
+        },
         { status: 400 },
       );
     }
 
-    if (from === to) {
-      // Local tow distance
-      return NextResponse.json({ miles: 45, quote: 150 });
-    }
-
-    const c1 = STATE_COORDS[from];
-    const c2 = STATE_COORDS[to];
-
-    if (!c1 || !c2) {
+    const route = await roadRoute(from, to);
+    if (!route) {
       return NextResponse.json(
-        { error: "Invalid state code" },
-        { status: 400 },
+        { error: "Could not compute a route for those coordinates" },
+        { status: 422 },
       );
     }
 
-    const miles = getDrivingMiles(c1.lat, c1.lon, c2.lat, c2.lon);
-
-    // Formula from North Star: 0.78/mile
-    const quote = Math.round(miles * 0.78);
-
-    // Add base hookup fee
-    const finalQuote = Math.max(150, quote + 50);
+    const quote = Math.max(
+      MIN_QUOTE,
+      Math.round(route.miles * PER_MILE) + HOOKUP_FEE,
+    );
 
     return NextResponse.json({
-      from,
-      to,
-      miles,
-      quote: finalQuote,
+      from: sp.get("from")?.toUpperCase() || null,
+      to: sp.get("to")?.toUpperCase() || null,
+      miles: route.miles,
+      minutes: route.minutes,
+      driveTime: `${Math.floor(route.minutes / 60)}h ${route.minutes % 60}m`,
+      quote,
+      mode: route.mode, // "road" (real OSRM) | "estimate" (haversine fallback)
     });
   } catch (error: any) {
     console.error("Transport Quote Error:", error);

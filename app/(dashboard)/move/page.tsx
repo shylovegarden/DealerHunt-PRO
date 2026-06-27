@@ -15,6 +15,9 @@ interface QuoteResult {
   from: string;
   to: string;
   miles: number;
+  minutes?: number;
+  driveTime?: string;
+  mode?: "road" | "estimate";
   quote: number;
   openQuote?: number;
   enclosedQuote?: number;
@@ -203,7 +206,22 @@ function MovePageInner() {
               <Mono className="font-bold text-[var(--t1)]">
                 {result.miles.toLocaleString()}
               </Mono>{" "}
-              driving miles · {fromState} → {toState}
+              driving miles
+              {result.driveTime ? (
+                <>
+                  {" · "}
+                  <Mono className="font-bold text-[var(--t1)]">
+                    {result.driveTime}
+                  </Mono>{" "}
+                  drive
+                </>
+              ) : null}{" "}
+              · {fromState} → {toState}
+              {result.mode === "road" ? (
+                <span className="ml-2 text-[10px] uppercase tracking-wider text-[var(--green)] font-bold">
+                  ● live route
+                </span>
+              ) : null}
             </span>
           </div>
         )}
