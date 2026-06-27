@@ -230,11 +230,19 @@ export async function loadMarketIndex(
   }
 
   const next = new Map<string, MarketComps>();
+  const nowYear = new Date().getFullYear();
   buckets.forEach((b, k) => {
     const retailMed = median(b.retail);
     const milesMed = median(b.retailMiles);
+    // Ask→sold haircut, age-aware. Sellers list optimistically and the gap WIDENS on older/private
+    // vehicles (a 20-yr-old truck asks far above what it sells for). A flat 0.95 over-valued old comps.
+    const bucketYear = parseInt(k.split("|")[2], 10);
+    const yrAge = Number.isFinite(bucketYear)
+      ? Math.max(0, nowYear - bucketYear)
+      : 0;
+    const haircut = yrAge >= 18 ? 0.84 : yrAge >= 11 ? 0.89 : ASK_TO_SOLD;
     next.set(k, {
-      retail: retailMed != null ? Math.round(retailMed * ASK_TO_SOLD) : null,
+      retail: retailMed != null ? Math.round(retailMed * haircut) : null,
       wholesale: median(b.wholesale),
       nRetail: b.retail.length,
       nWholesale: b.wholesale.length,

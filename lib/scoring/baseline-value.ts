@@ -231,6 +231,17 @@ export function estimateBaselineValue(
     value *= 1 - rate;
   }
 
+  // Residual floor: the compounding curve can OVER-depreciate a mid-age car (a clean 8-yr-old crossover
+  // shouldn't read as $10k). Floor the clean value at a conservative age-residual of its base so the
+  // baseline doesn't under-value when comps are thin. Two-stage: gentle to 12 yrs (helps mid-age), then
+  // steep — so it does NOT prop up 20-yr-old vehicles (whose floor would loosen their comp cap and
+  // re-inflate them). Title + mileage adjustments still cut below this.
+  const residual =
+    age <= 12
+      ? Math.pow(0.92, age)
+      : Math.pow(0.92, 12) * Math.pow(0.8, age - 12);
+  value = Math.max(value, BASE_NEW[seg] * trimTierMultiplier(trim) * residual);
+
   // Title adjustment
   const tType = (titleType || "clean").toLowerCase();
   let titleMult = 1.0;
