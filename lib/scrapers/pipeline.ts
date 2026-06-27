@@ -100,7 +100,14 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
           ...extractOptions(
             `${deal.title || ""} ${(deal as any).description || ""}`,
           ),
-          contact: phone || email ? { phone, email } : undefined,
+          // Let scrapers contribute structured options (e.g. AutoTrader's free KBB price rating).
+          ...(typeof (deal as any).options === "object" && (deal as any).options
+            ? (deal as any).options
+            : {}),
+          contact:
+            phone || email
+              ? { phone, email }
+              : ((deal as any).options?.contact ?? undefined),
         },
         ask_price: deal.ask_price,
         mileage: deal.mileage,
@@ -135,6 +142,9 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
         true_net_profit: analysis.profit,
         profit_score: analysis.score,
         is_arbitrage_opportunity: analysis.verdict === "go",
+        // Free market-value anchor when a scraper has one (AutoTrader ships KBB Fair Purchase Price on
+        // every listing — a legit MMR-equivalent benchmark). Shown on cards + available to valuation.
+        mmr_value: (deal as any).mmr_value ?? null,
         sell_estimate: analysis.sellEstimate,
         recommended_max_bid: analysis.recommendedMaxBid,
         deal_verdict: analysis.verdict,

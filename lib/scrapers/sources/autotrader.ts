@@ -73,6 +73,9 @@ export function parseAutotraderNextData(html: string): Partial<Deal>[] {
         : `https://www.autotrader.com${o.vdpBaseUrl}`
       : `https://www.autotrader.com/cars-for-sale/vehicle/${id}`;
 
+    // AutoTrader ships free KBB Fair Purchase Price (market value) + a price rating on every listing.
+    const pd = o.pricingDetail || {};
+    const kbbFpp = Number(pd.kbbFppAmount) || undefined;
     items.push({
       source: "autotrader",
       source_deal_id: vin || String(id),
@@ -91,8 +94,17 @@ export function parseAutotraderNextData(html: string): Partial<Deal>[] {
       images,
       seller_type: "dealer",
       seller: o.ownerName || "AutoTrader",
+      // Free KBB market value — a Manheim-MMR-equivalent benchmark we already had in hand.
+      mmr_value: kbbFpp,
+      options: {
+        priceRating: pd.dealIndicator || undefined, // Great / Good / Fair / High
+        kbbFppLow: Number(pd.kbbFppLowAmount) || undefined,
+        kbbFppHigh: Number(pd.kbbFppHighAmount) || undefined,
+        daysOnSite: Number(o.daysOnSite) || undefined,
+        contact: o.phone ? { phone: String(o.phone) } : undefined,
+      },
       scraped_at: new Date().toISOString(),
-    });
+    } as any);
   }
   return items;
 }
