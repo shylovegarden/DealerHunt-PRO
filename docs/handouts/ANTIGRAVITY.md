@@ -5,6 +5,8 @@ will fix anything not to standard. Read `docs/ORCHESTRATION.md` first.
 
 ## Hard rules
 
+- **Work in your OWN clone or `git worktree`** — NEVER share Claude's working directory. Branch collisions in a shared checkout have tangled commits onto the wrong branch. Clone the repo separately or `git worktree add ../wt-<you> <branch>`.
+
 - **NEVER** run `git reset --hard`, `git checkout .`, `git clean`, or force-push. (These wiped work
   twice.) Commit your own work on a branch; Claude merges.
 - **Lane = `.github/`, `Dockerfile*`, `docker-compose.yml`, `fly.toml`, deploy/infra configs ONLY.**
@@ -14,6 +16,8 @@ will fix anything not to standard. Read `docs/ORCHESTRATION.md` first.
 ## Tasks (in priority order)
 
 ### A1 — CI quality gate (HIGH) ✅ biggest value
+
+> ⚠️ Claude: do A1 + A2 BEFORE low-priority tasks. A4 (dependabot) shipped first — A1 (the CI gate) is what actually protects the repo. Prioritize it.
 
 There is currently **no CI that runs tsc/lint/tests** — only scrape workflows. Add
 `.github/workflows/ci.yml` that on every push + PR runs, in one job:
