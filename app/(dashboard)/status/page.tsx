@@ -64,6 +64,7 @@ export default function StatusPage() {
   const sources: any[] = data?.sources ?? [];
   const runs: any[] = data?.recentRuns ?? [];
   const breakdown: any[] = data?.sourceBreakdown ?? [];
+  const kb = data?.knowledgeBase;
 
   return (
     <div
@@ -119,6 +120,37 @@ export default function StatusPage() {
             <Bar label="Has city" pct={q?.cityPct ?? 0} />
             <Bar label="Has VIN" pct={q?.vinPct ?? 0} />
           </div>
+
+          {/* Price knowledge base — the value signals that compound valuation accuracy */}
+          {kb && (
+            <div className="glass-panel p-5">
+              <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--t4)] font-bold mb-3">
+                Price knowledge base
+              </p>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <Stat
+                  label="Market-value backed"
+                  value={`${(kb.marketValueBacked ?? 0).toLocaleString()} · ${kb.marketValuePct ?? 0}%`}
+                  tone="var(--green)"
+                />
+                <Stat
+                  label="Sold price points"
+                  value={(kb.soldComps ?? 0).toLocaleString()}
+                />
+                <Stat
+                  label="Learned value groups"
+                  value={(kb.aggregateGroups ?? 0).toLocaleString()}
+                  tone="var(--amber)"
+                />
+              </div>
+              <p className="mt-3 text-xs text-[var(--t4)]">
+                Real third-party market values (e.g. AutoTrader&apos;s free
+                KBB), completed-sale prices, and the nightly rollup that turns
+                them into make/model/year/state value buckets — the moat that
+                values every car, even from sources that hide their numbers.
+              </p>
+            </div>
+          )}
 
           {/* Closed-loop learning */}
           <div className="glass-panel p-5">

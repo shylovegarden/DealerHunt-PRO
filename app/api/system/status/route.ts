@@ -96,6 +96,22 @@ export async function GET() {
       .catch(() => [] as string[]),
   ]);
 
+  // Price knowledge base: the value signals that feed valuation accuracy and compound as we scrape.
+  // marketValueBacked = deals carrying a real third-party market value (e.g. AutoTrader's free KBB
+  // Fair Purchase Price); soldComps = real completed-sale price points; aggregateGroups = learned
+  // make/model/year/state value buckets the nightly rollup builds from mmr_value.
+  const [marketValueBacked, soldComps, aggregateGroups] = await Promise.all([
+    countActive((q: any) => q.gt("mmr_value", 0)),
+    sb
+      .from("sold_listings")
+      .select("id", { count: "exact", head: true })
+      .then((r: any) => r.count ?? 0),
+    sb
+      .from("market_aggregates")
+      .select("year", { count: "exact", head: true })
+      .then((r: any) => r.count ?? 0),
+  ]);
+
   // Per-source health, computed live and cached 5 min: which sources are actually working, fresh, and
   // SHOWING the cars (photo coverage). This is the actionable view behind the aggregate numbers — Copart
   // at 0% photos vs retail at 100% only shows up here. Parallel count queries per known source.
@@ -144,6 +160,12 @@ export async function GET() {
 
   return NextResponse.json({
     sourceBreakdown,
+    knowledgeBase: {
+      marketValueBacked,
+      marketValuePct: pct(marketValueBacked),
+      soldComps,
+      aggregateGroups,
+    },
     learning: {
       outcomesLogged,
       prioritizedMakes: profitableMakes,
