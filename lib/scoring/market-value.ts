@@ -59,6 +59,9 @@ export interface MarketComps {
   wholesale: number | null; // typical acquisition price on auction/private channels
   nRetail: number;
   nWholesale: number;
+  // Median mileage of the retail comps behind `retail`. The anchor that makes valuation
+  // mileage-aware: a target is adjusted by ITS miles vs the actual comp pool's miles, not a guess.
+  mileageMed?: number | null;
   // Confidence in the retail figure, derived from sample count, so callers can tell
   // a thin (2-3 comp) estimate from a deep (50+ comp) one.
   confidence: "high" | "medium" | "low" | "none";
@@ -184,7 +187,10 @@ export async function loadMarketIndex(
     return;
   }
 
-  const buckets = new Map<string, { retail: number[]; wholesale: number[] }>();
+  const buckets = new Map<
+    string,
+    { retail: number[]; wholesale: number[]; retailMiles: number[] }
+  >();
   const supply = new Map<string, number>();
   const byModel = new Map<string, { year: number; price: number }[]>();
   for (const r of data || []) {
@@ -197,7 +203,8 @@ export async function loadMarketIndex(
     // Tally national supply per make|model (all years) for the demand-scarcity signal.
     const sk = `${(r.make || "").toLowerCase().trim()}|${normalizeModel(r.model)}`;
     supply.set(sk, (supply.get(sk) || 0) + 1);
-    if (!buckets.has(k)) buckets.set(k, { retail: [], wholesale: [] });
+    if (!buckets.has(k))
+      buckets.set(k, { retail: [], wholesale: [], retailMiles: [] });
     const b = buckets.get(k)!;
     if (RETAIL_SOURCES.has(r.source)) {
       // Clean-retail only: drop salvage/parts/rebuilt rows so resale comps aren't polluted.
@@ -210,6 +217,8 @@ export async function loadMarketIndex(
       const isPaymentPrice = PAYMENT_PRICE_RE.test(r.title || "");
       if (!isSalvage && !isPaymentPrice) {
         b.retail.push(r.ask_price);
+        if (typeof r.mileage === "number" && r.mileage > 0)
+          b.retailMiles.push(r.mileage);
         if (r.year && r.year > 1950) {
           if (!byModel.has(sk)) byModel.set(sk, []);
           byModel.get(sk)!.push({ year: r.year, price: r.ask_price });
@@ -223,11 +232,13 @@ export async function loadMarketIndex(
   const next = new Map<string, MarketComps>();
   buckets.forEach((b, k) => {
     const retailMed = median(b.retail);
+    const milesMed = median(b.retailMiles);
     next.set(k, {
       retail: retailMed != null ? Math.round(retailMed * ASK_TO_SOLD) : null,
       wholesale: median(b.wholesale),
       nRetail: b.retail.length,
       nWholesale: b.wholesale.length,
+      mileageMed: milesMed != null ? Math.round(milesMed) : null,
       confidence: confidenceFor(b.retail.length),
     });
   });

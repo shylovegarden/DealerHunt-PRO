@@ -65,15 +65,24 @@ export function titleSeverityMultiplier(deal: Partial<Deal>): {
 export function mileageMultiplier(
   deal: Partial<Deal>,
   currentYear = new Date().getFullYear(),
+  refMileage?: number | null,
 ): number {
   const miles = deal.mileage || 0;
   const year = deal.year || 0;
   if (miles <= 0 || year <= 0) return 1.0;
   const age = Math.max(0, currentYear - year);
-  const expected = Math.max(6000, age * 12000); // ~12k/yr, floor for new cars
-  const deviation = miles - expected; // positive = more miles than typical = cheaper
-  const adj = -(deviation / 10000) * 0.035; // ~3.5% per 10k mi off expected
-  return Math.max(0.7, Math.min(1.3, 1 + adj));
+  // Anchor to the ACTUAL comp pool's median mileage when we have it ("these comps are ~120k-mi cars;
+  // this one has 200k"). Otherwise a capped age estimate — capped at 130k so a 20-yr car isn't assumed
+  // to tolerate 240k miles for free (the old bug that made high-mile clunkers read as low-mileage).
+  const expected =
+    refMileage && refMileage > 0
+      ? refMileage
+      : Math.min(130000, Math.max(6000, age * 12000));
+  const deviation = miles - expected; // positive = more miles than the reference = cheaper
+  const adj = -(deviation / 10000) * 0.045; // ~4.5% per 10k mi off the reference
+  // Mileage is a MAJOR value driver: high miles can crater value (to 0.4×), but a low odometer has a
+  // ceiling (~1.22×) — pristine miles don't make an old car worth double. Was a too-narrow ±30%.
+  return Math.max(0.4, Math.min(1.22, 1 + adj));
 }
 
 /**
@@ -85,9 +94,10 @@ export function conditionAdjustedSell(
   deal: Partial<Deal>,
   realSold?: { median: number; n: number } | null,
   currentYear = new Date().getFullYear(),
+  refMileage?: number | null,
 ): ConditionAdjustment {
   const { mult: titleMult, tag: titleTag } = titleSeverityMultiplier(deal);
-  const mileageMult = mileageMultiplier(deal, currentYear);
+  const mileageMult = mileageMultiplier(deal, currentYear, refMileage);
   let sell = cleanRetail * titleMult * mileageMult;
 
   // Real-sold anchor: for damaged/budget cars (titleMult < ~1), eBay's completed-sale market IS the

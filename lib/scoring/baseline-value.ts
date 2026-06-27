@@ -222,11 +222,12 @@ export function estimateBaselineValue(
           ? curve[1]
           : i <= 5
             ? curve[2]
-            : i <= 10
+            : i <= 13
               ? curve[3]
-              : // 11+ years: the gentle long-term rate left 20-yr-old trucks "worth" ~$11k. Real old
-                // vehicles slide toward residual faster — depreciate ~1.7x the long-term rate.
-                curve[3] * 1.7;
+              : // 14+ years: the gentle long-term rate left 20-yr-old trucks "worth" ~$11k. Real old
+                // vehicles slide toward residual faster — but keep it modest so mid-age cars aren't
+                // cratered (the comp engine, not the baseline, carries popular cars).
+                curve[3] * 1.4;
     value *= 1 - rate;
   }
 

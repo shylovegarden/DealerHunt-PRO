@@ -246,29 +246,64 @@ export function analyzeDeal(deal: Partial<Deal>): DealAnalysis {
   // sales for the damaged/budget segment. A flooded/salvage 2023 model no longer books clean retail.
   const realSold = lookupRealSold(deal.make, deal.model, deal.year);
   const conditionTag = titleSeverityMultiplier(deal).tag;
+  // Comps: anchor the mileage adjustment to the comp pool's actual median mileage (precise).
   const compAdj = comps?.retail
-    ? conditionAdjustedSell(comps.retail, deal, realSold)
+    ? conditionAdjustedSell(
+        comps.retail,
+        deal,
+        realSold,
+        undefined,
+        comps.mileageMed,
+      )
     : null;
+  // KBB (mmr) is already priced for THIS vehicle's mileage — pass the deal's own miles as the reference
+  // so we don't penalize mileage twice (title/real-sold adjustments still apply).
   const mmrAdj = hasMarket
-    ? conditionAdjustedSell(deal.mmr_value as number, deal, realSold)
+    ? conditionAdjustedSell(
+        deal.mmr_value as number,
+        deal,
+        realSold,
+        undefined,
+        deal.mileage,
+      )
     : null;
   const aggAdj =
     aggregate && aggregate.value > 0
       ? conditionAdjustedSell(aggregate.value, deal, realSold)
       : null;
 
+  // Comp acceptance. The mileage-anchored comp is REAL market data, so when the bucket is reliable
+  // (high/medium confidence) we bound it against the comp median (allowing a legit low-mileage premium)
+  // rather than the crude, often-too-low baseline — which otherwise rejected good premiums and slammed
+  // the car down to baseline. Thin/low-confidence buckets keep the tight baseline cap (contamination
+  // risk). The floor still guards against absurdly-low comps.
+  const trustComp =
+    comps?.confidence === "high" || comps?.confidence === "medium";
+  const compFloor = baseline > 0 ? baseline * 0.4 : 1;
+  const compCeil =
+    trustComp && comps?.retail
+      ? Math.max(
+          baseline > 0 ? baseline * upperMult : 0,
+          comps.retail * 1.3, // allow up to a ~1.3× low-mileage premium over the median
+        )
+      : baseline > 0
+        ? baseline * upperMult
+        : Infinity;
+  const compAccept =
+    !!compAdj && compAdj.sell >= compFloor && compAdj.sell <= compCeil;
+
   let sellEstimate: number;
   let sellBasis: "comps" | "market" | "baseline";
   let soldAnchored = false;
-  if (compAdj && sane(compAdj.sell)) {
+  if (compAdj && compAccept) {
     // Confidence-blend: deep buckets trust the comps; thin/mixed-trim buckets get pulled toward the
     // trim-aware baseline (which is itself condition-adjusted) so one outlier can't over-value a unit.
     const w =
       comps!.confidence === "high"
         ? 1
         : comps!.confidence === "medium"
-          ? 0.7
-          : 0.45;
+          ? 0.85
+          : 0.5;
     sellEstimate =
       baseline > 0
         ? Math.round(compAdj.sell * w + baseline * (1 - w))
