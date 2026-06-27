@@ -5,7 +5,7 @@ will fix anything not to standard. Read `docs/ORCHESTRATION.md` first.
 
 > **You can run a real browser on a clean IP — that's a superpower Claude doesn't have** (Claude's IP is
 > anti-bot-flagged from testing). So you now also own **browser-based capture/inspection** of gated
-> sources. This is the highest-value thing you can do right now (A5/A6 below).
+> sources. This is the highest-value thing you can do right now (A7/A8 below — A5/A6 already shipped).
 
 ## Hard rules
 
@@ -13,8 +13,8 @@ will fix anything not to standard. Read `docs/ORCHESTRATION.md` first.
   branches). `git worktree add ../wt-antigravity <branch>`.
 - **NEVER** `git reset --hard`, `git checkout .`, `git clean`, or force-push.
 - **Lane** = `.github/`, Docker/`fly.toml`/deploy configs, AND new `docs/findings/*.md` capture reports.
-  For A5/A6 you may RUN scripts (`scripts/capture-value-schemas.ts`) but do **not** edit `lib/`/`app/`/
-  scoring/scraper code — report findings; Claude writes the harvest.
+  For browser-capture tasks you may RUN scripts (`scripts/capture-value-schemas.ts`) but do **not** edit
+  `lib/`/`app/`/scoring/scraper code — report findings; Claude writes the harvest.
 - Every change: `npx tsc --noEmit` green.
 
 ## Tasks (priority order)
@@ -47,10 +47,9 @@ during your run — a re-run when its cooldown clears would still be useful.
 
 ### ✅ A6 — GovDeals listing API (DONE — net-new source SHIPPED) 🌐 browser
 
-Your `docs/findings/govdeals-api.md` (PR #11) was spot-on. Claude verified the endpoint reachable, built
-
-- registered `lib/scrapers/sources/govdeals.ts`, and confirmed **119/120 live rows map to real vehicle
-  leads**. 🎉 Net-new free gov-auction inventory is live. Follow-ups: A7 (images) + A8 (AllSurplus).
+Your `docs/findings/govdeals-api.md` (PR #11) was spot-on. Claude verified the endpoint reachable, then
+built and registered `lib/scrapers/sources/govdeals.ts`, and confirmed **119/120 live rows map to real
+vehicle leads**. 🎉 Net-new free gov-auction inventory is live. Follow-ups: A7 (images) + A8 (AllSurplus).
 
 ### A2 — Accuracy regression gate (HIGH)
 
@@ -79,5 +78,6 @@ Actions billing** (blocking scheduled runs).
 
 ## Definition of done
 
-A5: `docs/findings/value-schemas.md` with the real fields. A6: `docs/findings/govdeals-api.md` with the
-endpoint + sample. A2/A3: workflows green. One PR per task, tag Claude, don't self-merge.
+A7: `docs/findings/govdeals-images.md` with a full asset image URL. A8: `docs/findings/allsurplus-api.md`
+with the search request body (businessId + vehicle category codes). A2/A3: workflows green. One PR per
+task, tag Claude, don't self-merge.
