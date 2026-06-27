@@ -53,6 +53,15 @@ const hostWinner = new Map<string, FetchTier>();
 const hostCooldownUntil = new Map<string, number>();
 const COOLDOWN_MS = 10 * 60_000;
 
+// Per-host request pacing. Even before a block, BURSTING a host is what builds a bad reputation. We
+// space same-host requests by a jittered minimum so one worker looks like a human browsing, not a
+// scraper firing. Combined with the fleet (different IPs) this keeps every IP clean. Tunable via
+// SMARTFETCH_HOST_SPACING_MS.
+const hostLastFetch = new Map<string, number>();
+const MIN_HOST_SPACING_MS = Number(
+  process.env.SMARTFETCH_HOST_SPACING_MS || 1800,
+);
+
 // One warm browser/page per host, per browser tier (isolation = concurrency safety). Keyed
 // "tier:host". Persistent contexts (Patchright's strongest stealth mode) — closed in closeSmartFetch.
 const browserByKey = new Map<string, { ctx: BrowserContext; page: Page }>();
@@ -186,6 +195,15 @@ export async function smartFetch(
   const cooldown = hostCooldownUntil.get(host);
   if (cooldown && cooldown > Date.now())
     return { html: "", tier: "static", blocked: true };
+
+  // Pace same-host requests (with jitter) so this IP never bursts a host.
+  const last = hostLastFetch.get(host);
+  if (last) {
+    const spacing = MIN_HOST_SPACING_MS + Math.random() * MIN_HOST_SPACING_MS;
+    const wait = spacing - (Date.now() - last);
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+  }
+  hostLastFetch.set(host, Date.now());
 
   const learned = hostWinner.get(host);
 

@@ -42,6 +42,12 @@ async function loop(): Promise<void> {
       process.env.SCRAPE_SOURCES || "default set"
     }", headed=${process.env.ENABLE_HEADED_SCRAPERS === "1" ? "on" : "off"}`,
   );
+  // Startup jitter so fleet replicas DESYNC — without it, N workers booted together would hit the same
+  // host in the same window (their IPs differ, but synchronized bursts still look coordinated). Spread
+  // the first cycle across up to 2 min (or a quarter of the interval, whichever is smaller).
+  const jitter = Math.random() * Math.min(120_000, INTERVAL_MS / 4);
+  console.log(`[scrape-worker] startup jitter ${Math.round(jitter / 1000)}s`);
+  await new Promise((r) => setTimeout(r, jitter));
   // eslint-disable-next-line no-constant-condition
   for (;;) {
     const t0 = Date.now();
