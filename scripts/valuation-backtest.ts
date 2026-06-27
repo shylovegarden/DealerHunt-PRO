@@ -88,6 +88,46 @@ async function main() {
   console.log(`  Within 10%:         ${(within(0.1) * 100).toFixed(0)}%`);
   console.log(`  Within 20%:         ${(within(0.2) * 100).toFixed(0)}%`);
   console.log(`  Within 30%:         ${(within(0.3) * 100).toFixed(0)}%`);
+
+  // ── Salvage segment (Copart) ──────────────────────────────────────────────
+  // No clean salvage-SOLD ground truth exists free, and Copart's payload has no odometer — so we can't
+  // compute a true MAPE here. Instead we sanity-check the DISTRIBUTION: a healthy salvage book is
+  // conservative (most lots PASS — sell estimate below the ACV/bid ask), with few wild over-values.
+  const cp: any[] = [];
+  for (let from = 0; from < 20000; from += 1000) {
+    const { data, error } = await sb
+      .from("deals")
+      .select(
+        "year, make, model, mileage, ask_price, condition, damage_type, source",
+      )
+      .eq("source", "copart")
+      .eq("active", true)
+      .gt("ask_price", 1000)
+      .range(from, from + 999);
+    if (error || !data || !data.length) break;
+    cp.push(...data);
+    if (data.length < 1000) break;
+  }
+  const ratios: number[] = [];
+  let over2x = 0;
+  for (const d of cp) {
+    const a = analyzeDeal(d as any);
+    if (!a.sellEstimate || !d.ask_price) continue;
+    const r = a.sellEstimate / d.ask_price;
+    ratios.push(r);
+    if (r > 2) over2x++;
+  }
+  ratios.sort((a, b) => a - b);
+  console.log(`\n=== Salvage segment (Copart, ${ratios.length} lots) ===`);
+  console.log(
+    `  Median sell/ask:    ${at(ratios, 0.5).toFixed(2)}  (conservative <1.0 = mostly PASS, good)`,
+  );
+  console.log(
+    `  Sell > 2× ask:      ${over2x} (${((over2x / (ratios.length || 1)) * 100).toFixed(1)}%)  (watch for over-value)`,
+  );
+  console.log(
+    `  NOTE: Copart has no odometer; unknown-mileage lots now assume age wear (not pristine).`,
+  );
   process.exit(0);
 }
 

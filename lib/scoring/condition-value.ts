@@ -69,8 +69,12 @@ export function mileageMultiplier(
 ): number {
   const miles = deal.mileage || 0;
   const year = deal.year || 0;
-  if (miles <= 0 || year <= 0) return 1.0;
+  if (year <= 0) return 1.0;
   const age = Math.max(0, currentYear - year);
+  // No odometer (common on salvage/Copart — the public payload omits it). Don't value an unknown-mileage
+  // car as pristine; assume age-appropriate wear so it isn't over-valued. Mild for newish, stronger for
+  // old (capped at -18%). This is the single biggest fix for the salvage segment's accuracy.
+  if (miles <= 0) return Math.max(0.82, 1 - age * 0.012);
   // Anchor to the ACTUAL comp pool's median mileage when we have it ("these comps are ~120k-mi cars;
   // this one has 200k"). Otherwise a capped age estimate — capped at 130k so a 20-yr car isn't assumed
   // to tolerate 240k miles for free (the old bug that made high-mile clunkers read as low-mileage).
