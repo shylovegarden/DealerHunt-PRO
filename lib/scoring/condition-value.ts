@@ -9,6 +9,7 @@
 //     where that market actually transacts.
 
 import type { Deal } from "@/types";
+import { trimTierMultiplier } from "./baseline-value";
 
 export interface ConditionAdjustment {
   sell: number;
@@ -98,7 +99,11 @@ export function conditionAdjustedSell(
 ): ConditionAdjustment {
   const { mult: titleMult, tag: titleTag } = titleSeverityMultiplier(deal);
   const mileageMult = mileageMultiplier(deal, currentYear, refMileage);
-  let sell = cleanRetail * titleMult * mileageMult;
+  // Trim resolution: the comp median is trim-blind (mixes base/mid/loaded). Nudge by THIS car's trim
+  // tier vs a standard (1.0) so a base trim isn't valued like a Lariat, and a perf/loaded trim gets its
+  // premium. Coarse but real — most cars are 1.0 (no change); base ~0.88, performance ~1.25.
+  const trimMult = trimTierMultiplier(deal.trim);
+  let sell = cleanRetail * titleMult * mileageMult * trimMult;
 
   // Real-sold anchor: for damaged/budget cars (titleMult < ~1), eBay's completed-sale market IS the
   // right market — blend toward its median, weighted by how many real sales back it.
