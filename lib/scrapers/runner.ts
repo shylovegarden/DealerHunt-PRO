@@ -27,6 +27,7 @@ import { scrapeOfferUp } from "./sources/offerup";
 import { scrapePublicSurplus } from "./sources/publicsurplus";
 import { scrapeGovDeals } from "./sources/govdeals";
 import { scrapeAllSurplus } from "./sources/allsurplus";
+import { scrapeMunicibid } from "./sources/municibid";
 import { scrapeAutotempest } from "./sources/autotempest";
 import { scrapeEbaySold } from "./sources/ebay-sold";
 import { ScraperRegistry } from "./tools/registry";
@@ -410,6 +411,21 @@ export function createScraperRegistry(
     fn: () => scrapeAllSurplus(),
     enabled: true,
     estimatedDealsPerRun: 150,
+  });
+
+  // Municibid — public municipal-surplus auctions (ASP.NET site, parsed HTML). Police/township/fleet
+  // vehicles. Net-new free inventory alongside GovDeals/AllSurplus/PublicSurplus.
+  registry.register({
+    id: "municibid",
+    name: "Municibid (gov surplus)",
+    type: "auction",
+    priority: "high",
+    frequencyMinutes: 360,
+    requiresAuth: false,
+    stealthRequired: false,
+    fn: () => scrapeMunicibid(),
+    enabled: true,
+    estimatedDealsPerRun: 100,
   });
 
   registry.register({
