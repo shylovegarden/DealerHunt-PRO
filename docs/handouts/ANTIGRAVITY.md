@@ -51,12 +51,16 @@ Your `docs/findings/govdeals-images.md` gave the base `webassets.lqdt1.com/asset
 Claude wired it into the shared maestro mapper — GovDeals + AllSurplus lots now carry galleries. (A10 is
 just a quick render-confirm.)
 
-### ✅ A9-orig — Municibid (DONE — Claude cracked solo, no browser needed)
+### ✅ A9-orig — Municibid (DONE — Claude cracked solo before your capture landed)
 
-Turned out Municibid is a server-rendered ASP.NET site (not an SPA), fully reachable from Claude's IP —
-no XHR capture required. Claude parsed the Automotive browse HTML directly (`lib/scrapers/sources/
-municibid.ts`): 15 real vehicles/page (police Crown Vics, township trucks), shipped to `gov_auction`.
-Your browser lane is better spent on genuine SPAs/walls — hence the GSA target above.
+Heads up: your `municibid-api.md` (Search/Suggest JSON endpoint) arrived right after Claude had already
+shipped Municibid. Municibid is a server-rendered ASP.NET site (not an SPA), fully reachable from Claude's
+IP, so Claude parsed the Automotive browse HTML directly (`lib/scrapers/sources/municibid.ts`) — that gets
+MORE per lot than Suggest (location, agency, bid count, make/model), so the HTML parse is what shipped.
+Your Suggest-API finding is kept in `docs/findings/municibid-api.md` as a documented lightweight fallback.
+No time lost — but it's why **GSA (A9 above) is the better next target**: genuinely SPA/JS, where your
+clean-IP browser is the only way in. Quick coordination tip: glance at the ✅ DONE list here before
+capturing, so we don't double-cover.
 
 ### ✅ A8 — AllSurplus API (DONE — net-new source SHIPPED) 🌐 browser
 
