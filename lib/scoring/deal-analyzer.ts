@@ -231,9 +231,15 @@ export function analyzeDeal(deal: Partial<Deal>): DealAnalysis {
     deal.condition,
   );
   // Tight upper bound: over-valuing (fake GO deals that lose money) is worse than under-valuing, so
-  // reject any comp/market value above 1.9× the trim-aware baseline and fall back to the baseline.
+  // reject any comp/market value above N× the trim-aware baseline and fall back to the baseline. For
+  // OLD vehicles the model comps are heavily contaminated by far-newer years (a 2003 Silverado priced
+  // off 2020 trucks), so bound them tighter — a 20-yr-old truck can't be worth 1.9× its baseline.
+  const vehicleAge = deal.year
+    ? Math.max(0, new Date().getFullYear() - deal.year)
+    : 0;
+  const upperMult = vehicleAge >= 18 ? 1.35 : vehicleAge >= 12 ? 1.5 : 1.9;
   const sane = (v: number) =>
-    baseline <= 0 ? v > 0 : v >= baseline * 0.4 && v <= baseline * 1.9;
+    baseline <= 0 ? v > 0 : v >= baseline * 0.4 && v <= baseline * upperMult;
 
   // THE MOAT: a clean-market comp is not what THIS car is worth. Convert each clean value (comps,
   // mmr, aggregate) into the car's real value via title/damage + mileage, anchored to real completed

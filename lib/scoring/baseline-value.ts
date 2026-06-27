@@ -216,7 +216,17 @@ export function estimateBaselineValue(
 
   for (let i = 0; i < age; i++) {
     const rate =
-      i === 0 ? curve[0] : i <= 2 ? curve[1] : i <= 5 ? curve[2] : curve[3];
+      i === 0
+        ? curve[0]
+        : i <= 2
+          ? curve[1]
+          : i <= 5
+            ? curve[2]
+            : i <= 10
+              ? curve[3]
+              : // 11+ years: the gentle long-term rate left 20-yr-old trucks "worth" ~$11k. Real old
+                // vehicles slide toward residual faster — depreciate ~1.7x the long-term rate.
+                curve[3] * 1.7;
     value *= 1 - rate;
   }
 
@@ -231,11 +241,16 @@ export function estimateBaselineValue(
   }
   value *= titleMult;
 
-  // Mileage adjustment vs a 13k/yr baseline; over-mileage docks ~3% of value per 10k excess.
+  // Mileage adjustment. CAP the "expected" miles — otherwise a 23-yr-old car is assumed to tolerate
+  // 23×13k = 299k miles, so a 186k clunker reads as LOW mileage and dodges any penalty. Cap at 130k so
+  // high-mileage old vehicles actually get docked (~4% of value per 10k excess).
   if (mileage && mileage > 0) {
-    const expected = age * 13000;
+    const expected = Math.min(age * 13000, 130000);
     const excess = mileage - expected;
-    if (excess > 0) value -= (excess / 10000) * value * 0.03;
+    if (excess > 0) value -= (excess / 10000) * value * 0.04;
+  } else if (age >= 12) {
+    // Missing mileage on an old vehicle: don't hand it full value — assume average-high wear.
+    value *= 0.9;
   }
 
   return Math.max(1200, Math.round(value));
