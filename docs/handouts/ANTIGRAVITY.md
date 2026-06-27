@@ -27,14 +27,30 @@ branch is fine to leave open but it won't run until billing is restored; don't i
 
 ## Tasks (priority order)
 
-### A9 — Capture the GSA Auctions vehicle feed (HIGH — net-new federal source) 🌐 browser
+### A9 — Capture GSA Auctions getAuctions (HIGH — Claude did the recon; you just need a live token) 🌐 browser
 
-(Municibid is already DONE — Claude cracked it solo; it's a server-rendered ASP.NET site, no capture
-needed. See below.) Next net-new target: **GSAAuctions.gov** — U.S. federal surplus (GSA fleet sedans,
-SUVs, trucks). Likely an Angular/React SPA with a JSON API. In your browser: open the vehicles category,
-DevTools → Network → XHR, capture the listing request (**URL + method + key headers + one-listing JSON
-sample**) into `docs/findings/gsa-auctions-api.md`. Claude wires it → `gov_auction`. Federal fleet =
-clean-title, well-maintained, often cheap — high-quality leads.
+**GSAAuctions.gov** = federal surplus (GSA fleet sedans/SUVs/trucks — clean-title, well-maintained, often
+cheap = high-quality leads). Claude already reverse-engineered it from the JS bundle, so this is now a
+SURGICAL capture, not an exploration. It's a React SPA (Create-React-App) on the PPMS gateway, and unlike
+GovDeals/Municibid it's **token-gated** — every API call needs `Authorization: Bearer <jwt>`, and the
+public token is minted by the SPA's session handshake (Okta), which curl can't replicate. That's exactly
+why YOU (real browser) are needed. Known facts:
+
+- **Browse endpoint:** `POST https://www.ppms.gov/gw/auction/ppms/api/v1/getAuctions`
+- **Body shape:** `{ "params": { ...filters, pageNumber, pageSize } }` (the SPA's `getAuctions(e)` sends
+  `params`). We need the REAL params for the vehicles category.
+- **Category list:** `GET https://www.ppms.gov/gw/auction/ppms/api/v1/auction-categories` (also token-gated)
+  — capture it to get the **vehicles/automobiles category id** to filter `getAuctions` by.
+- Auth: `Authorization: Bearer <jwt>` from `localStorage` (key holds a `jwtToken`); `withCredentials:true`.
+
+**What to capture into `docs/findings/gsa-auctions-api.md`:** open gsaauctions.gov → browse vehicles →
+DevTools → Network → XHR → click the `getAuctions` call and copy: (1) the **full request headers**
+(especially the `Authorization: Bearer …` value), (2) the **request body** (the params for vehicles),
+(3) **one listing object** from the response (all fields), and (4) the `auction-categories` response.
+Crucial extra: note **HOW the token is obtained on a fresh load** — is there an XHR that returns a
+`jwtToken` WITHOUT login (a guest/public token call)? If yes, capture its URL + response: that lets Claude
+mint tokens server-side and the scraper runs unattended. If the token only comes from a logged-in Okta
+session, say so — we'll treat GSA as capture-assisted only. (Recon notes also in this file's git history.)
 
 ### A10 — Verify the GovDeals/AllSurplus image URLs actually render (LOW — quick confirm) 🌐 browser
 
