@@ -1,56 +1,65 @@
 // lib/scrapers/tools/alerts.ts
 // Alert service for price drops and scraper failures.
 
-import { createClient, SupabaseClient } from '@supabase/supabase-js'
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 export interface AlertServiceOptions {
-  supabaseUrl?: string
-  supabaseKey?: string
-  resendApiKey?: string
-  fromEmail?: string
-  appUrl?: string
+  supabaseUrl?: string;
+  supabaseKey?: string;
+  resendApiKey?: string;
+  fromEmail?: string;
+  appUrl?: string;
 }
 
 export interface PriceDropAlert {
-  id: string
-  userId: string
-  dealId: string
-  oldPrice: number
-  newPrice: number
-  dropAmount: number
-  dropPercentage: number
-  dealTitle?: string
+  id: string;
+  userId: string;
+  dealId: string;
+  oldPrice: number;
+  newPrice: number;
+  dropAmount: number;
+  dropPercentage: number;
+  dealTitle?: string;
 }
 
 export class ScraperAlertService {
-  private supabase: SupabaseClient
-  private options: AlertServiceOptions
+  private supabase: SupabaseClient;
+  private options: AlertServiceOptions;
 
   constructor(options: AlertServiceOptions = {}) {
-    const supabaseUrl = options.supabaseUrl || process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseKey = options.supabaseKey || process.env.SUPABASE_SERVICE_ROLE_KEY
+    const supabaseUrl =
+      options.supabaseUrl || process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey =
+      options.supabaseKey || process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (!supabaseUrl || !supabaseKey) {
-      throw new Error('Supabase URL and key are required for ScraperAlertService')
+      throw new Error(
+        "Supabase URL and key are required for ScraperAlertService",
+      );
     }
-    this.supabase = createClient(supabaseUrl, supabaseKey)
+    this.supabase = createClient(supabaseUrl, supabaseKey);
     this.options = {
-      fromEmail: 'alerts@dealerhunt.com',
-      appUrl: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
+      fromEmail: "alerts@dealerhunt.com",
+      appUrl: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
       ...options,
-    }
+    };
   }
 
   // Find price drops from alert_log that haven't been sent yet
   async getPendingPriceDropAlerts(): Promise<PriceDropAlert[]> {
     const { data, error } = await this.supabase
-      .from('alert_log')
-      .select('id, user_id, deal_id, old_price, new_price, drop_amount, drop_percentage, deals(title, year, make, model)')
-      .is('sent_at', null)
-      .eq('alert_type', 'price_drop')
+      .from("alert_log")
+      .select(
+        "id, user_id, deal_id, old_price, new_price, drop_amount, drop_percentage, deals(title, year, make, model)",
+      )
+      .is("sent_at", null)
+      .eq("alert_type", "price_drop");
 
     if (error) {
-      console.error('[AlertService] Failed to load pending alerts:', error.message)
-      return []
+      console.error(
+        "[AlertService] Failed to load pending alerts:",
+        error.message,
+      );
+      return [];
     }
 
     return (data || []).map((row: any) => ({
@@ -61,47 +70,52 @@ export class ScraperAlertService {
       newPrice: row.new_price,
       dropAmount: row.drop_amount,
       dropPercentage: row.drop_percentage,
-      dealTitle: row.deals?.title || `${row.deals?.year} ${row.deals?.make} ${row.deals?.model}`,
-    }))
+      dealTitle:
+        row.deals?.title ||
+        `${row.deals?.year} ${row.deals?.make} ${row.deals?.model}`,
+    }));
   }
 
   // Record that an alert was sent (or attempted)
   async markAlertSent(alertId: string): Promise<void> {
     const { error } = await this.supabase
-      .from('alert_log')
+      .from("alert_log")
       .update({ sent_at: new Date().toISOString() })
-      .eq('id', alertId)
+      .eq("id", alertId);
 
     if (error) {
-      console.error('[AlertService] Failed to mark alert sent:', error.message)
+      console.error("[AlertService] Failed to mark alert sent:", error.message);
     }
   }
 
   // Send email for a price drop if Resend is configured
   async sendPriceDropEmail(alert: PriceDropAlert): Promise<boolean> {
     if (!this.options.resendApiKey) {
-      console.warn('[AlertService] No Resend API key configured, skipping email')
-      return false
+      console.warn(
+        "[AlertService] No Resend API key configured, skipping email",
+      );
+      return false;
     }
 
-    const { Resend } = await import('resend')
-    const resend = new Resend(this.options.resendApiKey)
+    const { Resend } = await import("resend");
+    const resend = new Resend(this.options.resendApiKey);
 
-    const { data: user } = await this.supabase
-      .from('profiles')
-      .select('email')
-      .eq('id', alert.userId)
-      .single()
-
-    if (!user?.email) {
-      console.warn(`[AlertService] No email for user ${alert.userId}`)
-      return false
+    // Email lives in Supabase auth.users (the real source) — NOT the legacy `profiles` table, which
+    // only exists for the dead custom-auth path. Real users sign up via Supabase Auth and have no
+    // `profiles` row, so the old lookup silently dropped every alert. Use the admin API like the pipeline.
+    const { data: authData } = await this.supabase.auth.admin.getUserById(
+      alert.userId,
+    );
+    const email = authData?.user?.email;
+    if (!email) {
+      console.warn(`[AlertService] No email for user ${alert.userId}`);
+      return false;
     }
 
     try {
       await resend.emails.send({
         from: this.options.fromEmail!,
-        to: user.email,
+        to: email,
         subject: `Price Drop Alert: ${alert.dealTitle}`,
         html: `
           <h2>Price Drop Alert</h2>
@@ -114,25 +128,25 @@ export class ScraperAlertService {
             <a href="${this.options.appUrl}/deals/${alert.dealId}" style="background: #F5A623; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Deal</a>
           </div>
         `,
-      })
-      return true
+      });
+      return true;
     } catch (error) {
-      console.error('[AlertService] Failed to send email:', error)
-      return false
+      console.error("[AlertService] Failed to send email:", error);
+      return false;
     }
   }
 
   // Main processing loop
   async processAlerts(): Promise<{ processed: number; emailsSent: number }> {
-    const alerts = await this.getPendingPriceDropAlerts()
-    let emailsSent = 0
+    const alerts = await this.getPendingPriceDropAlerts();
+    let emailsSent = 0;
 
     for (const alert of alerts) {
-      const sent = await this.sendPriceDropEmail(alert)
-      if (sent) emailsSent += 1
-      await this.markAlertSent(alert.id)
+      const sent = await this.sendPriceDropEmail(alert);
+      if (sent) emailsSent += 1;
+      await this.markAlertSent(alert.id);
     }
 
-    return { processed: alerts.length, emailsSent }
+    return { processed: alerts.length, emailsSent };
   }
 }
