@@ -20,6 +20,7 @@
 
 import { chromium } from "patchright";
 import type { BrowserContext, Page } from "patchright";
+import { recommendedTier, type AntiBotVendor } from "./platform-detector";
 
 export type FetchTier = "static" | "stealth" | "headed";
 
@@ -45,6 +46,10 @@ const HEADED_AVAILABLE =
 
 // Per-host learned winner (the tier that last got real data).
 const hostWinner = new Map<string, FetchTier>();
+
+// Per-host anti-bot wall the detector last identified — the scraper's situational awareness, surfaced on
+// the status page and used to jump straight to the verified-working tool instead of climbing blindly.
+const hostAntiBot = new Map<string, AntiBotVendor>();
 
 // Per-host cooldown. When every available tier is blocked, we DON'T keep hammering — that's exactly how
 // an IP gets reputation-flagged (Cloudflare/DataDome track request volume per IP). Instead we park the
@@ -87,7 +92,7 @@ function isBlocked(html: string, status: number): boolean {
 // ── Tier: static HTTP ──────────────────────────────────────────────────────
 async function fetchStatic(
   url: string,
-): Promise<{ html: string; status: number }> {
+): Promise<{ html: string; status: number; headers: Record<string, string> }> {
   const res = await fetch(url, {
     headers: {
       "User-Agent": UA,
@@ -99,7 +104,12 @@ async function fetchStatic(
     },
     signal: AbortSignal.timeout(20_000),
   });
-  return { html: await res.text(), status: res.status };
+  // Surface response headers so the detector can read anti-bot tells (cf-ray, x-datadome, set-cookie…).
+  const headers: Record<string, string> = {};
+  res.headers.forEach((v, k) => {
+    headers[k] = v;
+  });
+  return { html: await res.text(), status: res.status, headers };
 }
 
 // Browser fingerprint pool. Even on the same IP, presenting a varied (but internally-consistent) UA +
@@ -257,10 +267,13 @@ export async function smartFetch(
 
   const learned = hostWinner.get(host);
 
-  // Try the learned winner first, then climb the rest of the ladder as a fallback.
-  const order: FetchTier[] = learned
+  // Work queue of tiers to try: the learned winner first, then climb the rest of the ladder. The detector
+  // can REORDER this mid-flight — on a recognized wall it promotes the verified-working tool to the front
+  // (skipping tools known not to beat it) instead of blindly probing each rung. Fallbacks stay queued.
+  const queue: FetchTier[] = learned
     ? [learned, ...LADDER.filter((t) => t !== learned)]
     : [...LADDER];
+  const tried = new Set<FetchTier>();
 
   let lastTier: FetchTier = "static";
   let sawBlock = false;
@@ -268,22 +281,51 @@ export async function smartFetch(
   // pagination). Kept so we can return it cleanly instead of falsely flagging the host as walled.
   let cleanEmpty: { html: string; tier: FetchTier } | null = null;
 
-  for (const tier of order) {
-    if (tier === "headed" && !HEADED_AVAILABLE) continue;
+  while (queue.length) {
+    const tier = queue.shift()!;
+    if (tried.has(tier)) continue;
+    if (tier === "headed" && !HEADED_AVAILABLE) {
+      tried.add(tier);
+      continue;
+    }
+    tried.add(tier);
     lastTier = tier;
     try {
       let html: string;
       let status = 200;
+      let headers: Record<string, string> | undefined;
       if (tier === "static") {
         const r = await fetchStatic(url);
         html = r.html;
         status = r.status;
+        headers = r.headers;
       } else {
         html = await fetchViaBrowser(url, host, tier);
       }
       if (isBlocked(html, status)) {
         sawBlock = true;
-        continue; // a real wall — climb
+        // Identify the wall and act on it — the chameleon's situational awareness.
+        const { vendor, tier: bypass } = recommendedTier(html, status, headers);
+        if (vendor !== "none") hostAntiBot.set(host, vendor);
+        // Walls with NO free bypass (DataDome, Kasada): stop here — climbing only burns the IP. Cool
+        // down and let an aggregator carry the source instead.
+        if (vendor === "datadome" || vendor === "kasada") {
+          console.warn(
+            `[smartFetch] ${host} → ${vendor} wall (no free bypass) — not escalating`,
+          );
+          break;
+        }
+        // Known wall with a verified free tool: promote it to the front of the queue (keep the rest as
+        // fallback in case detection is wrong or the challenge is tougher than expected).
+        if (bypass && bypass !== tier && !tried.has(bypass)) {
+          const i = queue.indexOf(bypass);
+          if (i >= 0) queue.splice(i, 1);
+          queue.unshift(bypass);
+          console.log(
+            `[smartFetch] ${host} → ${vendor} detected; jumping to "${bypass}"`,
+          );
+        }
+        continue; // climb (now possibly reordered)
       }
       // Not blocked. Does it actually carry what the caller needs?
       if (!opts.validate || opts.validate(html)) {
@@ -327,14 +369,17 @@ export async function closeSmartFetch(): Promise<void> {
   browserByKey.clear();
 }
 
-/** Introspection for the status surface — which tool each host is solved by, and any active cooldowns. */
+/** Introspection for the status surface — which tool each host is solved by, the anti-bot wall the
+ *  detector identified per host, and any active cooldowns. */
 export function getHostTierMap(): {
   solved: Record<string, FetchTier>;
+  walls: Record<string, AntiBotVendor>;
   cooling: string[];
 } {
   const now = Date.now();
   return {
     solved: Object.fromEntries(Array.from(hostWinner.entries())),
+    walls: Object.fromEntries(Array.from(hostAntiBot.entries())),
     cooling: Array.from(hostCooldownUntil.entries())
       .filter(([, until]) => until > now)
       .map(([host]) => host),
