@@ -34,7 +34,9 @@ async function main() {
   for (let from = 0; from < 60000; from += 1000) {
     const { data, error } = await sb
       .from("deals")
-      .select("make, model, year, mileage, ask_price, condition, source")
+      .select(
+        "make, model, year, mileage, ask_price, condition, source, trim, title",
+      )
       .eq("active", true)
       .in("source", Array.from(RETAIL))
       .gt("ask_price", 2000)
