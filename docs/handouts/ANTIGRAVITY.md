@@ -27,14 +27,14 @@ branch is fine to leave open but it won't run until billing is restored; don't i
 
 ## Tasks (priority order)
 
-### A9 — Capture the Municibid search API (HIGH — net-new free source) 🌐 browser
+### A9 — Capture the GSA Auctions vehicle feed (HIGH — net-new federal source) 🌐 browser
 
-Municibid.com is another public municipal-surplus auction site (police/fleet vehicles), but a DIFFERENT
-platform from GovDeals/AllSurplus (those two are now both shipped via the shared `lqdt-maestro` core).
-In your browser: open Municibid, filter to autos/vehicles, DevTools → Network → XHR, and capture the
-search/listing request (**URL + method + key headers + a one-listing JSON sample**, or if it's
-server-rendered HTML, the card markup for one listing) into `docs/findings/municibid-api.md`. Claude
-wires it like PublicSurplus → `gov_auction`. Another net-new free inventory stream.
+(Municibid is already DONE — Claude cracked it solo; it's a server-rendered ASP.NET site, no capture
+needed. See below.) Next net-new target: **GSAAuctions.gov** — U.S. federal surplus (GSA fleet sedans,
+SUVs, trucks). Likely an Angular/React SPA with a JSON API. In your browser: open the vehicles category,
+DevTools → Network → XHR, capture the listing request (**URL + method + key headers + one-listing JSON
+sample**) into `docs/findings/gsa-auctions-api.md`. Claude wires it → `gov_auction`. Federal fleet =
+clean-title, well-maintained, often cheap — high-quality leads.
 
 ### A10 — Verify the GovDeals/AllSurplus image URLs actually render (LOW — quick confirm) 🌐 browser
 
@@ -50,6 +50,13 @@ when AutoTrader's IP cooldown clears would still add value (it was blocked durin
 Your `docs/findings/govdeals-images.md` gave the base `webassets.lqdt1.com/assets/photos/{accountId}/`.
 Claude wired it into the shared maestro mapper — GovDeals + AllSurplus lots now carry galleries. (A10 is
 just a quick render-confirm.)
+
+### ✅ A9-orig — Municibid (DONE — Claude cracked solo, no browser needed)
+
+Turned out Municibid is a server-rendered ASP.NET site (not an SPA), fully reachable from Claude's IP —
+no XHR capture required. Claude parsed the Automotive browse HTML directly (`lib/scrapers/sources/
+municibid.ts`): 15 real vehicles/page (police Crown Vics, township trucks), shipped to `gov_auction`.
+Your browser lane is better spent on genuine SPAs/walls — hence the GSA target above.
 
 ### ✅ A8 — AllSurplus API (DONE — net-new source SHIPPED) 🌐 browser
 
