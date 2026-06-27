@@ -35,7 +35,10 @@ describe("govDealsAssetToDeal", () => {
     expect(d.location_state).toBe("CA");
     expect(d.seller_type).toBe("auction");
     expect(d.auction_end).toBe("2026-07-01T17:00:00Z");
-    expect((d.metadata as Record<string, unknown>).photoFile).toBe(ASSET.photo);
+    // A7: full image URL built from accountId + photo filename (cache-buster stripped).
+    expect(d.images).toEqual([
+      "https://webassets.lqdt1.com/assets/photos/31897/31897_7_fd55d055-3be8-480c-b13c-b4548aa0af98.jpg",
+    ]);
   });
 
   it("rejects sold lots", () => {

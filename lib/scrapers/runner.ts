@@ -26,6 +26,7 @@ import { scrapeAutoTrader } from "./sources/autotrader";
 import { scrapeOfferUp } from "./sources/offerup";
 import { scrapePublicSurplus } from "./sources/publicsurplus";
 import { scrapeGovDeals } from "./sources/govdeals";
+import { scrapeAllSurplus } from "./sources/allsurplus";
 import { scrapeAutotempest } from "./sources/autotempest";
 import { scrapeEbaySold } from "./sources/ebay-sold";
 import { ScraperRegistry } from "./tools/registry";
@@ -394,6 +395,21 @@ export function createScraperRegistry(
     fn: () => scrapeGovDeals(),
     enabled: true,
     estimatedDealsPerRun: 300,
+  });
+
+  // AllSurplus — Liquidity Services sister site (same maestro API, businessId "AD"). Commercial + gov
+  // surplus, U.S.-filtered. Net-new free inventory alongside GovDeals/PublicSurplus.
+  registry.register({
+    id: "allsurplus",
+    name: "AllSurplus (Liquidity surplus)",
+    type: "auction",
+    priority: "medium",
+    frequencyMinutes: 360,
+    requiresAuth: false,
+    stealthRequired: false,
+    fn: () => scrapeAllSurplus(),
+    enabled: true,
+    estimatedDealsPerRun: 150,
   });
 
   registry.register({
