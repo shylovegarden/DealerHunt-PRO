@@ -5,6 +5,7 @@ import useSWR from "swr";
 import { DealTable, type TableRow } from "@/components/scan/DealTable";
 import { Ico } from "@/components/shared/Ico";
 import { USHeatmap } from "@/components/market/USHeatmap";
+import { MarketVisualizers } from "@/components/market/MarketVisualizers";
 
 // /market — the advanced sourcing surface. A dealer dials in exactly what they want (states, channel,
 // price, year, miles, make, condition, verdict) and flips between CURATED (deals worth acting on) and
@@ -330,6 +331,8 @@ export default function MarketPage() {
 
         {/* ── Results ── */}
         <main className="min-w-0 flex-1">
+          <MarketVisualizers facets={facets} />
+
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
               <h1 className="text-lg font-black text-[var(--t1)]">
