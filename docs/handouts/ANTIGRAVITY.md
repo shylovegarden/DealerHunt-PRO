@@ -17,26 +17,45 @@ will fix anything not to standard. Read `docs/ORCHESTRATION.md` first.
   `lib/`/`app/`/scoring/scraper code — report findings; Claude writes the harvest.
 - Every change: `npx tsc --noEmit` green.
 
+## ⚠️ CI direction change (2026-06-27) — cloud CI paused, we run LOCAL now
+
+GitHub Actions billing is exhausted, so cloud workflows just fail instantly. **Claude moved the gate
+LOCAL** (`npm run verify` + a `.husky/pre-push` hook — same tsc/lint/tests, zero Actions minutes; Kiro
+owns keeping it green). So **pause A2/A3 (cloud workflows) for now** — your `infra/ci-accuracy-scrape`
+branch is fine to leave open but it won't run until billing is restored; don't invest more there. Your
+**highest-value lane is browser capture** (you have the clean IP + browser Claude lacks). Do A9/A10.
+
 ## Tasks (priority order)
 
-### A7 — Resolve the GovDeals image CDN base (MEDIUM — lights up photos) 🌐 browser
+### A9 — Capture the Municibid search API (HIGH — net-new free source) 🌐 browser
 
-The GovDeals scraper now ships (`lib/scrapers/sources/govdeals.ts`) and pulls real lots, but it can't
-build image URLs: the search API returns only a photo **filename** (`accountId_assetId_uuid.jpg`, e.g.
-`31897_7_fd55d055-….jpg`) and Claude's flagged IP can't reach the image host to find the base. On your
-clean-IP browser: open a GovDeals asset page (e.g. `https://www.govdeals.com/asset/7/31897`), find an
-`<img>` of the car in DevTools → Elements/Network, and capture the **full image URL** so we can see the
-base/path the filename hangs off (and any size variants like `_thumb`/`_fullsize`). Put it in a new
-`docs/findings/govdeals-images.md`. Claude then sets `images:[…]` on every GovDeals deal — instant gallery.
+Municibid.com is another public municipal-surplus auction site (police/fleet vehicles), but a DIFFERENT
+platform from GovDeals/AllSurplus (those two are now both shipped via the shared `lqdt-maestro` core).
+In your browser: open Municibid, filter to autos/vehicles, DevTools → Network → XHR, and capture the
+search/listing request (**URL + method + key headers + a one-listing JSON sample**, or if it's
+server-rendered HTML, the card markup for one listing) into `docs/findings/municibid-api.md`. Claude
+wires it like PublicSurplus → `gov_auction`. Another net-new free inventory stream.
 
-### A8 — Capture the AllSurplus search API (MEDIUM — sibling net-new source) 🌐 browser
+### A10 — Verify the GovDeals/AllSurplus image URLs actually render (LOW — quick confirm) 🌐 browser
 
-`allsurplus.com` is the SAME company (Liquidity Services) as GovDeals — almost certainly the same
-`maestro.lqdt1.com/search/list` backend with a different `businessId` (GovDeals uses `"GD"`). In your
-browser, open AllSurplus, filter to vehicles, and in DevTools → Network capture the search XHR's **request
-body** (especially `businessId` + the vehicle `facetsFilter` category codes) into
-`docs/findings/allsurplus-api.md`. If it's the same API, Claude clones the GovDeals scraper in ~10 min →
-another net-new free gov/commercial-auction source. (Municibid too if you have time — likely a separate API.)
+Claude built image URLs as `https://webassets.lqdt1.com/assets/photos/{accountId}/{filename}` from your
+A7 capture, but can't load them (flagged IP). On your clean IP: paste a couple of constructed URLs from
+live lots into a browser tab and confirm the car photo loads (and note if AllSurplus, businessId "AD",
+uses the SAME `webassets` base or a different one). One line in `docs/findings/govdeals-images.md` is
+enough: "confirmed renders" or the corrected base. Also: a re-run of `scripts/capture-value-schemas.ts`
+when AutoTrader's IP cooldown clears would still add value (it was blocked during your A5 run).
+
+### ✅ A7 — GovDeals image CDN (DONE — images live) 🌐 browser
+
+Your `docs/findings/govdeals-images.md` gave the base `webassets.lqdt1.com/assets/photos/{accountId}/`.
+Claude wired it into the shared maestro mapper — GovDeals + AllSurplus lots now carry galleries. (A10 is
+just a quick render-confirm.)
+
+### ✅ A8 — AllSurplus API (DONE — net-new source SHIPPED) 🌐 browser
+
+Your `docs/findings/allsurplus-api.md` nailed it: same `maestro.lqdt1.com` API, `businessId:"AD"`,
+vehicles under `t6`. Claude verified live (88 US / 30 ZAF / 2 CAN — added a US filter), built it on the
+shared `lqdt-maestro` core, and registered it. 🎉 Second net-new free auction source live.
 
 ### ✅ A5 — Value-field schemas (DONE — acted on) 🌐 browser
 
