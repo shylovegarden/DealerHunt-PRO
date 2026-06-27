@@ -20,6 +20,8 @@ export interface DiscoveryDeal {
   condition?: string;
   askPrice: number;
   sellEstimate?: number;
+  /** Honest confidence for the resale estimate (comp-backed vs baseline guess). */
+  valueConfidence?: "high" | "good" | "fair" | "estimate";
   profitScore?: number;
   trueNetProfit?: number;
   recommendedMaxBid?: number;

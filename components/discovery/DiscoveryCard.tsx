@@ -9,6 +9,7 @@ import { liteDealIQ, IQ_TIER_COLOR } from "@/lib/intelligence/lite-iq";
 import { daysOnMarket, domTier } from "@/lib/intelligence/days-on-market";
 import { proxiedImage } from "@/lib/image-url";
 import { sourceMeta, buyTerms, tint } from "@/lib/sources/source-meta";
+import { CONFIDENCE_META } from "@/lib/valuation/confidence";
 
 const TITLE_STYLES: Record<
   string,
@@ -420,7 +421,18 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                 className="flex items-center justify-between rounded-[var(--r1)] px-2 py-1"
                 style={{ background: "var(--s1)" }}
               >
-                <span className="font-semibold text-[var(--t4)]">Sell est</span>
+                <span className="flex items-center gap-1 font-semibold text-[var(--t4)]">
+                  Sell est
+                  {deal.valueConfidence && (
+                    <span
+                      className="inline-block h-1.5 w-1.5 rounded-full"
+                      style={{
+                        background: CONFIDENCE_META[deal.valueConfidence].color,
+                      }}
+                      title={`${CONFIDENCE_META[deal.valueConfidence].label} confidence — ${CONFIDENCE_META[deal.valueConfidence].blurb}`}
+                    />
+                  )}
+                </span>
                 <span className="font-mono font-bold text-[var(--t2)]">
                   {deal.sellEstimate
                     ? `$${Math.round(deal.sellEstimate).toLocaleString()}`

@@ -11,6 +11,7 @@ import {
 } from "@/lib/discovery/categorize";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { cached } from "@/lib/cache";
+import { valueConfidence } from "@/lib/valuation/confidence";
 
 // /api/discover — the meta-search/aggregator endpoint (CarGurus/Kayak style).
 // Pulls active deals, MERGES duplicates of the same car across sources by VIN (cheapest wins,
@@ -48,6 +49,11 @@ function mapDeal(
     condition: d.condition,
     askPrice: Number(d.ask_price || 0),
     sellEstimate: d.sell_estimate != null ? Number(d.sell_estimate) : undefined,
+    // Honest confidence for the resale number, so the card shows whether it's comp-backed or a guess.
+    valueConfidence: valueConfidence(
+      d.deal_analysis?.sellBasis,
+      d.deal_analysis?.soldAnchored,
+    ),
     profitScore: d.profit_score != null ? Number(d.profit_score) : undefined,
     trueNetProfit:
       d.true_net_profit != null ? Number(d.true_net_profit) : undefined,
