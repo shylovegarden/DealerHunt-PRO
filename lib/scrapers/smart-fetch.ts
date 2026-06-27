@@ -21,13 +21,18 @@
 import { chromium } from "patchright";
 import type { BrowserContext, Page } from "patchright";
 import { recommendedTier, type AntiBotVendor } from "./platform-detector";
+import { FlareSolverrClient } from "./tools/flaresolverr";
 
-export type FetchTier = "static" | "stealth" | "headed";
+export type FetchTier = "static" | "stealth" | "headed" | "flaresolverr";
 
 export interface SmartFetchResult {
   html: string;
   tier: FetchTier;
   blocked: boolean;
+  /** Reached the page, but the data the caller asked for (validate()) never materialized — even after
+   *  the full arsenal. The HTML is returned best-effort, but the caller should treat it as "no data,"
+   *  not silently assume success. Awareness, not a wall. */
+  unverified?: boolean;
 }
 
 const UA =
@@ -43,6 +48,33 @@ const HEADED_AVAILABLE =
   process.platform === "darwin" ||
   !!process.env.DISPLAY ||
   process.env.ENABLE_HEADED_SCRAPERS === "1";
+
+// FlareSolverr — the RESERVE arsenal piece. A separate self-hosted anti-bot proxy (different TLS/JA3 +
+// its own challenge solver) that can win where in-house Patchright doesn't. Only deployed when configured
+// AND the whole in-house ladder failed — i.e. when we're "not getting the data," throw everything we have
+// at it before giving up. Off (no FLARESOLVERR_URL) → it's simply absent from the queue.
+const FLARE_AVAILABLE = !!process.env.FLARESOLVERR_URL;
+let flareClient: FlareSolverrClient | null = null;
+async function fetchViaFlareSolverr(url: string): Promise<string> {
+  if (!flareClient) flareClient = new FlareSolverrClient();
+  return flareClient.getHtml(url, 60_000);
+}
+
+/**
+ * Order the tools to deploy for a host: the learned winner first (it usually wins again), then the rest
+ * of the in-house ladder, then FlareSolverr as the reserve (only when configured). This is the "full
+ * arsenal" the fetch will draw on when it isn't getting the data — exported pure so the ordering is tested.
+ */
+export function buildTierQueue(
+  learned: FetchTier | undefined,
+  flareAvailable: boolean = FLARE_AVAILABLE,
+): FetchTier[] {
+  const q = learned
+    ? [learned, ...LADDER.filter((t) => t !== learned)]
+    : [...LADDER];
+  if (flareAvailable && !q.includes("flaresolverr")) q.push("flaresolverr");
+  return q;
+}
 
 // Per-host learned winner (the tier that last got real data).
 const hostWinner = new Map<string, FetchTier>();
@@ -270,9 +302,8 @@ export async function smartFetch(
   // Work queue of tiers to try: the learned winner first, then climb the rest of the ladder. The detector
   // can REORDER this mid-flight — on a recognized wall it promotes the verified-working tool to the front
   // (skipping tools known not to beat it) instead of blindly probing each rung. Fallbacks stay queued.
-  const queue: FetchTier[] = learned
-    ? [learned, ...LADDER.filter((t) => t !== learned)]
-    : [...LADDER];
+  // The full arsenal to draw on for this host: learned winner → in-house ladder → FlareSolverr reserve.
+  const queue = buildTierQueue(learned);
   const tried = new Set<FetchTier>();
 
   let lastTier: FetchTier = "static";
@@ -299,6 +330,8 @@ export async function smartFetch(
         html = r.html;
         status = r.status;
         headers = r.headers;
+      } else if (tier === "flaresolverr") {
+        html = await fetchViaFlareSolverr(url);
       } else {
         html = await fetchViaBrowser(url, host, tier);
       }
@@ -307,8 +340,8 @@ export async function smartFetch(
         // Identify the wall and act on it — the chameleon's situational awareness.
         const { vendor, tier: bypass } = recommendedTier(html, status, headers);
         if (vendor !== "none") hostAntiBot.set(host, vendor);
-        // Walls with NO free bypass (DataDome, Kasada): stop here — climbing only burns the IP. Cool
-        // down and let an aggregator carry the source instead.
+        // Walls with NO free bypass (DataDome, Kasada): stop here — climbing only burns the IP, and even
+        // FlareSolverr can't solve them. Drop the reserve too, cool down, let an aggregator carry it.
         if (vendor === "datadome" || vendor === "kasada") {
           console.warn(
             `[smartFetch] ${host} → ${vendor} wall (no free bypass) — not escalating`,
@@ -345,10 +378,21 @@ export async function smartFetch(
     }
   }
 
-  // A clean (non-blocked) but data-less page from some tier = legitimately empty result — return it
-  // without poisoning host memory.
-  if (cleanEmpty)
-    return { html: cleanEmpty.html, tier: cleanEmpty.tier, blocked: false };
+  // A clean (non-blocked) page that NO tier could extract the wanted data from — even after the full
+  // arsenal. Not a wall, but not a success either: flag it `unverified` so the caller is AWARE the data
+  // didn't materialize instead of silently treating an empty page as "done."
+  if (cleanEmpty) {
+    if (opts.validate)
+      console.warn(
+        `[smartFetch] ${host} → reached via "${cleanEmpty.tier}" but data didn't validate (full arsenal exhausted)`,
+      );
+    return {
+      html: cleanEmpty.html,
+      tier: cleanEmpty.tier,
+      blocked: false,
+      unverified: !!opts.validate,
+    };
+  }
 
   // Every tier was actually blocked — park the host on cooldown so we stop hammering (and flagging) the
   // IP. The rest of this run's pages for this host short-circuit; a fresh worker/IP can still get it.
