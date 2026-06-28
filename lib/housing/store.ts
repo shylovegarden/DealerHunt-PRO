@@ -148,24 +148,33 @@ export async function queryProperties(
   q: PropertyQuery = {},
 ): Promise<StoredProperty[] | null> {
   const sb = service();
-  // Apply filters first, then order + limit (so limit is the terminal op — correct SQL + clean to test).
-  let query = sb.from("properties").select("*").eq("active", true);
-  if (q.state) query = query.eq("state", q.state.toUpperCase());
-  if (q.tier) query = query.eq("lead_tier", q.tier);
-  if (q.source) query = query.eq("source", q.source);
-  if (q.minScore != null) query = query.gte("lead_score", q.minScore);
-  query = query
-    .order("lead_score", { ascending: false, nullsFirst: false })
-    .limit(Math.min(2000, q.limit ?? 200));
-
-  const { data, error } = await query;
-  if (error) {
-    if (/does not exist|could not find the table/i.test(error.message))
-      return null;
-    console.warn("[queryProperties] failed:", error.message);
-    return null;
+  const want = Math.min(2000, q.limit ?? 200);
+  // PostgREST caps a single response at 1000 rows, so page with .range() until we have `want` (or the
+  // table is exhausted). Without this the lower-scored tail — e.g. land-bank lots beyond row 1000 — is
+  // unreachable, so a source/state filter over the result would silently miss rows.
+  const PAGE = 1000;
+  const out: StoredProperty[] = [];
+  for (let offset = 0; offset < want; offset += PAGE) {
+    let query = sb.from("properties").select("*").eq("active", true);
+    if (q.state) query = query.eq("state", q.state.toUpperCase());
+    if (q.tier) query = query.eq("lead_tier", q.tier);
+    if (q.source) query = query.eq("source", q.source);
+    if (q.minScore != null) query = query.gte("lead_score", q.minScore);
+    const { data, error } = await query
+      .order("lead_score", { ascending: false, nullsFirst: false })
+      .order("source_listing_id", { ascending: true }) // stable tiebreak across pages
+      .range(offset, Math.min(want, offset + PAGE) - 1);
+    if (error) {
+      if (/does not exist|could not find the table/i.test(error.message))
+        return offset === 0 ? null : out;
+      console.warn("[queryProperties] failed:", error.message);
+      return offset === 0 ? null : out;
+    }
+    const rows = (data as StoredProperty[]) || [];
+    out.push(...rows);
+    if (rows.length < PAGE) break; // last page
   }
-  return (data as StoredProperty[]) || [];
+  return out;
 }
 
 /** Fetch one property by its source_listing_id (for the lead-detail page). Null if absent/unavailable. */

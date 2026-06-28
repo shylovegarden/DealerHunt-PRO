@@ -8,6 +8,7 @@ const mockSelect = vi.fn();
 const mockEq = vi.fn();
 const mockOrder = vi.fn();
 const mockLimit = vi.fn();
+const mockRange = vi.fn();
 const mockGte = vi.fn();
 const mockFrom = vi.fn();
 
@@ -259,18 +260,20 @@ describe("queryProperties", () => {
       eq: mockEq,
       order: mockOrder,
       limit: mockLimit,
+      range: mockRange,
       gte: mockGte,
     };
     mockFrom.mockReturnValue({ select: mockSelect });
     mockSelect.mockReturnValue(chainMethods);
     mockEq.mockReturnValue(chainMethods);
-    mockOrder.mockReturnValue(chainMethods);
-    mockLimit.mockReturnValue({ data: [], error: null });
+    mockOrder.mockReturnValue(chainMethods); // chainable (we order twice now)
+    mockLimit.mockReturnValue(chainMethods);
+    mockRange.mockReturnValue({ data: [], error: null }); // terminal — paginated reads
     mockGte.mockReturnValue(chainMethods);
   });
 
   it("should return null when table does not exist", async () => {
-    mockLimit.mockResolvedValue({
+    mockRange.mockResolvedValue({
       data: null,
       error: { message: "relation properties does not exist" },
     });
@@ -280,7 +283,7 @@ describe("queryProperties", () => {
   });
 
   it("should return empty array when no properties found", async () => {
-    mockLimit.mockResolvedValue({ data: [], error: null });
+    mockRange.mockResolvedValue({ data: [], error: null });
 
     const result = await queryProperties();
     expect(result).toEqual([]);
@@ -303,7 +306,7 @@ describe("queryProperties", () => {
         lead_tier: "warm",
       },
     ];
-    mockLimit.mockResolvedValue({ data: mockData, error: null });
+    mockRange.mockResolvedValue({ data: mockData, error: null });
 
     const result = await queryProperties();
     expect(result).toEqual(mockData);
@@ -314,66 +317,81 @@ describe("queryProperties", () => {
   });
 
   it("should filter by state when provided", async () => {
-    mockLimit.mockResolvedValue({ data: [], error: null });
+    mockRange.mockResolvedValue({ data: [], error: null });
 
     await queryProperties({ state: "ma" });
     expect(mockEq).toHaveBeenCalledWith("state", "MA"); // Should uppercase
   });
 
   it("should filter by tier when provided", async () => {
-    mockLimit.mockResolvedValue({ data: [], error: null });
+    mockRange.mockResolvedValue({ data: [], error: null });
 
     await queryProperties({ tier: "hot" });
     expect(mockEq).toHaveBeenCalledWith("lead_tier", "hot");
   });
 
   it("should filter by source when provided", async () => {
-    mockLimit.mockResolvedValue({ data: [], error: null });
+    mockRange.mockResolvedValue({ data: [], error: null });
 
     await queryProperties({ source: "govdeals" });
     expect(mockEq).toHaveBeenCalledWith("source", "govdeals");
   });
 
   it("should filter by minScore when provided", async () => {
-    mockLimit.mockResolvedValue({ data: [], error: null });
+    mockRange.mockResolvedValue({ data: [], error: null });
 
     await queryProperties({ minScore: 80 });
     expect(mockGte).toHaveBeenCalledWith("lead_score", 80);
   });
 
   it("should respect limit parameter with max of 2000", async () => {
-    mockLimit.mockResolvedValue({ data: [], error: null });
+    // Full 1000-row pages force pagination; the loop must stop at the 2000 cap (2 pages), not page 5000.
+    const fullPage = Array.from({ length: 1000 }, (_, i) => ({
+      id: String(i),
+    }));
+    mockRange.mockResolvedValue({ data: fullPage, error: null });
 
     await queryProperties({ limit: 5000 });
-    expect(mockLimit).toHaveBeenCalledWith(2000); // Capped at 2000 (raised for the country/state views)
+    expect(mockRange).toHaveBeenCalledWith(0, 999);
+    expect(mockRange).toHaveBeenCalledWith(1000, 1999);
+    expect(mockRange).not.toHaveBeenCalledWith(2000, 2999); // capped at 2000
   });
 
   it("should use default limit of 200", async () => {
-    mockLimit.mockResolvedValue({ data: [], error: null });
+    mockRange.mockResolvedValue({ data: [], error: null });
 
     await queryProperties();
-    expect(mockLimit).toHaveBeenCalledWith(200);
+    expect(mockRange).toHaveBeenCalledWith(0, 199);
   });
 
   it("should allow smaller custom limits", async () => {
-    mockLimit.mockResolvedValue({ data: [], error: null });
+    mockRange.mockResolvedValue({ data: [], error: null });
 
     await queryProperties({ limit: 50 });
-    expect(mockLimit).toHaveBeenCalledWith(50);
+    expect(mockRange).toHaveBeenCalledWith(0, 49);
   });
 });
 
 describe("propertyStats", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // propertyStats calls queryProperties internally → same paginated chain (terminal .range()).
+    const chainMethods = {
+      eq: mockEq,
+      order: mockOrder,
+      range: mockRange,
+      gte: mockGte,
+    };
     mockFrom.mockReturnValue({ select: mockSelect });
-    mockSelect.mockReturnValue({ eq: mockEq });
-    mockEq.mockReturnValue({ order: mockOrder });
-    mockOrder.mockReturnValue({ limit: mockLimit });
+    mockSelect.mockReturnValue(chainMethods);
+    mockEq.mockReturnValue(chainMethods);
+    mockOrder.mockReturnValue(chainMethods);
+    mockRange.mockReturnValue({ data: [], error: null });
+    mockGte.mockReturnValue(chainMethods);
   });
 
   it("should return null when store is unavailable", async () => {
-    mockLimit.mockResolvedValue({
+    mockRange.mockResolvedValue({
       data: null,
       error: { message: "table does not exist" },
     });
@@ -383,7 +401,7 @@ describe("propertyStats", () => {
   });
 
   it("should return zero counts for empty store", async () => {
-    mockLimit.mockResolvedValue({ data: [], error: null });
+    mockRange.mockResolvedValue({ data: [], error: null });
 
     const result = await propertyStats();
     expect(result).toEqual({
@@ -400,7 +418,7 @@ describe("propertyStats", () => {
       { lead_tier: "warm", state: "CA" },
       { lead_tier: "standard", state: "NY" },
     ];
-    mockLimit.mockResolvedValue({ data: mockData, error: null });
+    mockRange.mockResolvedValue({ data: mockData, error: null });
 
     const result = await propertyStats();
     expect(result?.byTier).toEqual({
@@ -417,7 +435,7 @@ describe("propertyStats", () => {
       { lead_tier: "hot", state: "CA" },
       { lead_tier: "standard", state: "NY" },
     ];
-    mockLimit.mockResolvedValue({ data: mockData, error: null });
+    mockRange.mockResolvedValue({ data: mockData, error: null });
 
     const result = await propertyStats();
     expect(result?.byState).toEqual({
@@ -433,7 +451,7 @@ describe("propertyStats", () => {
       { lead_tier: "warm", state: "CA" },
       { lead_tier: "standard", state: "NY" },
     ];
-    mockLimit.mockResolvedValue({ data: mockData, error: null });
+    mockRange.mockResolvedValue({ data: mockData, error: null });
 
     const result = await propertyStats();
     expect(result?.total).toBe(3);
@@ -446,7 +464,7 @@ describe("propertyStats", () => {
       { lead_tier: "warm", state: null },
       { lead_tier: null, state: null },
     ];
-    mockLimit.mockResolvedValue({ data: mockData, error: null });
+    mockRange.mockResolvedValue({ data: mockData, error: null });
 
     const result = await propertyStats();
     expect(result?.total).toBe(4);

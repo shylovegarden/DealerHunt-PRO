@@ -23,6 +23,7 @@ interface Lead {
   title: string;
   url?: string;
   price?: number;
+  source?: string;
   property_type?: string;
   city?: string;
   state?: string;
@@ -72,6 +73,7 @@ function fromStored(r: StoredProperty): Lead {
       title: r.title,
       url: r.source_url,
       price: r.price,
+      source: r.source,
       property_type: r.property_type,
       city: r.city,
       state: r.state,
@@ -97,6 +99,7 @@ function fromLive(p: Property): Lead {
       title: p.title,
       url: p.source_url,
       price: p.price,
+      source: p.source,
       property_type: p.property_type,
       city: p.city,
       state: p.state,
@@ -128,14 +131,17 @@ export async function GET(req: NextRequest) {
   const sp = new URL(req.url).searchParams;
   const state = (sp.get("state") || "").toUpperCase();
   const tier = sp.get("tier") || "";
+  const source = sp.get("source") || "";
   const limit = Math.min(
-    500,
-    Math.max(1, parseInt(sp.get("limit") || "200", 10) || 200),
+    2000,
+    Math.max(1, parseInt(sp.get("limit") || "2000", 10) || 2000),
   );
 
   let all: Lead[];
   try {
-    const stored = await queryProperties({ limit: 500 });
+    // Pull the whole market (cap 2000) so the dashboard can scope/filter client-side and every
+    // source — including lower-scored land-bank lots — is reachable, not buried under a 500 cap.
+    const stored = await queryProperties({ limit: 2000 });
     all =
       stored && stored.length ? stored.map(fromStored) : await liveHarvest();
   } catch (e) {
@@ -147,15 +153,18 @@ export async function GET(req: NextRequest) {
 
   const byTier = { hot: 0, warm: 0, standard: 0 } as Record<string, number>;
   const byState: Record<string, number> = {};
+  const bySource: Record<string, number> = {};
   for (const l of all) {
     byTier[l.tier] = (byTier[l.tier] || 0) + 1;
     if (l.state) byState[l.state] = (byState[l.state] || 0) + 1;
+    if (l.source) bySource[l.source] = (bySource[l.source] || 0) + 1;
   }
 
   let filtered = all;
   if (state)
     filtered = filtered.filter((l) => (l.state || "").toUpperCase() === state);
   if (tier) filtered = filtered.filter((l) => l.tier === tier);
+  if (source) filtered = filtered.filter((l) => l.source === source);
   filtered = filtered.slice(0, limit);
 
   const points = filtered
@@ -185,6 +194,7 @@ export async function GET(req: NextRequest) {
     total: all.length,
     byTier,
     byState,
+    bySource,
     leads: filtered,
     points,
   });

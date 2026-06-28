@@ -60,10 +60,23 @@ const PRICES = [
 ];
 const PAGE = 60;
 
+// Friendly labels for the raw `source` values stored on each property.
+const SOURCE_LABELS: Record<string, string> = {
+  gov_auction: "Gov auction",
+  hud: "HUD Homes",
+  gsa_realestate: "GSA Real Estate",
+  redfin: "Redfin",
+  land_bank: "Land banks",
+};
+const sourceLabel = (s: string) =>
+  SOURCE_LABELS[s] ||
+  s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+
 interface Lead {
   id: string;
   title: string;
   price?: number;
+  source?: string;
   property_type?: string;
   city?: string;
   state?: string;
@@ -93,6 +106,7 @@ function LeadsInner() {
   );
   const [tier, setTier] = useState("");
   const [type, setType] = useState("");
+  const [source, setSource] = useState("");
   const [sort, setSort] = useState("score");
   const [maxPrice, setMaxPrice] = useState(0);
   const [q, setQ] = useState("");
@@ -106,6 +120,18 @@ function LeadsInner() {
   const all: Lead[] = data?.leads ?? [];
   const points = data?.points ?? [];
   const byState: Record<string, number> = data?.byState ?? {};
+  const bySource: Record<string, number> = data?.bySource ?? {};
+
+  // Source dropdown options, most-populous first, with a friendly label + count.
+  const sourceOptions = useMemo(
+    () => [
+      { key: "", label: "All sources" },
+      ...Object.entries(bySource)
+        .sort((a, b) => b[1] - a[1])
+        .map(([s, n]) => ({ key: s, label: `${sourceLabel(s)} (${n})` })),
+    ],
+    [bySource],
+  );
 
   // The geographic scope set (null = nationwide).
   const scopeSet = useMemo<Set<string> | null>(() => {
@@ -121,6 +147,7 @@ function LeadsInner() {
       r = r.filter((l) => scopeSet.has((l.state || "").toUpperCase()));
     if (tier) r = r.filter((l) => l.tier === tier);
     if (type) r = r.filter((l) => l.property_type === type);
+    if (source) r = r.filter((l) => l.source === source);
     if (maxPrice) r = r.filter((l) => (l.price || 0) <= maxPrice);
     if (q.trim()) {
       const t = q.trim().toLowerCase();
@@ -138,10 +165,13 @@ function LeadsInner() {
       );
     else s.sort((a, b) => b.score - a.score);
     return s;
-  }, [all, scopeSet, tier, type, maxPrice, q, sort]);
+  }, [all, scopeSet, tier, type, source, maxPrice, q, sort]);
 
   // Reset the visible window whenever the result set changes.
-  useEffect(() => setVisible(PAGE), [scopeSet, tier, type, maxPrice, q, sort]);
+  useEffect(
+    () => setVisible(PAGE),
+    [scopeSet, tier, type, source, maxPrice, q, sort],
+  );
 
   // Infinite scroll — extend the list as the sentinel comes into view.
   const sentinel = useRef<HTMLDivElement>(null);
@@ -263,6 +293,7 @@ function LeadsInner() {
           ))}
         </div>
         <Select value={type} onChange={setType} options={TYPES} />
+        <Select value={source} onChange={setSource} options={sourceOptions} />
         <Select
           value={String(maxPrice)}
           onChange={(v) => setMaxPrice(Number(v))}
@@ -372,6 +403,11 @@ function LeadCard({ lead }: { lead: Lead }) {
           <span className="text-[11px] text-[var(--t4)] capitalize">
             {(lead.property_type || "").replace("_", " ")}
           </span>
+          {lead.source && (
+            <span className="text-[10px] font-semibold text-[var(--t4)] px-1.5 py-0.5 rounded-full bg-[var(--s2)] border border-[var(--b1)]">
+              {sourceLabel(lead.source)}
+            </span>
+          )}
         </div>
         <div className="font-black text-[var(--t1)] mt-0.5">
           ${(lead.price || 0).toLocaleString()}
