@@ -9,6 +9,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Property } from "./types";
 import { scoreHousingLead } from "./lead-score";
+import { resolvePlaces, placeKey } from "@/lib/geo/geocode";
 
 function service(): SupabaseClient {
   return createClient(
@@ -64,6 +65,37 @@ export async function upsertProperties(
   const sb = service();
   let rows = properties.filter((p) => p.source_listing_id).map(toRow);
   if (!rows.length) return 0;
+
+  // Geocode each property's location (free Nominatim/Zippopotam, cached in the SHARED geocode_cache) so
+  // the HomeIQ map plots precise pins instead of a state centroid. Best-effort: failures leave lat/lng
+  // null (the API falls back to a jittered centroid). Same pattern as the cars pipeline.
+  try {
+    const coords = await resolvePlaces(
+      sb,
+      rows.map((r) => ({
+        zip: r.zip as string,
+        city: r.city as string,
+        state: r.state as string,
+      })),
+    );
+    if (coords.size > 0) {
+      for (const r of rows) {
+        if (r.lat != null && r.lng != null) continue;
+        const key = placeKey({
+          zip: r.zip as string,
+          city: r.city as string,
+          state: r.state as string,
+        });
+        const c = key ? coords.get(key) : undefined;
+        if (c) {
+          r.lat = c.lat;
+          r.lng = c.lng;
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("[upsertProperties] geocoding skipped:", (e as Error).message);
+  }
 
   for (let heal = 0; heal < 6; heal++) {
     const { error } = await sb
