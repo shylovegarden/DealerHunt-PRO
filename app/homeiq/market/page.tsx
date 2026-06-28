@@ -13,6 +13,7 @@ import {
   SegmentBar,
 } from "@/components/home/HousingCharts";
 import { HousingHeatmap } from "@/components/home/HousingHeatmap";
+import { summarizeMarket, type MarketLead } from "@/lib/housing/market-stats";
 
 // HomeIQ Market Intelligence — a read-only analytics view over the whole scored housing market. Reuses
 // the existing /api/homeiq/leads endpoint (which already returns the full 2000-row market plus byState/
@@ -67,45 +68,7 @@ const VERDICT = [
   { key: "pass", label: "Pass", color: "var(--red)" },
 ];
 
-interface Lead {
-  id: string;
-  price?: number;
-  source?: string;
-  property_type?: string;
-  state?: string;
-  tier: string;
-  score: number;
-  equity?: number | null;
-  verdict?: string;
-}
-
-const median = (xs: number[]) => {
-  if (!xs.length) return 0;
-  const s = [...xs].sort((a, b) => a - b);
-  const m = Math.floor(s.length / 2);
-  return s.length % 2 ? s[m] : Math.round((s[m - 1] + s[m]) / 2);
-};
-
-// Build ~12 price buckets up to the 95th percentile (so a few mansions don't flatten the chart), with a
-// final overflow bucket catching everything above the cap.
-function priceBins(prices: number[]) {
-  const sorted = [...prices].sort((a, b) => a - b);
-  if (sorted.length < 4) return [];
-  const p95 = sorted[Math.floor(sorted.length * 0.95)] || sorted.at(-1)!;
-  const rawWidth = Math.max(p95 / 12, 1000);
-  const width = Math.ceil(rawWidth / 5000) * 5000; // round to a clean $5k step
-  const nBuckets = 12;
-  const bins = Array.from({ length: nBuckets }, (_, i) => ({
-    from: i * width,
-    to: (i + 1) * width,
-    n: 0,
-  }));
-  for (const v of sorted) {
-    const idx = Math.min(Math.floor(v / width), nBuckets - 1);
-    bins[idx].n++;
-  }
-  return bins;
-}
+type Lead = MarketLead & { id: string; score: number };
 
 const fmtMoney = (n: number) =>
   n >= 1_000_000
@@ -120,52 +83,7 @@ export default function MarketIntelligence() {
   });
   const leads: Lead[] = data?.leads ?? [];
 
-  const f = useMemo(() => {
-    const priced = leads.map((l) => l.price ?? 0).filter((p) => p > 0);
-    const bins = priceBins(priced);
-
-    const count = (key: keyof Lead) => {
-      const m: Record<string, number> = {};
-      for (const l of leads) {
-        const v = l[key] as string | undefined;
-        if (v) m[v] = (m[v] || 0) + 1;
-      }
-      return m;
-    };
-    const bySource = count("source");
-    const byType = count("property_type");
-    const byState = count("state");
-
-    const byTier = { hot: 0, warm: 0, standard: 0 } as Record<string, number>;
-    const byStateHot: Record<string, number> = {};
-    for (const l of leads) {
-      byTier[l.tier] = (byTier[l.tier] || 0) + 1;
-      if (l.tier === "hot" && l.state)
-        byStateHot[l.state] = (byStateHot[l.state] || 0) + 1;
-    }
-
-    const byVerdict: Record<string, number> = {};
-    for (const l of leads)
-      if (l.verdict && l.verdict !== "unknown")
-        byVerdict[l.verdict] = (byVerdict[l.verdict] || 0) + 1;
-
-    const flippable = leads.filter(
-      (l) => typeof l.equity === "number" && (l.equity as number) > 0,
-    ).length;
-
-    return {
-      priced,
-      bins,
-      bySource,
-      byType,
-      byState,
-      byStateHot,
-      byTier,
-      byVerdict,
-      flippable,
-      medianPrice: median(priced),
-    };
-  }, [leads]);
+  const f = useMemo(() => summarizeMarket(leads), [leads]);
 
   const total = leads.length;
   const sourceItems = Object.entries(f.bySource)
