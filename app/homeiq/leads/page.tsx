@@ -376,13 +376,58 @@ function Select({
   );
 }
 
+// Quick-save a lead to the pipeline straight from the list — no need to open the detail page. Stops the
+// card's link navigation. 401 → bounce to sign-in.
+function QuickSave({ listingId }: { listingId: string }) {
+  const [state, setState] = useState<"idle" | "saving" | "saved">("idle");
+  const save = async (e: {
+    preventDefault: () => void;
+    stopPropagation: () => void;
+  }) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (state !== "idle") return;
+    setState("saving");
+    const res = await fetch("/api/homeiq/saved", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ listingId }),
+    });
+    if (res.status === 401) {
+      window.location.href = "/";
+      return;
+    }
+    setState(res.ok ? "saved" : "idle");
+  };
+  return (
+    <button
+      onClick={save}
+      title={state === "saved" ? "In your pipeline" : "Save to pipeline"}
+      aria-label="Save to pipeline"
+      className="absolute top-1.5 right-1.5 z-[1] w-7 h-7 grid place-items-center rounded-full text-sm border transition-colors"
+      style={
+        state === "saved"
+          ? { background: ACCENT, borderColor: ACCENT, color: "#000" }
+          : {
+              background: "var(--s0)",
+              borderColor: "var(--b1)",
+              color: "var(--t3)",
+            }
+      }
+    >
+      {state === "saved" ? "✓" : state === "saving" ? "…" : "♡"}
+    </button>
+  );
+}
+
 function LeadCard({ lead }: { lead: Lead }) {
   const color = TIER_COLOR[lead.tier] || "var(--blue)";
   return (
     <Link
       href={`/homeiq/leads/${encodeURIComponent(lead.id)}`}
-      className="flex gap-3 rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] p-3 hover:border-[var(--b3)] transition-colors"
+      className="relative flex gap-3 rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] p-3 hover:border-[var(--b3)] transition-colors"
     >
+      <QuickSave listingId={lead.id} />
       <div className="relative shrink-0 w-28 h-24 rounded-[var(--r2)] overflow-hidden bg-[var(--s2)]">
         {lead.image ? (
           // eslint-disable-next-line @next/next/no-img-element
