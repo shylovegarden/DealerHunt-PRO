@@ -167,12 +167,17 @@ export default function MarketIntelligence() {
       label: sourceLabel(s),
       value: n,
       color: PALETTE[i % PALETTE.length],
+      href: `/homeiq/leads?source=${encodeURIComponent(s)}`,
     }));
 
   const stateItems = Object.entries(f.byState)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 10)
-    .map(([s, n]) => ({ label: stateName(s), value: n }));
+    .map(([s, n]) => ({
+      label: stateName(s),
+      value: n,
+      href: `/homeiq/leads?state=${encodeURIComponent(s)}`,
+    }));
 
   const typeSlices = Object.entries(f.byType)
     .sort((a, b) => b[1] - a[1])
@@ -180,12 +185,28 @@ export default function MarketIntelligence() {
       label: typeLabel(t),
       value: n,
       color: PALETTE[i % PALETTE.length],
+      href: `/homeiq/leads?type=${encodeURIComponent(t)}`,
     }));
 
   const tierSegs = [
-    { label: "Hot", value: f.byTier.hot, color: TIER_COLOR.hot },
-    { label: "Warm", value: f.byTier.warm, color: TIER_COLOR.warm },
-    { label: "Standard", value: f.byTier.standard, color: TIER_COLOR.standard },
+    {
+      label: "Hot",
+      value: f.byTier.hot,
+      color: TIER_COLOR.hot,
+      href: "/homeiq/leads?tier=hot",
+    },
+    {
+      label: "Warm",
+      value: f.byTier.warm,
+      color: TIER_COLOR.warm,
+      href: "/homeiq/leads?tier=warm",
+    },
+    {
+      label: "Standard",
+      value: f.byTier.standard,
+      color: TIER_COLOR.standard,
+      href: "/homeiq/leads?tier=standard",
+    },
   ];
 
   const verdictItems = VERDICT.map((v) => ({

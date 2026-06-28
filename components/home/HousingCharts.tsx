@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import { Mono } from "@/components/shared/Mono";
 
 // Lightweight, dependency-free chart primitives for the HomeIQ market dashboard. Pure SVG/CSS so we add
@@ -8,6 +9,34 @@ import { Mono } from "@/components/shared/Mono";
 // the HomeIQ language: glass panels, teal accent, --t*/--b*/--s* tokens.
 
 export const ACCENT = "#2dd4bf";
+
+// Wrap a chart row in a Link when an href is given (deep-link into the filtered leads view), otherwise
+// render it inert. Keeps every chart primitive optionally actionable without duplicating markup.
+function MaybeLink({
+  href,
+  className = "",
+  style,
+  title,
+  children,
+}: {
+  href?: string;
+  className?: string;
+  style?: React.CSSProperties;
+  title?: string;
+  children: React.ReactNode;
+}) {
+  if (!href)
+    return (
+      <div className={className} style={style} title={title}>
+        {children}
+      </div>
+    );
+  return (
+    <Link href={href} className={className} style={style} title={title}>
+      {children}
+    </Link>
+  );
+}
 
 export function ChartCard({
   title,
@@ -102,7 +131,13 @@ export function BarList({
   valueFmt = (v) => v.toLocaleString(),
   barColor = ACCENT,
 }: {
-  items: { label: string; value: number; color?: string; sub?: string }[];
+  items: {
+    label: string;
+    value: number;
+    color?: string;
+    sub?: string;
+    href?: string;
+  }[];
   max?: number;
   valueFmt?: (v: number) => string;
   barColor?: string;
@@ -112,7 +147,11 @@ export function BarList({
   return (
     <div className="flex flex-col gap-2.5 py-1">
       {items.map((it) => (
-        <div key={it.label} className="flex flex-col gap-1">
+        <MaybeLink
+          key={it.label}
+          href={it.href}
+          className={`flex flex-col gap-1 ${it.href ? "group/row -mx-1 px-1 rounded-md hover:bg-[var(--s2)]/60 transition-colors" : ""}`}
+        >
           <div className="flex items-baseline justify-between text-[11px] gap-2">
             <span className="text-[var(--t2)] truncate font-semibold capitalize">
               {it.label}
@@ -135,7 +174,7 @@ export function BarList({
               }}
             />
           </div>
-        </div>
+        </MaybeLink>
       ))}
     </div>
   );
@@ -147,7 +186,7 @@ export function Donut({
   centerLabel,
   centerValue,
 }: {
-  slices: { label: string; value: number; color: string }[];
+  slices: { label: string; value: number; color: string; href?: string }[];
   centerLabel?: string;
   centerValue?: string | number;
 }) {
@@ -199,9 +238,10 @@ export function Donut({
       </div>
       <div className="flex flex-col gap-1.5 flex-1 min-w-0 max-h-[120px] overflow-y-auto">
         {ordered.map((s) => (
-          <div
+          <MaybeLink
             key={s.label}
-            className="flex items-center justify-between text-[11px] gap-2"
+            href={s.href}
+            className={`flex items-center justify-between text-[11px] gap-2 ${s.href ? "-mx-1 px-1 rounded hover:bg-[var(--s2)]/60 transition-colors" : ""}`}
           >
             <span className="flex items-center gap-1.5 truncate">
               <span
@@ -215,7 +255,7 @@ export function Donut({
             <Mono className="text-[var(--t4)] shrink-0">
               {Math.round((s.value / total) * 100)}%
             </Mono>
-          </div>
+          </MaybeLink>
         ))}
       </div>
     </div>
@@ -226,7 +266,7 @@ export function Donut({
 export function SegmentBar({
   segments,
 }: {
-  segments: { label: string; value: number; color: string }[];
+  segments: { label: string; value: number; color: string; href?: string }[];
 }) {
   const total = segments.reduce((a, s) => a + s.value, 0);
   if (!total) return <Empty />;
@@ -235,21 +275,22 @@ export function SegmentBar({
       <div className="flex h-7 rounded-lg overflow-hidden bg-[var(--s2)]">
         {segments.map((s) =>
           s.value > 0 ? (
-            <div
+            <MaybeLink
               key={s.label}
-              className="h-full transition-all duration-500 grid place-items-center"
+              href={s.href}
+              title={`${s.label}: ${s.value}`}
+              className={`h-full transition-all duration-500 grid place-items-center ${s.href ? "hover:opacity-80" : ""}`}
               style={{
                 width: `${(s.value / total) * 100}%`,
                 background: s.color,
               }}
-              title={`${s.label}: ${s.value}`}
             >
               {s.value / total > 0.08 && (
                 <Mono className="text-[10px] font-black text-black/70">
                   {s.value}
                 </Mono>
               )}
-            </div>
+            </MaybeLink>
           ) : null,
         )}
       </div>
