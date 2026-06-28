@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import useSWR from "swr";
 import Link from "next/link";
 
@@ -27,6 +28,7 @@ interface Saved {
   id: string;
   property_listing_id: string;
   status: string;
+  notes?: string | null;
   snapshot: any;
 }
 
@@ -54,6 +56,18 @@ export default function SavedPipelinePage() {
   const remove = async (id: string) => {
     mutate((rows as Saved[]).filter((r) => r.id !== id) as any, false);
     await fetch(`/api/homeiq/saved/${id}`, { method: "DELETE" });
+    mutate();
+  };
+  const saveNotes = async (id: string, notes: string) => {
+    mutate(
+      (rows as Saved[]).map((r) => (r.id === id ? { ...r, notes } : r)) as any,
+      false,
+    );
+    await fetch(`/api/homeiq/saved/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ notes }),
+    });
     mutate();
   };
 
@@ -132,6 +146,7 @@ export default function SavedPipelinePage() {
                         row={r}
                         onMove={move}
                         onRemove={remove}
+                        onNotes={saveNotes}
                       />
                     ))}
                     {col.length === 0 && (
@@ -154,13 +169,20 @@ function Card({
   row,
   onMove,
   onRemove,
+  onNotes,
 }: {
   row: Saved;
   onMove: (id: string, s: string) => void;
   onRemove: (id: string) => void;
+  onNotes: (id: string, notes: string) => void;
 }) {
   const s = row.snapshot || {};
   const color = TIER_COLOR[s.lead_tier] || "var(--blue)";
+  const [note, setNote] = useState(row.notes ?? "");
+  const commitNote = () => {
+    const trimmed = note.trim();
+    if (trimmed !== (row.notes ?? "")) onNotes(row.id, trimmed);
+  };
   return (
     <div className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] p-3">
       <Link
@@ -210,6 +232,14 @@ function Card({
           ✕
         </button>
       </div>
+      <textarea
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        onBlur={commitNote}
+        placeholder="Notes — phone, offer, follow-up…"
+        rows={note ? 2 : 1}
+        className="mt-2 w-full text-[11px] px-2 py-1 rounded-[var(--r2)] bg-[var(--s2)] border border-[var(--b1)] text-[var(--t2)] placeholder:text-[var(--t4)] resize-none focus:outline-none focus:border-[var(--t4)]"
+      />
     </div>
   );
 }
