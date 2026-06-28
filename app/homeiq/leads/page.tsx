@@ -171,10 +171,8 @@ function Stat({
 function LeadCard({ lead }: { lead: Lead }) {
   const color = TIER_COLOR[lead.tier] || "var(--blue)";
   return (
-    <a
-      href={lead.url || "#"}
-      target="_blank"
-      rel="noreferrer"
+    <Link
+      href={`/homeiq/leads/${encodeURIComponent(lead.id)}`}
       className="block rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] p-4 hover:border-[var(--b3)] transition-colors"
     >
       <div className="flex items-start gap-4">
@@ -240,7 +238,7 @@ function LeadCard({ lead }: { lead: Lead }) {
           )}
         </div>
       </div>
-    </a>
+    </Link>
   );
 }
 

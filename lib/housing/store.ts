@@ -168,6 +168,27 @@ export async function queryProperties(
   return (data as StoredProperty[]) || [];
 }
 
+/** Fetch one property by its source_listing_id (for the lead-detail page). Null if absent/unavailable. */
+export async function getProperty(
+  sourceListingId: string,
+): Promise<StoredProperty | null> {
+  if (!sourceListingId) return null;
+  const sb = service();
+  const { data, error } = await sb
+    .from("properties")
+    .select("*")
+    .eq("source_listing_id", sourceListingId)
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    if (/does not exist|could not find the table/i.test(error.message))
+      return null;
+    console.warn("[getProperty] failed:", error.message);
+    return null;
+  }
+  return (data as StoredProperty) || null;
+}
+
 /** Count properties grouped by state + tier (for the market dashboard). */
 export async function propertyStats(): Promise<{
   total: number;
