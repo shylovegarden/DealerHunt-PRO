@@ -24,7 +24,8 @@ const features = [
 export default async function Home() {
   try {
     const { data } = await getServerUser();
-    if (data?.user) redirect("/discover");
+    // After login, land on the vertical selector — pick HomeIQ (houses) or DealerHunt Pro (cars).
+    if (data?.user) redirect("/welcome");
   } catch {
     // Not configured or no session — show the public landing page.
   }
