@@ -7,6 +7,7 @@ import { scrapeHudHomes } from "@/lib/housing/sources/hud-homes";
 import { scrapeGsaRealEstate } from "@/lib/housing/sources/gsa-realestate";
 import { scrapeRedfin } from "@/lib/housing/sources/redfin";
 import { scrapePublicSurplusProperties } from "@/lib/housing/sources/publicsurplus-property";
+import { scrapeMunicibidProperties } from "@/lib/housing/sources/municibid-property";
 import { upsertProperties } from "@/lib/housing/store";
 
 // POST /api/homeiq/harvest — refresh the HomeIQ `properties` table from the free sources. Called by the
@@ -31,15 +32,24 @@ export async function POST(req: NextRequest) {
 
   try {
     // Free housing sources: GovDeals + AllSurplus (maestro) + HUD Homes (rich data: sqft/beds → MAO).
-    const [gd, ad, hud, gsare, redfin, psre] = await Promise.all([
+    const [gd, ad, hud, gsare, redfin, psre, mbre] = await Promise.all([
       harvestGovDealsProperties("GD", 5),
       harvestGovDealsProperties("AD", 3).catch(() => []),
       scrapeHudHomes().catch(() => []),
       scrapeGsaRealEstate().catch(() => []),
       scrapeRedfin().catch(() => []), // fleet-only (PerimeterX); [] elsewhere
       scrapePublicSurplusProperties().catch(() => []),
+      scrapeMunicibidProperties().catch(() => []),
     ]);
-    const properties = [...gd, ...ad, ...hud, ...gsare, ...redfin, ...psre];
+    const properties = [
+      ...gd,
+      ...ad,
+      ...hud,
+      ...gsare,
+      ...redfin,
+      ...psre,
+      ...mbre,
+    ];
     const written = await upsertProperties(properties);
 
     return NextResponse.json({
@@ -54,6 +64,7 @@ export async function POST(req: NextRequest) {
         gsa_realestate: gsare.length,
         redfin: redfin.length,
         publicsurplus: psre.length,
+        municibid: mbre.length,
       },
     });
   } catch (e) {

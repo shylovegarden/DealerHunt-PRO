@@ -14,6 +14,7 @@ lands in the `properties` table (houses only, vertical-isolated from the cars `d
 | 4   | **GSA Real Estate**        | Federal surplus RE (agency housing/land) | SSR `.itemm` cheerio                          | `gsa-realestate.ts`. 11 live                                                            |
 | 5   | **PublicSurplus RE**       | Tax-forfeited county land, mobile homes  | open HTML cards (catid 15)                    | `publicsurplus-property.ts`. 100 live                                                   |
 | 6   | **Redfin**                 | National portal                          | schema.org JSON-LD → genericExtractProperties | parse verified; FETCH needs the FLEET (PerimeterX). `REDFIN_SEARCH_URLS`                |
+| 7   | **Municibid RE** (C169135) | Gov surplus: tax parcels, lots, houses   | open SSR cards (no proxy)                     | `municibid-property.ts`, solo-cracked. LOW volume (~1–a few live); reuses car parser    |
 
 ## 🟡 Queued (built-able now; need a clean IP / one capture)
 
@@ -23,10 +24,9 @@ lands in the `properties` table (houses only, vertical-isolated from the cars `d
 | 8   | **Realtor.com**                       | Akamai              | `__NEXT_DATA__` → genericExtractProperties; fleet-fetch                                                                |
 | 9   | **Fannie HomePath** (homepath.com)    | SPA + `/api/`       | capture the listing XHR (Antigravity) → wire like a JSON source                                                        |
 | 10  | **Freddie HomeSteps** (homesteps.com) | TBD                 | probe/capture                                                                                                          |
-| 11  | **Bid4Assets**                        | Angular SPA         | county tax/foreclosure auctions (deep discounts) — capture the search XHR                                              |
+| 11  | **Bid4Assets**                        | 403 (PerimeterX)    | county tax/foreclosure auctions (deep discounts) — confirmed 403 from our IP 2026-06-28; needs a FLEET capture         |
 | 12  | **Auction.com**                       | walled (tiny shell) | foreclosure/REO — fleet/capture                                                                                        |
 | 13  | **Hubzu / Xome**                      | likely walled       | auction REO — fleet/capture                                                                                            |
-| 14  | **Municibid RE** (C169135)            | open                | reuse `municibid` parser → Property; LOW volume now (~1 listing), revisit                                              |
 
 ## 🔵 High-effort, high-value (per-county, fragmented — phase 2)
 
