@@ -148,16 +148,15 @@ export async function queryProperties(
   q: PropertyQuery = {},
 ): Promise<StoredProperty[] | null> {
   const sb = service();
-  let query = sb
-    .from("properties")
-    .select("*")
-    .eq("active", true)
-    .order("lead_score", { ascending: false, nullsFirst: false })
-    .limit(Math.min(500, q.limit ?? 200));
+  // Apply filters first, then order + limit (so limit is the terminal op — correct SQL + clean to test).
+  let query = sb.from("properties").select("*").eq("active", true);
   if (q.state) query = query.eq("state", q.state.toUpperCase());
   if (q.tier) query = query.eq("lead_tier", q.tier);
   if (q.source) query = query.eq("source", q.source);
   if (q.minScore != null) query = query.gte("lead_score", q.minScore);
+  query = query
+    .order("lead_score", { ascending: false, nullsFirst: false })
+    .limit(Math.min(500, q.limit ?? 200));
 
   const { data, error } = await query;
   if (error) {

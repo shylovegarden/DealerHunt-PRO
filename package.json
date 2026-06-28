@@ -23,6 +23,7 @@
     "verify": "node scripts/verify.mjs",
     "verify:quick": "npm run typecheck && npm run lint",
     "audit:data": "tsx scripts/audit-data-quality.ts",
+    "audit:properties": "tsx scripts/audit-properties.ts",
     "automate": "tsx scripts/automate.ts",
     "prepare": "husky",
     "postinstall": "node -e \"const fs = require('fs'); const files = ['./node_modules/@supabase/supabase-js/dist/index.mjs', './node_modules/@supabase/supabase-js/dist/index.js']; files.forEach(file => { if (fs.existsSync(file)) { fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace(/process\\\\.version/g, 'undefined')); } });\""
