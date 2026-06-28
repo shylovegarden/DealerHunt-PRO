@@ -52,6 +52,24 @@ pre-push hook passes without `--no-verify`. Report each cycle: what was red, wha
 
 ---
 
+## Task H — HomeIQ housing QA (NEW — in your lane) 🏠
+
+We now ship a second vertical: **HomeIQ (houses)** on the same engine (`lib/housing/`, `docs/HOMEIQ-PLAN.md`).
+Your QA lane extends to it. **Work in your own worktree** (per the incident banner above) and finish with
+`npm run verify` green before any push.
+
+1. **Grow housing test coverage** (pure-fn tests, your wheelhouse): edge cases for
+   `lib/housing/extract-property.ts` (`readProperty`/`extractPropertiesFromJsonLd` — malformed JSON-LD,
+   missing address, land vs house), `lib/housing/lead-score.ts` (tier boundaries, signal stacking caps,
+   property-type-aware discount), and `lib/housing/sources/govdeals-property.ts` mapping. Mirror the
+   existing housing tests' style.
+2. **Data-quality audit** of the new `properties` table (read-only): how many rows have no city/state,
+   no price, junk titles, duplicate addresses across sources — same spirit as `scripts/audit-data-quality.ts`.
+   Report findings; don't mutate prod.
+
+Do NOT touch `lib/housing/lead-score.ts` weights or the deal-analyzer (Claude owns the scoring math) —
+flag tuning ideas in your PR instead.
+
 ## Task 1: Unit Tests for Valuation Primitives
 
 ### Test File: `lib/scoring/__tests__/valuation-primitives.test.ts`

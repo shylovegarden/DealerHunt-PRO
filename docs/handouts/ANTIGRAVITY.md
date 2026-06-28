@@ -25,6 +25,25 @@ owns keeping it green). So **pause A2/A3 (cloud workflows) for now** — your `i
 branch is fine to leave open but it won't run until billing is restored; don't invest more there. Your
 **highest-value lane is browser capture** (you have the clean IP + browser Claude lacks). Do A9/A10.
 
+## 🆕 HomeIQ housing vertical — NEW (read `docs/HOMEIQ-PLAN.md`)
+
+We now ship TWO verticals on one engine: DealerHunt Pro (cars) + **HomeIQ (houses)**, both free. The
+chameleon already harvests houses (`lib/housing/`, GovDeals + AllSurplus real estate, 642 live properties
+in the `properties` table). Your browser unlocks the big housing portals the same way it does for cars.
+
+### A11 — Capture HUD Homes + a portal listing feed (HIGH — net-new housing leads) 🌐 browser
+
+Two captures into `docs/findings/` (one file each), same drill as the auto sources:
+
+1. **HUD Homes** — `hudhomestore.gov` (government-owned homes, prime flip leads). Find the search/listing
+   XHR (Network → XHR) → `docs/findings/hud-homes-api.md`: URL + method + headers + one listing JSON.
+2. **A portal** — Zillow OR Redfin OR Realtor.com. These are PerimeterX/Akamai-walled, so capture from
+   your clean-IP browser: either the listing XHR/JSON, OR confirm their `__NEXT_DATA__` island carries the
+   listings (Claude's `genericExtractProperties` already reads schema.org `RealEstateListing` + `__NEXT_DATA__`).
+   `docs/findings/<portal>-listings.md`. Claude wires each → the `properties` table, no bespoke parser.
+
+(GSA `realestatesales.gov` is the housing sibling of the GSA autos in A9 — capture both while you're there.)
+
 ## Tasks (priority order)
 
 ### A9 — Capture GSA Auctions getAuctions (HIGH — Claude did the recon; you just need a live token) 🌐 browser
