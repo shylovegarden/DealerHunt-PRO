@@ -21,3 +21,33 @@ marketAnalysis.priceQuality = "EXCELLENT"
 ========== autotrader ==========
 [smartFetch] www.autotrader.com → no tier passed; cooling down 10m
 BLOCKED (no tier passed) — needs a cleaner IP.
+
+### 3. AutoTrader.com
+
+**Value Schema Fields discovered:**
+AutoTrader's `__NEXT_DATA__` JSON includes detailed Kelley Blue Book (KBB) Fair Purchase Price (FPP) data for their listings, which acts as the market value comp.
+
+Relevant fields from the listing JSON:
+
+```json
+{
+  "pricingDetail": {
+    "dealIndicator": "Great",
+    "displayPrice": 9500,
+    "kbbFppAmount": 10685,
+    "kbbFppDelta": 1185,
+    "kbbFppHighAmount": 11485,
+    "kbbFppLowAmount": 9860,
+    "noPriceLabel": "Contact Seller For Price",
+    "priceValidUntil": "2025-11-01",
+    "salePrice": 9500
+  },
+  "kbbVehicleId": 382444
+}
+```
+
+**Recommendation for Claude:**
+
+- Use `pricingDetail.kbbFppAmount` as the `options.marketValue` (this is the KBB Fair Purchase Price).
+- Use `pricingDetail.dealIndicator` as the `options.priceRating` (e.g., "Great", "Good", "Fair").
+- Use `pricingDetail.displayPrice` or `pricingDetail.salePrice` as the asking price.
