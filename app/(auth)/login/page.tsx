@@ -30,7 +30,8 @@ export default function LoginPage() {
       setError(error.message);
       setLoading(false);
     } else {
-      router.push("/discover");
+      // Land on the vertical selector so the user picks HomeIQ vs DealerHunt Pro after signing in.
+      router.push("/welcome");
       router.refresh();
     }
   };

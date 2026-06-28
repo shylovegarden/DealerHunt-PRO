@@ -102,10 +102,10 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Logged-in users shouldn't see the auth pages — send them into the app.
+  // Logged-in users shouldn't see the auth pages — send them to the vertical selector.
   if (isAuthRoute && user) {
     const url = request.nextUrl.clone();
-    url.pathname = "/discover";
+    url.pathname = "/welcome";
     return NextResponse.redirect(url);
   }
 
