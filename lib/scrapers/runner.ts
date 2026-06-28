@@ -28,6 +28,7 @@ import { scrapePublicSurplus } from "./sources/publicsurplus";
 import { scrapeGovDeals } from "./sources/govdeals";
 import { scrapeAllSurplus } from "./sources/allsurplus";
 import { scrapeMunicibid } from "./sources/municibid";
+import { scrapeGsaAuctions } from "./sources/gsa-auctions";
 import { scrapeAutotempest } from "./sources/autotempest";
 import { scrapeEbaySold } from "./sources/ebay-sold";
 import { ScraperRegistry } from "./tools/registry";
@@ -426,6 +427,21 @@ export function createScraperRegistry(
     fn: () => scrapeMunicibid(),
     enabled: true,
     estimatedDealsPerRun: 100,
+  });
+
+  // GSA Auctions — U.S. federal surplus (gsaauctions.gov). Anonymous public API (ppms.gov). Federal
+  // fleet sedans/SUVs/trucks, clean-title + maintained = high-quality leads.
+  registry.register({
+    id: "gsa_auctions",
+    name: "GSA Auctions (federal surplus)",
+    type: "auction",
+    priority: "high",
+    frequencyMinutes: 360,
+    requiresAuth: false,
+    stealthRequired: false,
+    fn: () => scrapeGsaAuctions(),
+    enabled: true,
+    estimatedDealsPerRun: 70,
   });
 
   registry.register({
