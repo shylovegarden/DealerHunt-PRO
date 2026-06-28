@@ -6,6 +6,7 @@ import { createClientComponentClient } from "@/lib/supabase";
 import { Field } from "@/components/shared/Field";
 import { Btn } from "@/components/shared/Btn";
 import { Ico } from "@/components/shared/Ico";
+import { GoogleButton, OrDivider } from "@/components/shared/GoogleButton";
 import Link from "next/link";
 
 export default function LoginPage() {
@@ -71,6 +72,9 @@ export default function LoginPage() {
             {error}
           </div>
         )}
+
+        <GoogleButton next="/welcome" />
+        <OrDivider label="or sign in with email" />
 
         <form onSubmit={handleLogin} className="flex flex-col gap-4">
           <Field
