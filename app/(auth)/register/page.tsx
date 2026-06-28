@@ -6,6 +6,7 @@ import { createClientComponentClient } from "@/lib/supabase";
 import { Field } from "@/components/shared/Field";
 import { Btn } from "@/components/shared/Btn";
 import { Ico } from "@/components/shared/Ico";
+import { GoogleButton, OrDivider } from "@/components/shared/GoogleButton";
 import Link from "next/link";
 
 export default function RegisterPage() {
@@ -111,6 +112,9 @@ export default function RegisterPage() {
             {error}
           </div>
         )}
+
+        <GoogleButton next="/welcome" label="Sign up with Google" />
+        <OrDivider label="or sign up with email" />
 
         <form onSubmit={handleRegister} className="flex flex-col gap-4">
           <Field
