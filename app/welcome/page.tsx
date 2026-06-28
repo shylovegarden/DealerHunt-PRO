@@ -1,28 +1,66 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { motion } from "framer-motion";
+import useSWR from "swr";
 
 // The vertical selector — the first thing a user sees after login. One full-screen surface split on a
-// diagonal: houses (HomeIQ) on one side, cars (DealerHunt Pro) on the other. Hovering a side expands it
-// and dims the other; clicking enters that vertical. Both run on the same engine; this is just the door.
+// diagonal: houses (HomeIQ) on one side, cars (DealerHunt Pro) on the other. Both run on the same engine
+// and the SAME login; this is the door. Hover (or arrow-key focus) expands a side and dims the other;
+// click / Enter / tap enters that vertical. Each side shows LIVE counts so the door feels alive.
 
 type Side = "house" | "car" | null;
+const fetcher = (u: string) => fetch(u).then((r) => r.json());
 
 export default function WelcomePage() {
   const router = useRouter();
   const [hover, setHover] = useState<Side>(null);
+  const [keyFocus, setKeyFocus] = useState<Side>(null);
+  const focus: Side = hover ?? keyFocus;
 
-  // The diagonal seam runs top-right → bottom-left. Each panel is the full viewport, clipped to its half;
-  // on hover the seam slides to give the focused side more room (cars push the seam left, houses right).
-  const seamTop = hover === "car" ? 78 : hover === "house" ? 38 : 58; // % across the TOP edge
-  const seamBot = hover === "car" ? 58 : hover === "house" ? 18 : 38; // % across the BOTTOM edge
-
-  const housePanel = `polygon(0 0, ${seamTop}% 0, ${seamBot}% 100%, 0 100%)`;
-  const carPanel = `polygon(${seamTop}% 0, 100% 0, 100% 100%, ${seamBot}% 100%)`;
+  // Live stats so the selector reflects the real market (API stays public; the page itself is gated).
+  const { data: stats } = useSWR("/api/stats/verticals", fetcher, {
+    revalidateOnFocus: false,
+  });
+  const houseStats = stats?.houses
+    ? [
+        { label: "leads", value: stats.houses.total ?? 0 },
+        { label: "🔥 hot", value: stats.houses.hot ?? 0 },
+      ]
+    : null;
+  const carStats = stats?.cars
+    ? [
+        { label: "GO deals", value: stats.cars.go ?? 0 },
+        { label: "live", value: stats.cars.active ?? 0 },
+      ]
+    : null;
 
   const enter = (side: "house" | "car") =>
     router.push(side === "house" ? "/homeiq" : "/discover");
+
+  // Keyboard: ←/→ focus a side, Enter/Space enters the focused one.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "ArrowLeft") setKeyFocus("house");
+      else if (e.key === "ArrowRight") setKeyFocus("car");
+      else if ((e.key === "Enter" || e.key === " ") && focus) {
+        e.preventDefault();
+        enter(focus);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focus]);
+
+  // The diagonal seam runs top-right → bottom-left. Each panel is the full viewport, clipped to its half;
+  // on focus the seam slides to give the focused side more room (cars push the seam left, houses right).
+  const seamTop = focus === "car" ? 80 : focus === "house" ? 36 : 58; // % across the TOP edge
+  const seamBot = focus === "car" ? 60 : focus === "house" ? 16 : 38; // % across the BOTTOM edge
+
+  const housePanel = `polygon(0 0, ${seamTop}% 0, ${seamBot}% 100%, 0 100%)`;
+  const carPanel = `polygon(${seamTop}% 0, 100% 0, 100% 100%, ${seamBot}% 100%)`;
 
   return (
     <main className="fixed inset-0 overflow-hidden bg-black select-none">
@@ -31,24 +69,25 @@ export default function WelcomePage() {
         aria-label="Enter HomeIQ — houses"
         onMouseEnter={() => setHover("house")}
         onMouseLeave={() => setHover(null)}
+        onFocus={() => setKeyFocus("house")}
         onClick={() => enter("house")}
-        className="absolute inset-0 text-left transition-[clip-path] duration-500 ease-out cursor-pointer group"
+        className="absolute inset-0 text-left transition-[clip-path] duration-[600ms] ease-out cursor-pointer group"
         style={{
           clipPath: housePanel,
           background:
             "radial-gradient(120% 120% at 20% 30%, #0f3d3a 0%, #0a2826 45%, #061715 100%)",
         }}
       >
-        <Watermark side="house" dim={hover === "car"} />
+        <Watermark side="house" dim={focus === "car"} />
         <Panel
-          side="house"
           kicker="Real estate leads"
           title="HomeIQ"
           tagline="Every house on the market — discounted, distressed, deal-ready."
           accent="#2dd4bf"
           align="left"
-          active={hover === "house"}
-          faded={hover === "car"}
+          active={focus === "house"}
+          faded={focus === "car"}
+          stats={houseStats}
         />
       </button>
 
@@ -57,29 +96,35 @@ export default function WelcomePage() {
         aria-label="Enter DealerHunt Pro — cars"
         onMouseEnter={() => setHover("car")}
         onMouseLeave={() => setHover(null)}
+        onFocus={() => setKeyFocus("car")}
         onClick={() => enter("car")}
-        className="absolute inset-0 text-left transition-[clip-path] duration-500 ease-out cursor-pointer group"
+        className="absolute inset-0 text-left transition-[clip-path] duration-[600ms] ease-out cursor-pointer group"
         style={{
           clipPath: carPanel,
           background:
             "radial-gradient(120% 120% at 80% 70%, #2b1b54 0%, #1a1130 45%, #0c0818 100%)",
         }}
       >
-        <Watermark side="car" dim={hover === "house"} />
+        <Watermark side="car" dim={focus === "house"} />
         <Panel
-          side="car"
           kicker="Auto flip leads"
           title="DealerHunt Pro"
           tagline="Every auction & marketplace, valued — GO / PASS the moment you see it."
           accent="#a78bfa"
           align="right"
-          active={hover === "car"}
-          faded={hover === "house"}
+          active={focus === "car"}
+          faded={focus === "house"}
+          stats={carStats}
         />
       </button>
 
       {/* Center crest — the logo + a hint, sitting on the seam. pointer-events-none so it never blocks. */}
-      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2">
+      <motion.div
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2, duration: 0.5 }}
+        className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2"
+      >
         <div
           className="px-4 py-1.5 rounded-full text-[11px] font-black uppercase tracking-[0.25em] text-white/90 backdrop-blur-md"
           style={{
@@ -89,14 +134,14 @@ export default function WelcomePage() {
         >
           AutoVerse
         </div>
-        <p className="text-[12px] text-white/45 font-medium tracking-wide">
-          {hover === "house"
+        <p className="text-[12px] text-white/45 font-medium tracking-wide text-center px-4">
+          {focus === "house"
             ? "Enter HomeIQ →"
-            : hover === "car"
+            : focus === "car"
               ? "Enter DealerHunt Pro →"
-              : "Pick your hunt"}
+              : "Pick your hunt — tap a side"}
         </p>
-      </div>
+      </motion.div>
     </main>
   );
 }
@@ -109,8 +154,8 @@ function Panel({
   align,
   active,
   faded,
+  stats,
 }: {
-  side: "house" | "car";
   kicker: string;
   title: string;
   tagline: string;
@@ -118,51 +163,92 @@ function Panel({
   align: "left" | "right";
   active: boolean;
   faded: boolean;
+  stats: { label: string; value: number }[] | null;
 }) {
   return (
     <div
-      className={`absolute top-1/2 -translate-y-1/2 max-w-[clamp(220px,32vw,420px)] px-[clamp(28px,6vw,84px)] transition-all duration-500 ${
-        align === "left" ? "left-0" : "right-0 text-right items-end"
-      } flex flex-col gap-4`}
-      style={{
-        opacity: faded ? 0.25 : 1,
-        transform: `translateY(-50%) scale(${active ? 1.04 : 1})`,
-      }}
+      className={`absolute top-1/2 -translate-y-1/2 max-w-[clamp(220px,32vw,420px)] ${
+        align === "left" ? "left-0" : "right-0"
+      }`}
     >
-      <span
-        className="text-[11px] font-black uppercase tracking-[0.3em]"
-        style={{ color: accent }}
-      >
-        {kicker}
-      </span>
-      <h1 className="text-[clamp(36px,6.5vw,76px)] font-black leading-[0.95] text-white">
-        {title}
-      </h1>
-      <p className="text-[clamp(13px,1.4vw,17px)] leading-snug text-white/70 font-medium">
-        {tagline}
-      </p>
-      <span
-        className={`mt-2 inline-flex items-center gap-2 self-start ${align === "right" ? "self-end" : ""} px-5 py-2.5 rounded-full font-bold text-[14px] text-black transition-all duration-300`}
+      <motion.div
+        initial={{ opacity: 0, x: align === "left" ? -40 : 40 }}
+        animate={{
+          opacity: faded ? 0.25 : 1,
+          x: 0,
+          scale: active ? 1.04 : 1,
+        }}
+        transition={{ duration: 0.6, ease: "easeOut" }}
+        className={`px-[clamp(24px,6vw,84px)] flex flex-col gap-4 ${
+          align === "right" ? "text-right items-end" : ""
+        }`}
         style={{
-          background: accent,
-          boxShadow: active ? `0 8px 30px ${accent}66` : "none",
-          transform: active ? "translateX(0)" : "translateX(0)",
+          transformOrigin: align === "left" ? "left center" : "right center",
         }}
       >
-        Enter
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
+        <span
+          className="text-[11px] font-black uppercase tracking-[0.3em]"
+          style={{ color: accent }}
         >
-          <path d="M5 12h14M13 6l6 6-6 6" />
-        </svg>
-      </span>
+          {kicker}
+        </span>
+        <h1 className="text-[clamp(34px,6.5vw,76px)] font-black leading-[0.95] text-white">
+          {title}
+        </h1>
+        <p className="text-[clamp(13px,1.4vw,17px)] leading-snug text-white/70 font-medium">
+          {tagline}
+        </p>
+
+        {/* Live stat chips — real counts from the market. */}
+        {stats && (
+          <div
+            className={`flex gap-2 flex-wrap ${align === "right" ? "justify-end" : ""}`}
+          >
+            {stats.map((s) => (
+              <span
+                key={s.label}
+                className="inline-flex items-baseline gap-1.5 px-3 py-1.5 rounded-full backdrop-blur-md"
+                style={{
+                  background: "rgba(255,255,255,0.06)",
+                  border: "1px solid rgba(255,255,255,0.12)",
+                }}
+              >
+                <span
+                  className="text-[15px] font-black tabular-nums"
+                  style={{ color: accent }}
+                >
+                  {s.value.toLocaleString()}
+                </span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-white/55">
+                  {s.label}
+                </span>
+              </span>
+            ))}
+          </div>
+        )}
+
+        <span
+          className={`mt-2 inline-flex items-center gap-2 self-start ${align === "right" ? "self-end" : ""} px-5 py-2.5 rounded-full font-bold text-[14px] text-black transition-all duration-300`}
+          style={{
+            background: accent,
+            boxShadow: active ? `0 8px 30px ${accent}66` : "none",
+          }}
+        >
+          Enter
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M5 12h14M13 6l6 6-6 6" />
+          </svg>
+        </span>
+      </motion.div>
     </div>
   );
 }
