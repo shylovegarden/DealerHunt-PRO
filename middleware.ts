@@ -7,6 +7,9 @@ import { ADMIN_ROUTES, isAdminEmail } from "@/lib/auth/admin";
 // auth check and redirects logged-in users to /find.
 const protectedRoutes = [
   // Dashboard pages — all live behind auth; '/' (landing), '/login', '/register' stay public.
+  // Both verticals share one login: the /welcome selector and the HomeIQ housing app are gated too.
+  "/welcome",
+  "/homeiq",
   "/today",
   "/scan",
   "/discover",
