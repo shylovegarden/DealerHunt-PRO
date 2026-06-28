@@ -36,7 +36,7 @@ export default function OnboardingPage() {
     fetch("/api/profile")
       .then((r) => r.json())
       .then((d) => {
-        if (active && d?.profile?.onboarded) router.replace("/discover");
+        if (active && d?.profile?.onboarded) router.replace("/welcome");
       })
       .catch(() => {});
     return () => {
@@ -70,13 +70,14 @@ export default function OnboardingPage() {
       budget_max: budgetMax ? Number(budgetMax) : undefined,
       preferred_makes: makes.length ? makes : undefined,
     });
-    router.push("/discover");
+    // Land on the vertical selector so the user chooses HomeIQ vs DealerHunt Pro.
+    router.push("/welcome");
   }
 
   // Even on skip, record that we offered onboarding so it doesn't nag every login.
   function skip() {
     persist({});
-    router.push("/discover");
+    router.push("/welcome");
   }
 
   const inputClass =
