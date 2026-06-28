@@ -223,12 +223,20 @@ function LeadsInner() {
             Nationwide — top leads
           </span>
         )}
-        <Link
-          href="/homeiq/states"
-          className="text-sm font-semibold text-[var(--t3)] hover:text-[var(--t1)]"
-        >
-          🗺️ Browse all states
-        </Link>
+        <div className="flex items-center gap-4">
+          <Link
+            href="/homeiq/saved"
+            className="text-sm font-semibold text-[var(--t3)] hover:text-[var(--t1)]"
+          >
+            📋 Pipeline
+          </Link>
+          <Link
+            href="/homeiq/states"
+            className="text-sm font-semibold text-[var(--t3)] hover:text-[var(--t1)]"
+          >
+            🗺️ Browse all states
+          </Link>
+        </div>
       </div>
 
       {/* Filter bar */}
