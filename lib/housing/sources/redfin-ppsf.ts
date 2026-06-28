@@ -14,8 +14,19 @@ import { gunzipSync } from "node:zlib";
 export const REDFIN_STATE_URL =
   "https://redfin-public-data.s3.us-west-2.amazonaws.com/redfin_market_tracker/state_market_tracker.tsv000.gz";
 
-// "All Residential" aggregate row (rather than a single property type).
-const ALL_RESIDENTIAL_TYPE_ID = "-1";
+// Redfin PROPERTY_TYPE_ID → the key we store it under (matching HomeIQ property_type values, plus "all"
+// for the -1 "All Residential" aggregate). Types we don't model (e.g. Multi-Family 5+) are skipped and
+// callers fall back to "all". Source IDs verified against the live file: -1/3/4/6/13.
+const TYPE_ID_TO_KEY: Record<string, string> = {
+  "-1": "all",
+  "6": "single_family",
+  "3": "condo",
+  "4": "multi_family",
+  "13": "townhouse",
+};
+
+/** Median sale $/sqft for a state, keyed by property type ("all" is the all-residential aggregate). */
+export type PpsfByType = Record<string, number>;
 
 function unquote(v: string): string {
   const t = v.trim();
@@ -25,12 +36,13 @@ function unquote(v: string): string {
 }
 
 /**
- * Parse the Redfin state market-tracker TSV into the latest median *sale* $/sqft per state code.
- * Pure: takes already-decompressed text. Picks, for each state, the most recent PERIOD_END row of the
- * "All Residential" aggregate that has a usable MEDIAN_PPSF. Robust to column reordering (keys by header
- * name) and to Redfin's quoting / `NA` nulls. Returns {} if the header or required columns are absent.
+ * Parse the Redfin state market-tracker TSV into the latest median *sale* $/sqft per state, broken out by
+ * property type (single_family / condo / multi_family / townhouse / all). Pure: takes already-decompressed
+ * text. For each (state, type) it keeps the most recent PERIOD_END row with a usable MEDIAN_PPSF. Robust to
+ * column reordering (keys by header name) and to Redfin's quoting / `NA` nulls. Returns {} if the header or
+ * required columns are absent.
  */
-export function parseStatePpsf(tsv: string): Record<string, number> {
+export function parseStatePpsf(tsv: string): Record<string, PpsfByType> {
   const lines = tsv.split("\n").filter((l) => l.length > 0);
   if (lines.length < 2) return {};
 
@@ -40,14 +52,17 @@ export function parseStatePpsf(tsv: string): Record<string, number> {
   const iPeriod = col("PERIOD_END");
   const iType = col("PROPERTY_TYPE_ID");
   const iPpsf = col("MEDIAN_PPSF");
-  if (iState < 0 || iPeriod < 0 || iPpsf < 0) return {};
+  if (iState < 0 || iPeriod < 0 || iType < 0 || iPpsf < 0) return {};
 
-  // state code -> { period, psf } for the freshest usable row.
-  const best: Record<string, { period: string; psf: number }> = {};
+  // state -> type key -> { period, psf } for the freshest usable row.
+  const best: Record<
+    string,
+    Record<string, { period: string; psf: number }>
+  > = {};
   for (let r = 1; r < lines.length; r++) {
     const f = lines[r].split("\t");
-    if (iType >= 0 && unquote(f[iType] ?? "") !== ALL_RESIDENTIAL_TYPE_ID)
-      continue;
+    const key = TYPE_ID_TO_KEY[unquote(f[iType] ?? "")];
+    if (!key) continue; // a property type we don't model
     const state = unquote(f[iState] ?? "").toUpperCase();
     if (!state || state.length !== 2) continue;
     const ppsfRaw = unquote(f[iPpsf] ?? "");
@@ -55,17 +70,22 @@ export function parseStatePpsf(tsv: string): Record<string, number> {
     const psf = Math.round(Number(ppsfRaw));
     if (!Number.isFinite(psf) || psf <= 0) continue;
     const period = unquote(f[iPeriod] ?? "");
-    const cur = best[state];
-    if (!cur || period > cur.period) best[state] = { period, psf };
+    const cur = best[state]?.[key];
+    if (!cur || period > cur.period) {
+      (best[state] ??= {})[key] = { period, psf };
+    }
   }
 
-  const out: Record<string, number> = {};
-  for (const [state, v] of Object.entries(best)) out[state] = v.psf;
+  const out: Record<string, PpsfByType> = {};
+  for (const [state, byType] of Object.entries(best)) {
+    out[state] = {};
+    for (const [key, v] of Object.entries(byType)) out[state][key] = v.psf;
+  }
   return out;
 }
 
-/** Download + gunzip + parse the Redfin state file into median sale $/sqft per state. Node-only. */
-export async function fetchStatePpsf(): Promise<Record<string, number>> {
+/** Download + gunzip + parse the Redfin state file into median sale $/sqft per state+type. Node-only. */
+export async function fetchStatePpsf(): Promise<Record<string, PpsfByType>> {
   const res = await fetch(REDFIN_STATE_URL);
   if (!res.ok) throw new Error(`Redfin state file: HTTP ${res.status}`);
   const gz = Buffer.from(await res.arrayBuffer());
