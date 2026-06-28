@@ -4,6 +4,7 @@ export const maxDuration = 60;
 import { NextRequest, NextResponse } from "next/server";
 import { harvestGovDealsProperties } from "@/lib/housing/sources/govdeals-property";
 import { scoreHousingLead } from "@/lib/housing/lead-score";
+import { analyzeHousingDeal } from "@/lib/housing/deal-analyzer";
 import {
   queryProperties,
   upsertProperties,
@@ -34,6 +35,23 @@ interface Lead {
   score: number;
   tier: string;
   signals: string[];
+  // Flip math (70% rule) — present only when ARV is computable (sqft known).
+  mao?: number | null;
+  arv?: number | null;
+  verdict?: string;
+  equity?: number | null;
+}
+
+// Attach the 70%-rule flip math to a lead, from its property fields.
+function withAnalysis<T extends Lead>(lead: T, p: Property): T {
+  const a = analyzeHousingDeal(p);
+  if (a.mao != null) {
+    lead.mao = a.mao;
+    lead.arv = a.arv;
+    lead.verdict = a.verdict;
+    lead.equity = a.equitySpread;
+  }
+  return lead;
 }
 
 // In-memory fallback cache for the live-harvest path (when the DB isn't populated yet).
@@ -48,46 +66,52 @@ function jitter(seed: string, salt: number): number {
 
 function fromStored(r: StoredProperty): Lead {
   const reasons = (r.signals as any)?.reasons;
-  return {
-    id: r.source_listing_id || r.title,
-    title: r.title,
-    url: r.source_url,
-    price: r.price,
-    property_type: r.property_type,
-    city: r.city,
-    state: r.state,
-    zip: r.zip,
-    image: r.images?.[0],
-    auction_end: r.auction_end,
-    bid_count: r.bid_count,
-    lat: r.lat,
-    lng: r.lng,
-    score: r.lead_score ?? 0,
-    tier: r.lead_tier ?? "standard",
-    signals: Array.isArray(reasons) ? reasons : [],
-  };
+  return withAnalysis(
+    {
+      id: r.source_listing_id || r.title,
+      title: r.title,
+      url: r.source_url,
+      price: r.price,
+      property_type: r.property_type,
+      city: r.city,
+      state: r.state,
+      zip: r.zip,
+      image: r.images?.[0],
+      auction_end: r.auction_end,
+      bid_count: r.bid_count,
+      lat: r.lat,
+      lng: r.lng,
+      score: r.lead_score ?? 0,
+      tier: r.lead_tier ?? "standard",
+      signals: Array.isArray(reasons) ? reasons : [],
+    },
+    r,
+  );
 }
 
 function fromLive(p: Property): Lead {
   const lead = scoreHousingLead(p);
-  return {
-    id: p.source_listing_id || p.title,
-    title: p.title,
-    url: p.source_url,
-    price: p.price,
-    property_type: p.property_type,
-    city: p.city,
-    state: p.state,
-    zip: p.zip,
-    image: p.images?.[0],
-    auction_end: p.auction_end,
-    bid_count: p.bid_count,
-    lat: p.lat,
-    lng: p.lng,
-    score: lead.score,
-    tier: lead.tier,
-    signals: lead.signals,
-  };
+  return withAnalysis(
+    {
+      id: p.source_listing_id || p.title,
+      title: p.title,
+      url: p.source_url,
+      price: p.price,
+      property_type: p.property_type,
+      city: p.city,
+      state: p.state,
+      zip: p.zip,
+      image: p.images?.[0],
+      auction_end: p.auction_end,
+      bid_count: p.bid_count,
+      lat: p.lat,
+      lng: p.lng,
+      score: lead.score,
+      tier: lead.tier,
+      signals: lead.signals,
+    },
+    p,
+  );
 }
 
 async function liveHarvest(): Promise<Lead[]> {

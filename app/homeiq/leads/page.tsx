@@ -43,7 +43,18 @@ interface Lead {
   score: number;
   tier: string;
   signals: string[];
+  mao?: number | null;
+  arv?: number | null;
+  verdict?: string;
+  equity?: number | null;
 }
+
+const VERDICT_COLOR: Record<string, string> = {
+  strong: "var(--green)",
+  fair: ACCENT,
+  tight: "var(--amber)",
+  pass: "var(--red)",
+};
 
 export default function HomeIQLeadsPage() {
   const [tier, setTier] = useState("");
@@ -196,6 +207,25 @@ function LeadCard({ lead }: { lead: Lead }) {
               ? ` · ${lead.bid_count} bids`
               : ""}
           </div>
+          {lead.mao != null && (
+            <div className="mt-2 flex items-center gap-2 text-sm">
+              <span className="text-[var(--t4)]">Max offer (70% rule)</span>
+              <span className="font-black text-[var(--t1)]">
+                ${lead.mao.toLocaleString()}
+              </span>
+              {lead.verdict && (
+                <span
+                  className="text-[10px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded"
+                  style={{
+                    background: `${VERDICT_COLOR[lead.verdict] || "var(--blue)"}1f`,
+                    color: VERDICT_COLOR[lead.verdict] || "var(--blue)",
+                  }}
+                >
+                  {lead.verdict}
+                </span>
+              )}
+            </div>
+          )}
           {lead.signals?.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mt-2">
               {lead.signals.slice(0, 3).map((s, i) => (
