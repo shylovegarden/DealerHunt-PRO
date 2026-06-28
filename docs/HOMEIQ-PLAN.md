@@ -86,7 +86,9 @@ pinned by `lib/housing/vertical-isolation.test.ts` so the gate blocks any regres
 ## Phases
 
 1. **FIND** (engine reuse — in progress): more free sources → harvest → geocode → map. ← we are here
-2. **SCORE**: housing lead-score engine, hot-leads feed, signal badges, alerts.
-3. **ACT**: skip-trace (public-record first), one-tap contact, shared pipeline CRM, ARV/MAO deal analyzer.
+2. **SCORE** ✅: housing lead-score engine (equity-aware), hot-leads feed, signal badges. (alerts pending)
+3. **ACT** (in progress): ARV/MAO deal analyzer ✅; saved-leads pipeline ✅ (`saved_properties`,
+   `/api/homeiq/saved`, `/homeiq/saved` Kanban board, "Save to pipeline" on lead detail). Skip-trace
+   (public-record first) + one-tap contact still pending.
 4. **MEAN**: location-intelligence overlays (flood/school-trend/appreciation) — free public datasets.
 5. **GROW**: financing, market dashboard, community.
