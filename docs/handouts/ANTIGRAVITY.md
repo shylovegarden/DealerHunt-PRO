@@ -42,6 +42,19 @@ Your `chore/housing-portals-capture` captures were excellent. Claude shipped all
   `/city/{id}/{ST}/{City}` pages) for `REDFIN_SEARCH_URLS`, or run the fleet with headed enabled so Redfin
   flows. **Next housing target: Zillow** (also `__NEXT_DATA__`/schema.org — genericExtractProperties reads it).
 
+### A12 — Next housing portals/SPAs (HIGH — see `docs/HOMEIQ-SOURCES.md` for the full map) 🌐 browser
+
+Six housing sources are LIVE; these need your clean-IP browser. Pick any, one `docs/findings/*.md` each:
+
+1. **Zillow** — confirm listings are in `__NEXT_DATA__`/schema.org + give 5–10 real metro/search URLs
+   (Claude's `genericExtractProperties` reads it; fetch runs on the fleet). `docs/findings/zillow-listings.md`.
+2. **Fannie HomePath** (homepath.com) — it's an SPA with an `/api/`; capture the listing XHR (URL + method +
+   headers + one listing JSON) → `docs/findings/homepath-api.md`. GSE-owned homes = clean leads.
+3. **Bid4Assets** — Angular SPA, **county tax/foreclosure auctions** (deep-discount RE); capture the search
+   XHR → `docs/findings/bid4assets-api.md`.
+4. **Redfin URLs** — the one thing blocking the already-built Redfin source: 5–10 real `/city/{id}/{ST}/{City}`
+   URLs for `REDFIN_SEARCH_URLS` (append to `redfin-listings.md`).
+
 ### A11-orig — original HUD/portal task (superseded by your capture above) 🌐 browser
 
 Two captures into `docs/findings/` (one file each), same drill as the auto sources:
