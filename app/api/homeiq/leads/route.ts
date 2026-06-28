@@ -24,6 +24,7 @@ interface Lead {
   url?: string;
   price?: number;
   source?: string;
+  status?: string; // listing status for land-bank stock (Move-In Ready / Needs Renovation / Vacant Land…)
   property_type?: string;
   city?: string;
   state?: string;
@@ -65,6 +66,20 @@ function jitter(seed: string, salt: number): number {
   return ((Math.abs(h + salt * 7919) % 1000) / 1000 - 0.5) * 0.9;
 }
 
+// Land-bank stock carries a short human status (Move-In Ready / Vacant Land / List Only…) in
+// signals.status or signals.sale_type. Never use `description` — for some sources (Detroit) it's a long
+// marketing blurb, not a status — unless it's short enough to be a label (Genesee's "Res Vac Lot · …").
+function landBankStatus(p: Property): string | undefined {
+  if (p.source !== "land_bank") return undefined;
+  const sig = p.signals as any;
+  const candidates = [sig?.status, sig?.sale_type, p.description];
+  for (const c of candidates) {
+    if (typeof c === "string" && c.trim() && c.trim().length <= 40)
+      return c.trim();
+  }
+  return undefined;
+}
+
 function fromStored(r: StoredProperty): Lead {
   const reasons = (r.signals as any)?.reasons;
   return withAnalysis(
@@ -74,6 +89,7 @@ function fromStored(r: StoredProperty): Lead {
       url: r.source_url,
       price: r.price,
       source: r.source,
+      status: landBankStatus(r),
       property_type: r.property_type,
       city: r.city,
       state: r.state,
@@ -100,6 +116,7 @@ function fromLive(p: Property): Lead {
       url: p.source_url,
       price: p.price,
       source: p.source,
+      status: landBankStatus(p),
       property_type: p.property_type,
       city: p.city,
       state: p.state,

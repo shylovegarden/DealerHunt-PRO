@@ -94,6 +94,11 @@ export default function LeadDetailPage({
                   · {lead.source}
                 </span>
               )}
+              {lead.status && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--s2)] border border-[var(--b1)] text-[var(--t2)]">
+                  {lead.status}
+                </span>
+              )}
             </div>
             <h1 className="text-2xl font-black text-[var(--t1)] leading-tight">
               {lead.title}

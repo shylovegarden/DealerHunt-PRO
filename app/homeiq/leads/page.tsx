@@ -72,11 +72,23 @@ const sourceLabel = (s: string) =>
   SOURCE_LABELS[s] ||
   s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
+// Color a land-bank listing status so users can triage move-in-ready vs gut-job vs vacant lot at a glance.
+function statusColor(s: string): string {
+  const t = s.toLowerCase();
+  if (/move-?in|renovated|available soon|new construction/.test(t))
+    return "var(--green)";
+  if (/pending|under contract|transfer/.test(t)) return "var(--blue)";
+  if (/renovation|needs|rehab|fixer/.test(t)) return "var(--amber)";
+  if (/vacant|lot|land/.test(t)) return "var(--t4)";
+  return "var(--t3)";
+}
+
 interface Lead {
   id: string;
   title: string;
   price?: number;
   source?: string;
+  status?: string;
   property_type?: string;
   city?: string;
   state?: string;
@@ -406,6 +418,17 @@ function LeadCard({ lead }: { lead: Lead }) {
           {lead.source && (
             <span className="text-[10px] font-semibold text-[var(--t4)] px-1.5 py-0.5 rounded-full bg-[var(--s2)] border border-[var(--b1)]">
               {sourceLabel(lead.source)}
+            </span>
+          )}
+          {lead.status && (
+            <span
+              className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+              style={{
+                color: statusColor(lead.status),
+                background: `${statusColor(lead.status)}1a`,
+              }}
+            >
+              {lead.status}
             </span>
           )}
         </div>

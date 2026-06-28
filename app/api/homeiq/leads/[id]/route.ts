@@ -30,6 +30,16 @@ export async function GET(
       title: row.title,
       url: row.source_url,
       source: row.source,
+      status:
+        row.source === "land_bank"
+          ? [
+              (row.signals as any)?.status,
+              (row.signals as any)?.sale_type,
+              row.description,
+            ].find(
+              (c) => typeof c === "string" && c.trim() && c.trim().length <= 40,
+            )
+          : undefined,
       property_type: row.property_type,
       address: row.address,
       city: row.city,
