@@ -39,9 +39,13 @@ export interface MaestroAsset {
   currentBid?: number;
   assetBidPrice?: number;
   bidCount?: number;
+  locationAddress1?: string;
+  locationAddress2?: string;
   locationCity?: string;
   locationState?: string;
   locationZip?: string;
+  latitude?: number | null;
+  longitude?: number | null;
   country?: string;
   countryDescription?: string;
   companyName?: string;
@@ -50,6 +54,7 @@ export interface MaestroAsset {
   assetAuctionEndDateUtc?: string;
   lotNumber?: string;
   photo?: string;
+  categoryDescription?: string;
   isSoldAuction?: boolean;
 }
 
@@ -227,28 +232,33 @@ async function fetchMaestroPage(
   return json.assetSearchResults || [];
 }
 
-/** Generic maestro scrape loop, shared by GovDeals + AllSurplus. */
-export async function scrapeMaestro(opts: MaestroSourceOpts): Promise<number> {
-  console.log(`[${opts.label}] Starting scrape...`);
+/**
+ * Walk the maestro pages for a category set and return the RAW assets (deduped by assetId). Mapper-
+ * agnostic, so BOTH verticals reuse the exact fetch/pagination/pacing: cars map assets→Deal, HomeIQ maps
+ * the same assets→Property (different categories: 95B/95F/959 real estate vs 94A/94Q vehicles).
+ */
+export async function fetchMaestroAssets(
+  businessId: string,
+  categoryCodes: string[],
+  opts: { maxPages?: number; label?: string } = {},
+): Promise<MaestroAsset[]> {
   const DISPLAY_ROWS = 120;
   const maxPages = opts.maxPages ?? 8;
-  const byId = new Map<string, Partial<Deal>>();
+  const label = opts.label || businessId;
+  const byId = new Map<number, MaestroAsset>();
   let prevFirst = "";
 
   for (let page = 1; page <= maxPages; page++) {
     let rows: MaestroAsset[];
     try {
       rows = await fetchMaestroPage(
-        opts.businessId,
-        opts.categoryCodes,
+        businessId,
+        categoryCodes,
         page,
         DISPLAY_ROWS,
       );
     } catch (e) {
-      console.warn(
-        `[${opts.label}] page ${page} failed:`,
-        (e as Error).message,
-      );
+      console.warn(`[${label}] page ${page} failed:`, (e as Error).message);
       break;
     }
     if (!rows.length) break;
@@ -258,14 +268,25 @@ export async function scrapeMaestro(opts: MaestroSourceOpts): Promise<number> {
     if (first && first === prevFirst) break;
     prevFirst = first;
 
-    for (const r of rows) {
-      const deal = maestroAssetToDeal(r, opts);
-      if (deal) byId.set(deal.source_deal_id!, deal);
-    }
+    for (const r of rows) if (r.assetId != null) byId.set(r.assetId, r);
     if (rows.length < DISPLAY_ROWS) break; // last page
     await new Promise((r) => setTimeout(r, 800)); // be polite to the public API
   }
+  return Array.from(byId.values());
+}
 
+/** Generic maestro scrape loop (vehicles), shared by GovDeals + AllSurplus. */
+export async function scrapeMaestro(opts: MaestroSourceOpts): Promise<number> {
+  console.log(`[${opts.label}] Starting scrape...`);
+  const assets = await fetchMaestroAssets(opts.businessId, opts.categoryCodes, {
+    maxPages: opts.maxPages,
+    label: opts.label,
+  });
+  const byId = new Map<string, Partial<Deal>>();
+  for (const r of assets) {
+    const deal = maestroAssetToDeal(r, opts);
+    if (deal) byId.set(deal.source_deal_id!, deal);
+  }
   const deals = Array.from(byId.values());
   console.log(`[${opts.label}] Found ${deals.length} vehicle auctions`);
   if (deals.length > 0) await upsertDeals(deals);
