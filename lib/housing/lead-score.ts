@@ -8,6 +8,7 @@
 // pre-foreclosure, vacancy) slot in as we add sources that expose them.
 
 import type { Property } from "./types";
+import { analyzeHousingDeal } from "./deal-analyzer";
 
 export type LeadTier = "hot" | "warm" | "standard";
 
@@ -95,6 +96,21 @@ export function scoreHousingLead(p: Property): LeadScore {
     add(6, "Single-family — broadest buyer pool");
   else if (p.property_type === "multi_family")
     add(5, "Multi-family — rental upside");
+
+  // 7) EQUITY — the math signal. When sqft is known the deal-analyzer can run the 70% rule; an ask well
+  // below the Max Allowable Offer is a real flip even with no distress words (HUD/Redfin sqft-rich homes
+  // that would otherwise score 0). This is what surfaces the genuinely-underpriced listings.
+  const deal = analyzeHousingDeal(p);
+  if (deal.mao != null && deal.mao > 0 && p.price != null && p.price > 0) {
+    const room = (deal.mao - p.price) / deal.mao; // fraction the ask sits below the max offer
+    if (room >= 0.3)
+      add(
+        24,
+        `Priced ~${Math.round(room * 100)}% below max offer — strong equity`,
+      );
+    else if (room >= 0.12) add(13, "Below max offer — real equity room");
+    else if (room >= 0) add(5, "At/near the max offer");
+  }
 
   score = Math.max(0, Math.min(100, Math.round(score)));
   const tier: LeadTier =

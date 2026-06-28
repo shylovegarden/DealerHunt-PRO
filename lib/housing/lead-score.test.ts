@@ -65,6 +65,40 @@ describe("scoreHousingLead", () => {
   });
 });
 
+describe("equity signal (the math, not just distress words)", () => {
+  it("lifts a sqft-rich home priced far below its max offer", () => {
+    // No distress language — only the 70%-rule math should make this a lead.
+    const underpriced = scoreHousingLead({
+      ...base,
+      title: "3 bed home",
+      property_type: "single_family",
+      state: "OH",
+      sqft: 2000,
+      price: 45000,
+    });
+    const atArv = scoreHousingLead({
+      ...base,
+      title: "3 bed home",
+      property_type: "single_family",
+      state: "OH",
+      sqft: 2000,
+      price: 300000, // ~ARV → no equity
+    });
+    expect(underpriced.score).toBeGreaterThan(atArv.score);
+    expect(underpriced.signals.join(" ")).toMatch(/below max offer|equity/i);
+  });
+
+  it("does nothing when sqft is unknown (no ARV → no equity signal)", () => {
+    const r = scoreHousingLead({
+      ...base,
+      sqft: undefined,
+      title: "house",
+      price: 10000,
+    });
+    expect(r.signals.join(" ")).not.toMatch(/equity/i);
+  });
+});
+
 describe("scoreAndRank", () => {
   it("returns leads hottest-first", () => {
     const ranked = scoreAndRank([
