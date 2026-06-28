@@ -1,68 +1,81 @@
 "use client";
 
-import { useState, useMemo, Suspense } from "react";
+import { useState, useMemo, useEffect, useRef, Suspense } from "react";
 import dynamic from "next/dynamic";
 import useSWR from "swr";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
-const STATE_NAMES: Record<string, string> = {
-  AL: "Alabama",
-  AK: "Alaska",
-  AZ: "Arizona",
-  AR: "Arkansas",
-  CA: "California",
-  CO: "Colorado",
-  CT: "Connecticut",
-  DE: "Delaware",
-  FL: "Florida",
-  GA: "Georgia",
-  HI: "Hawaii",
-  ID: "Idaho",
-  IL: "Illinois",
-  IN: "Indiana",
-  IA: "Iowa",
-  KS: "Kansas",
-  KY: "Kentucky",
-  LA: "Louisiana",
-  ME: "Maine",
-  MD: "Maryland",
-  MA: "Massachusetts",
-  MI: "Michigan",
-  MN: "Minnesota",
-  MS: "Mississippi",
-  MO: "Missouri",
-  MT: "Montana",
-  NE: "Nebraska",
-  NV: "Nevada",
-  NH: "New Hampshire",
-  NJ: "New Jersey",
-  NM: "New Mexico",
-  NY: "New York",
-  NC: "North Carolina",
-  ND: "North Dakota",
-  OH: "Ohio",
-  OK: "Oklahoma",
-  OR: "Oregon",
-  PA: "Pennsylvania",
-  RI: "Rhode Island",
-  SC: "South Carolina",
-  SD: "South Dakota",
-  TN: "Tennessee",
-  TX: "Texas",
-  UT: "Utah",
-  VT: "Vermont",
-  VA: "Virginia",
-  WA: "Washington",
-  WV: "West Virginia",
-  WI: "Wisconsin",
-  WY: "Wyoming",
-  DC: "D.C.",
+// Market-leading housing browse — Zillow/Redfin split map+list + photo-forward cards + PropStream-style
+// lead signals. LOCATION-FIRST + PROGRESSIVE: scoped to your state shows it IMMEDIATELY, then "Nearby"
+// widens to the geographically-closest states, then "Nationwide" — and within any scope the list
+// EXTENDS as you scroll (infinite). All instant (client-side over one fetch).
+
+// code → [name, lat, lng]. Names label; centroids drive "nearby states".
+const ST: Record<string, [string, number, number]> = {
+  AL: ["Alabama", 32.81, -86.79],
+  AK: ["Alaska", 61.37, -152.4],
+  AZ: ["Arizona", 33.73, -111.43],
+  AR: ["Arkansas", 34.97, -92.37],
+  CA: ["California", 36.12, -119.68],
+  CO: ["Colorado", 39.06, -105.31],
+  CT: ["Connecticut", 41.6, -72.76],
+  DE: ["Delaware", 39.32, -75.51],
+  FL: ["Florida", 27.77, -81.69],
+  GA: ["Georgia", 33.04, -83.64],
+  HI: ["Hawaii", 21.09, -157.5],
+  ID: ["Idaho", 44.24, -114.48],
+  IL: ["Illinois", 40.35, -88.99],
+  IN: ["Indiana", 39.85, -86.26],
+  IA: ["Iowa", 42.01, -93.21],
+  KS: ["Kansas", 38.53, -96.73],
+  KY: ["Kentucky", 37.67, -84.67],
+  LA: ["Louisiana", 31.17, -91.87],
+  ME: ["Maine", 44.69, -69.38],
+  MD: ["Maryland", 39.06, -76.8],
+  MA: ["Massachusetts", 42.23, -71.53],
+  MI: ["Michigan", 43.33, -84.54],
+  MN: ["Minnesota", 45.69, -93.9],
+  MS: ["Mississippi", 32.74, -89.68],
+  MO: ["Missouri", 38.46, -92.29],
+  MT: ["Montana", 46.92, -110.45],
+  NE: ["Nebraska", 41.13, -98.27],
+  NV: ["Nevada", 38.31, -117.06],
+  NH: ["New Hampshire", 43.45, -71.56],
+  NJ: ["New Jersey", 40.3, -74.52],
+  NM: ["New Mexico", 34.84, -106.25],
+  NY: ["New York", 42.17, -74.95],
+  NC: ["North Carolina", 35.63, -79.81],
+  ND: ["North Dakota", 47.53, -99.78],
+  OH: ["Ohio", 40.39, -82.76],
+  OK: ["Oklahoma", 35.57, -96.93],
+  OR: ["Oregon", 44.57, -122.07],
+  PA: ["Pennsylvania", 40.59, -77.21],
+  RI: ["Rhode Island", 41.68, -71.51],
+  SC: ["South Carolina", 33.86, -80.95],
+  SD: ["South Dakota", 44.3, -99.44],
+  TN: ["Tennessee", 35.75, -86.69],
+  TX: ["Texas", 31.05, -97.56],
+  UT: ["Utah", 40.15, -111.86],
+  VT: ["Vermont", 44.05, -72.71],
+  VA: ["Virginia", 37.77, -78.17],
+  WA: ["Washington", 47.38, -121.51],
+  WV: ["West Virginia", 38.49, -80.95],
+  WI: ["Wisconsin", 44.27, -89.62],
+  WY: ["Wyoming", 42.76, -107.3],
+  DC: ["D.C.", 38.9, -77.04],
 };
 
-// Market-leading housing browse — adapts the Zillow/Redfin split map+list + photo-forward cards, with
-// PropStream-style lead-signal focus (score + distress signals + the 70%-rule max offer). All filtering/
-// sorting is instant (client-side over a single fetch), like the best portals.
+function nearbyStates(code: string, n: number): Set<string> {
+  const me = ST[code];
+  if (!me) return new Set([code]);
+  const ranked = Object.keys(ST)
+    .map((c) => ({ c, d: (ST[c][1] - me[1]) ** 2 + (ST[c][2] - me[2]) ** 2 }))
+    .sort((a, b) => a.d - b.d)
+    .slice(0, n)
+    .map((x) => x.c);
+  return new Set(ranked);
+}
 
 const DealerMap = dynamic(() => import("@/components/map/DealerMap"), {
   ssr: false,
@@ -75,7 +88,6 @@ const DealerMap = dynamic(() => import("@/components/map/DealerMap"), {
 
 const ACCENT = "#2dd4bf";
 const fetcher = (u: string) => fetch(u).then((r) => r.json());
-
 const TIER_COLOR: Record<string, string> = {
   hot: "var(--red)",
   warm: "var(--amber)",
@@ -111,6 +123,7 @@ const PRICES = [
   { key: 50000, label: "≤ $50k" },
   { key: 100000, label: "≤ $100k" },
 ];
+const PAGE = 60;
 
 interface Lead {
   id: string;
@@ -140,27 +153,37 @@ export default function HomeIQLeadsPage() {
 function LeadsInner() {
   const params = useSearchParams();
   const scopeState = (params.get("state") || "").toUpperCase();
+  const [scopeMode, setScopeMode] = useState<"state" | "nearby" | "national">(
+    scopeState ? "state" : "national",
+  );
   const [tier, setTier] = useState("");
   const [type, setType] = useState("");
   const [sort, setSort] = useState("score");
   const [maxPrice, setMaxPrice] = useState(0);
   const [q, setQ] = useState("");
+  const [visible, setVisible] = useState(PAGE);
 
-  // Location-aware scope: a state in the URL → fetch ALL of that state (server-filtered); else nationwide
-  // top results. "Immediate" (your state) → "extending" (nationwide via the Markets page / clearing scope).
-  const apiUrl = scopeState
-    ? `/api/homeiq/leads?state=${scopeState}&limit=2000`
-    : `/api/homeiq/leads?limit=300`;
-  const { data, isLoading } = useSWR(apiUrl, fetcher, {
+  // Fetch the whole market once; scope + widen + scroll are all instant client-side.
+  const { data, isLoading } = useSWR(`/api/homeiq/leads?limit=2000`, fetcher, {
     revalidateOnFocus: false,
     dedupingInterval: 120_000,
   });
   const all: Lead[] = data?.leads ?? [];
   const points = data?.points ?? [];
-  const byTier = data?.byTier ?? { hot: 0, warm: 0, standard: 0 };
+  const byState: Record<string, number> = data?.byState ?? {};
+
+  // The geographic scope set (null = nationwide).
+  const scopeSet = useMemo<Set<string> | null>(() => {
+    if (!scopeState || scopeMode === "national") return null;
+    return scopeMode === "nearby"
+      ? nearbyStates(scopeState, 6)
+      : new Set([scopeState]);
+  }, [scopeState, scopeMode]);
 
   const leads = useMemo(() => {
     let r = all;
+    if (scopeSet)
+      r = r.filter((l) => scopeSet.has((l.state || "").toUpperCase()));
     if (tier) r = r.filter((l) => l.tier === tier);
     if (type) r = r.filter((l) => l.property_type === type);
     if (maxPrice) r = r.filter((l) => (l.price || 0) <= maxPrice);
@@ -180,11 +203,35 @@ function LeadsInner() {
       );
     else s.sort((a, b) => b.score - a.score);
     return s;
-  }, [all, tier, type, maxPrice, q, sort]);
+  }, [all, scopeSet, tier, type, maxPrice, q, sort]);
 
-  // Map shows the filtered set (ids → points).
-  const visibleIds = new Set(leads.map((l) => l.id));
+  // Reset the visible window whenever the result set changes.
+  useEffect(() => setVisible(PAGE), [scopeSet, tier, type, maxPrice, q, sort]);
+
+  // Infinite scroll — extend the list as the sentinel comes into view.
+  const sentinel = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = sentinel.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      (es) => {
+        if (es[0].isIntersecting)
+          setVisible((v) => (v < leads.length ? v + PAGE : v));
+      },
+      { rootMargin: "400px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [leads.length]);
+
+  const shown = leads.slice(0, visible);
+  const visibleIds = new Set(shown.map((l) => l.id));
   const mapPoints = points.filter((p: any) => visibleIds.has(p.id));
+  const nearbyCount = scopeState
+    ? Object.keys(byState)
+        .filter((s) => nearbyStates(scopeState, 6).has(s))
+        .reduce((n, s) => n + byState[s], 0)
+    : 0;
 
   return (
     <main className="min-h-screen bg-[var(--s1)] text-[var(--t1)]">
@@ -212,44 +259,45 @@ function LeadsInner() {
         </Link>
       </header>
 
-      {/* Location scope banner */}
+      {/* Location scope — progressive: your state → nearby → nationwide */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-4 flex items-center justify-between gap-2 flex-wrap">
-        <div className="text-sm">
-          {scopeState ? (
-            <span className="font-black text-[var(--t1)]">
-              📍 {STATE_NAMES[scopeState] || scopeState}
-              <span className="font-medium text-[var(--t3)]">
-                {" "}
-                · {leads.length} leads in your state
-              </span>
-            </span>
-          ) : (
-            <span className="font-bold text-[var(--t2)]">
-              Nationwide — top leads
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-3 text-sm font-semibold">
-          <Link
-            href="/homeiq/states"
-            className="text-[var(--t3)] hover:text-[var(--t1)]"
-          >
-            🗺️ Browse all states
-          </Link>
-          {scopeState && (
-            <Link
-              href="/homeiq/leads"
-              className="px-3 py-1 rounded-full text-black"
-              style={{ background: ACCENT }}
-            >
-              Expand nationwide ↗
-            </Link>
-          )}
-        </div>
+        {scopeState ? (
+          <div className="flex items-center gap-1.5 p-1 rounded-[var(--r3)] bg-[var(--s2)] border border-[var(--b1)] text-xs font-bold">
+            {(
+              [
+                ["state", `📍 ${ST[scopeState]?.[0] || scopeState}`],
+                ["nearby", `Nearby${nearbyCount ? ` (${nearbyCount})` : ""}`],
+                ["national", "Nationwide"],
+              ] as const
+            ).map(([k, lbl]) => (
+              <button
+                key={k}
+                onClick={() => setScopeMode(k)}
+                className="px-3 py-1.5 rounded-[var(--r2)] transition-colors"
+                style={{
+                  background: scopeMode === k ? ACCENT : "transparent",
+                  color: scopeMode === k ? "#000" : "var(--t3)",
+                }}
+              >
+                {lbl}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <span className="text-sm font-bold text-[var(--t2)]">
+            Nationwide — top leads
+          </span>
+        )}
+        <Link
+          href="/homeiq/states"
+          className="text-sm font-semibold text-[var(--t3)] hover:text-[var(--t1)]"
+        >
+          🗺️ Browse all states
+        </Link>
       </div>
 
-      {/* Filter bar — Zillow/Redfin pattern */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-4 flex items-center gap-2 flex-wrap">
+      {/* Filter bar */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-3 flex items-center gap-2 flex-wrap">
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
@@ -280,14 +328,12 @@ function LeadsInner() {
         <Select value={sort} onChange={setSort} options={SORTS} />
       </div>
 
-      {/* Stat strip */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-4 grid grid-cols-3 gap-3">
-        <Stat label="Showing" value={leads.length} accent="var(--t1)" />
-        <Stat label="🔥 Hot" value={byTier.hot ?? "—"} accent="var(--red)" />
-        <Stat label="Warm" value={byTier.warm ?? "—"} accent="var(--amber)" />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-3 text-xs font-bold uppercase tracking-widest text-[var(--t4)]">
+        {leads.length.toLocaleString()} leads{scopeSet ? "" : " (top)"} ·
+        showing {shown.length}
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-5 grid lg:grid-cols-[1fr_minmax(360px,46%)] gap-5">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 grid lg:grid-cols-[1fr_minmax(360px,46%)] gap-5">
         <div className="space-y-3 order-2 lg:order-1">
           {isLoading && (
             <p className="text-[var(--t4)] text-sm py-10 text-center">
@@ -296,12 +342,21 @@ function LeadsInner() {
           )}
           {!isLoading && leads.length === 0 && (
             <p className="text-[var(--t4)] text-sm py-10 text-center">
-              No leads match these filters.
+              No leads match — try widening the scope.
             </p>
           )}
-          {leads.map((l) => (
+          {shown.map((l) => (
             <LeadCard key={l.id} lead={l} />
           ))}
+          <div ref={sentinel} className="h-8" />
+          {visible < leads.length && (
+            <button
+              onClick={() => setVisible((v) => v + PAGE)}
+              className="w-full py-2.5 rounded-[var(--r3)] border border-[var(--b1)] text-sm font-bold text-[var(--t3)] hover:border-[var(--b3)]"
+            >
+              Load more ({leads.length - visible} more)
+            </button>
+          )}
         </div>
         <div className="order-1 lg:order-2 lg:sticky lg:top-5 h-[42vh] lg:h-[78vh]">
           <DealerMap points={mapPoints} />
@@ -335,28 +390,6 @@ function Select({
   );
 }
 
-function Stat({
-  label,
-  value,
-  accent,
-}: {
-  label: string;
-  value: any;
-  accent: string;
-}) {
-  return (
-    <div className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] px-4 py-3">
-      <div className="text-2xl font-black" style={{ color: accent }}>
-        {value}
-      </div>
-      <div className="text-[11px] font-bold uppercase tracking-widest text-[var(--t4)]">
-        {label}
-      </div>
-    </div>
-  );
-}
-
-// Photo-forward card (Zillow/Redfin style) — image left with score badge, details right.
 function LeadCard({ lead }: { lead: Lead }) {
   const color = TIER_COLOR[lead.tier] || "var(--blue)";
   return (
