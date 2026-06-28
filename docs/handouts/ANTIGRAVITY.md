@@ -46,7 +46,16 @@ Two captures into `docs/findings/` (one file each), same drill as the auto sourc
 
 ## Tasks (priority order)
 
-### A9 — Capture GSA Auctions getAuctions (HIGH — Claude did the recon; you just need a live token) 🌐 browser
+### ✅ A9 — GSA Auctions (DONE — net-new federal source SHIPPED) 🌐 browser
+
+Your capture (`gsa-auctions-api.md`) corrected Claude's recon perfectly: the search endpoint
+`ppms.gov/.../api/v1/auctions` is **fully anonymous** (no JWT) — only `getAuctions` was token-gated. Claude
+built `lib/scrapers/sources/gsa-auctions.ts` (categoryCodeList ["300"]=vehicles) and confirmed live: 72
+federal lots, 48 deals (clean-title fleet sedans/SUVs/trucks). 🎉 Also ✅ **A10** — you confirmed the
+GovDeals/AllSurplus image base renders (validated). **Next housing capture: GSA `realestatesales.gov`**
+(federal REAL ESTATE — the housing sibling) + A11 (HUD / portals).
+
+### A9-orig — original GSA token note (superseded by your capture above) 🌐 browser
 
 **GSAAuctions.gov** = federal surplus (GSA fleet sedans/SUVs/trucks — clean-title, well-maintained, often
 cheap = high-quality leads). Claude already reverse-engineered it from the JS bundle, so this is now a
