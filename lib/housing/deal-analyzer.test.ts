@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { analyzeHousingDeal, inferRehabLevel } from "./deal-analyzer";
+import { marketPsf } from "./arv-psf";
 import type { Property } from "./types";
 
 const base: Property = {
@@ -29,21 +30,36 @@ describe("inferRehabLevel", () => {
 });
 
 describe("analyzeHousingDeal — 70% rule", () => {
-  it("computes ARV (sqft × regional psf), repairs, and MAO", () => {
-    const a = analyzeHousingDeal({
-      ...base,
-      sqft: 1500,
-      state: "IL",
-      price: 60000,
-      title: "fixer",
-    });
-    // IL psf 180 → ARV 270k; heavy repairs 1500×60 = 90k → MAO = 270k×0.7 − 90k = 99k.
+  it("computes ARV from an injected $/sqft, repairs, and MAO", () => {
+    // Inject psf 180 for deterministic math: ARV 270k; heavy repairs 1500×60 = 90k → MAO = 99k.
+    const a = analyzeHousingDeal(
+      { ...base, sqft: 1500, state: "IL", price: 60000, title: "fixer" },
+      { psf: 180 },
+    );
     expect(a.arv).toBe(270000);
     expect(a.repairEstimate).toBe(90000);
     expect(a.mao).toBe(99000);
-    expect(a.arvConfidence).toBe("low");
+    expect(a.arvBasis).toBe("market_psf");
+    expect(a.arvConfidence).toBe("medium");
     // ask 60k <= mao*0.85 (84.15k) → strong.
     expect(a.verdict).toBe("strong");
+  });
+
+  it("prefers the real Redfin median sale $/sqft when available (medium confidence)", () => {
+    const psf = marketPsf("IL");
+    expect(psf).toBeGreaterThan(0); // snapshot ships with all 50 states + DC
+    const a = analyzeHousingDeal({ ...base, sqft: 1500, state: "IL" });
+    expect(a.arvBasis).toBe("market_psf");
+    expect(a.arvConfidence).toBe("medium");
+    expect(a.arv).toBe(1500 * (psf as number));
+  });
+
+  it("falls back to the coarse regional reference for an unmapped region (low confidence)", () => {
+    // "ZZ" is in neither the Redfin snapshot nor STATE_PSF → national $200/sqft fallback.
+    const a = analyzeHousingDeal({ ...base, sqft: 1000, state: "ZZ" });
+    expect(a.arvBasis).toBe("regional_psf");
+    expect(a.arvConfidence).toBe("low");
+    expect(a.arv).toBe(200000);
   });
 
   it("an explicit ARV overrides and is high-confidence", () => {
