@@ -12,6 +12,7 @@ import {
   Donut,
   SegmentBar,
 } from "@/components/home/HousingCharts";
+import { HousingHeatmap } from "@/components/home/HousingHeatmap";
 
 // HomeIQ Market Intelligence — a read-only analytics view over the whole scored housing market. Reuses
 // the existing /api/homeiq/leads endpoint (which already returns the full 2000-row market plus byState/
@@ -136,7 +137,12 @@ export default function MarketIntelligence() {
     const byState = count("state");
 
     const byTier = { hot: 0, warm: 0, standard: 0 } as Record<string, number>;
-    for (const l of leads) byTier[l.tier] = (byTier[l.tier] || 0) + 1;
+    const byStateHot: Record<string, number> = {};
+    for (const l of leads) {
+      byTier[l.tier] = (byTier[l.tier] || 0) + 1;
+      if (l.tier === "hot" && l.state)
+        byStateHot[l.state] = (byStateHot[l.state] || 0) + 1;
+    }
 
     const byVerdict: Record<string, number> = {};
     for (const l of leads)
@@ -153,6 +159,7 @@ export default function MarketIntelligence() {
       bySource,
       byType,
       byState,
+      byStateHot,
       byTier,
       byVerdict,
       flippable,
@@ -291,46 +298,49 @@ export default function MarketIntelligence() {
             No market data yet.
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <ChartCard
-              title="Price distribution"
-              hint={`${f.priced.length.toLocaleString()} priced`}
-            >
-              <Histogram bins={f.bins} />
-            </ChartCard>
+          <div className="flex flex-col gap-4">
+            <HousingHeatmap byState={f.byState} byStateHot={f.byStateHot} />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <ChartCard
+                title="Price distribution"
+                hint={`${f.priced.length.toLocaleString()} priced`}
+              >
+                <Histogram bins={f.bins} />
+              </ChartCard>
 
-            <ChartCard title="Inventory by source">
-              <BarList items={sourceItems} />
-            </ChartCard>
+              <ChartCard title="Inventory by source">
+                <BarList items={sourceItems} />
+              </ChartCard>
 
-            <ChartCard title="Property type mix">
-              <Donut
-                slices={typeSlices}
-                centerValue={total}
-                centerLabel="leads"
-              />
-            </ChartCard>
+              <ChartCard title="Property type mix">
+                <Donut
+                  slices={typeSlices}
+                  centerValue={total}
+                  centerLabel="leads"
+                />
+              </ChartCard>
 
-            <ChartCard title="Top markets" hint="by listings">
-              <BarList items={stateItems} barColor="var(--blue)" />
-            </ChartCard>
+              <ChartCard title="Top markets" hint="by listings">
+                <BarList items={stateItems} barColor="var(--blue)" />
+              </ChartCard>
 
-            <ChartCard title="Lead quality">
-              <SegmentBar segments={tierSegs} />
-            </ChartCard>
+              <ChartCard title="Lead quality">
+                <SegmentBar segments={tierSegs} />
+              </ChartCard>
 
-            <ChartCard
-              title="Flip opportunity"
-              hint="70% rule, where ARV is known"
-            >
-              {verdictItems.length ? (
-                <BarList items={verdictItems} />
-              ) : (
-                <div className="h-full grid place-items-center text-xs text-[var(--t5)] text-center px-4">
-                  No flip math yet — needs square-footage to compute ARV.
-                </div>
-              )}
-            </ChartCard>
+              <ChartCard
+                title="Flip opportunity"
+                hint="70% rule, where ARV is known"
+              >
+                {verdictItems.length ? (
+                  <BarList items={verdictItems} />
+                ) : (
+                  <div className="h-full grid place-items-center text-xs text-[var(--t5)] text-center px-4">
+                    No flip math yet — needs square-footage to compute ARV.
+                  </div>
+                )}
+              </ChartCard>
+            </div>
           </div>
         )}
       </section>
