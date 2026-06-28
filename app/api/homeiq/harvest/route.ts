@@ -9,6 +9,7 @@ import { scrapeRedfin } from "@/lib/housing/sources/redfin";
 import { scrapePublicSurplusProperties } from "@/lib/housing/sources/publicsurplus-property";
 import { scrapeMunicibidProperties } from "@/lib/housing/sources/municibid-property";
 import { scrapeDetroitLandBank } from "@/lib/housing/sources/detroit-landbank";
+import { scrapeCuyahogaLandBank } from "@/lib/housing/sources/cuyahoga-landbank";
 import { upsertProperties } from "@/lib/housing/store";
 
 // POST /api/homeiq/harvest — refresh the HomeIQ `properties` table from the free sources. Called by the
@@ -33,16 +34,18 @@ export async function POST(req: NextRequest) {
 
   try {
     // Free housing sources: GovDeals + AllSurplus (maestro) + HUD Homes (rich data: sqft/beds → MAO).
-    const [gd, ad, hud, gsare, redfin, psre, mbre, dlb] = await Promise.all([
-      harvestGovDealsProperties("GD", 5),
-      harvestGovDealsProperties("AD", 3).catch(() => []),
-      scrapeHudHomes().catch(() => []),
-      scrapeGsaRealEstate().catch(() => []),
-      scrapeRedfin().catch(() => []), // fleet-only (PerimeterX); [] elsewhere
-      scrapePublicSurplusProperties().catch(() => []),
-      scrapeMunicibidProperties().catch(() => []),
-      scrapeDetroitLandBank().catch(() => []),
-    ]);
+    const [gd, ad, hud, gsare, redfin, psre, mbre, dlb, cclb] =
+      await Promise.all([
+        harvestGovDealsProperties("GD", 5),
+        harvestGovDealsProperties("AD", 3).catch(() => []),
+        scrapeHudHomes().catch(() => []),
+        scrapeGsaRealEstate().catch(() => []),
+        scrapeRedfin().catch(() => []), // fleet-only (PerimeterX); [] elsewhere
+        scrapePublicSurplusProperties().catch(() => []),
+        scrapeMunicibidProperties().catch(() => []),
+        scrapeDetroitLandBank().catch(() => []),
+        scrapeCuyahogaLandBank().catch(() => []),
+      ]);
     const properties = [
       ...gd,
       ...ad,
@@ -52,6 +55,7 @@ export async function POST(req: NextRequest) {
       ...psre,
       ...mbre,
       ...dlb,
+      ...cclb,
     ];
     const written = await upsertProperties(properties);
 
@@ -69,6 +73,7 @@ export async function POST(req: NextRequest) {
         publicsurplus: psre.length,
         municibid: mbre.length,
         detroit_landbank: dlb.length,
+        cuyahoga_landbank: cclb.length,
       },
     });
   } catch (e) {
