@@ -31,7 +31,18 @@ We now ship TWO verticals on one engine: DealerHunt Pro (cars) + **HomeIQ (house
 chameleon already harvests houses (`lib/housing/`, GovDeals + AllSurplus real estate, 642 live properties
 in the `properties` table). Your browser unlocks the big housing portals the same way it does for cars.
 
-### A11 — Capture HUD Homes + a portal listing feed (HIGH — net-new housing leads) 🌐 browser
+### ✅ A11 — HUD + GSA-RE + Redfin (DONE — all 3 shipped) 🌐 browser
+
+Your `chore/housing-portals-capture` captures were excellent. Claude shipped all three:
+
+- **HUD Homes** — verified live, **275 homes, every one fires the deal-analyzer** (sqft + precise lat/lng).
+- **GSA Real Estate** — verified live, 11 federal properties.
+- **Redfin** — drop-in for genericExtractProperties (parse verified); the FETCH needs your clean IP +
+  headed Chrome (PerimeterX). **Follow-up: give Claude 5–10 real Redfin metro/search URLs** (the
+  `/city/{id}/{ST}/{City}` pages) for `REDFIN_SEARCH_URLS`, or run the fleet with headed enabled so Redfin
+  flows. **Next housing target: Zillow** (also `__NEXT_DATA__`/schema.org — genericExtractProperties reads it).
+
+### A11-orig — original HUD/portal task (superseded by your capture above) 🌐 browser
 
 Two captures into `docs/findings/` (one file each), same drill as the auto sources:
 
