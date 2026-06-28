@@ -150,7 +150,10 @@ export function analyzeHousingDeal(
     notes.push("ARV provided");
   } else if (p.property_type !== "land" && p.sqft && p.sqft > 100) {
     const stateCode = (p.state || "").toUpperCase();
-    const sold = opts.psf && opts.psf > 0 ? opts.psf : marketPsf(stateCode);
+    const sold =
+      opts.psf && opts.psf > 0
+        ? opts.psf
+        : marketPsf(stateCode, p.property_type);
     if (sold != null && sold > 0) {
       arv = Math.round(p.sqft * sold);
       arvBasis = "market_psf";

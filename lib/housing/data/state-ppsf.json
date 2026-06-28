@@ -3,56 +3,359 @@
   "url": "https://redfin-public-data.s3.us-west-2.amazonaws.com/redfin_market_tracker/state_market_tracker.tsv000.gz",
   "updated": "2026-06-28",
   "byState": {
-    "AK": 250,
-    "AL": 163,
-    "AR": 161,
-    "AZ": 256,
-    "CA": 518,
-    "CO": 285,
-    "CT": 277,
-    "DC": 519,
-    "DE": 208,
-    "FL": 253,
-    "GA": 192,
-    "HI": 637,
-    "IA": 165,
-    "ID": 287,
-    "IL": 208,
-    "IN": 154,
-    "KS": 158,
-    "KY": 168,
-    "LA": 151,
-    "MA": 412,
-    "MD": 234,
-    "ME": 262,
-    "MI": 184,
-    "MN": 196,
-    "MO": 170,
-    "MS": 150,
-    "MT": 299,
-    "NC": 214,
-    "ND": 155,
-    "NE": 162,
-    "NH": 301,
-    "NJ": 352,
-    "NM": 219,
-    "NV": 270,
-    "NY": 418,
-    "OH": 172,
-    "OK": 153,
-    "OR": 304,
-    "PA": 197,
-    "RI": 313,
-    "SC": 214,
-    "SD": 186,
-    "TN": 215,
-    "TX": 178,
-    "UT": 261,
-    "VA": 250,
-    "VT": 250,
-    "WA": 366,
-    "WI": 203,
-    "WV": 148,
-    "WY": 268
+    "AK": {
+      "condo": 247,
+      "all": 250,
+      "multi_family": 222,
+      "single_family": 252
+    },
+    "AL": {
+      "single_family": 159,
+      "condo": 335,
+      "multi_family": 213,
+      "townhouse": 178,
+      "all": 163
+    },
+    "AR": {
+      "condo": 190,
+      "all": 161,
+      "single_family": 161,
+      "multi_family": 80,
+      "townhouse": 183
+    },
+    "AZ": {
+      "townhouse": 260,
+      "condo": 272,
+      "all": 256,
+      "single_family": 255,
+      "multi_family": 369
+    },
+    "CA": {
+      "condo": 568,
+      "all": 518,
+      "multi_family": 1338,
+      "single_family": 512,
+      "townhouse": 557
+    },
+    "CO": {
+      "townhouse": 312,
+      "single_family": 259,
+      "multi_family": 244,
+      "condo": 431,
+      "all": 285
+    },
+    "CT": {
+      "all": 277,
+      "condo": 259,
+      "multi_family": 193,
+      "single_family": 296
+    },
+    "DC": {
+      "all": 519,
+      "multi_family": 336,
+      "condo": 531,
+      "single_family": 518,
+      "townhouse": 480
+    },
+    "DE": {
+      "townhouse": 190,
+      "multi_family": 140,
+      "condo": 214,
+      "all": 208,
+      "single_family": 216
+    },
+    "FL": {
+      "all": 253,
+      "townhouse": 226,
+      "multi_family": 284,
+      "condo": 262,
+      "single_family": 249
+    },
+    "GA": {
+      "single_family": 188,
+      "condo": 250,
+      "all": 192,
+      "multi_family": 195,
+      "townhouse": 201
+    },
+    "HI": {
+      "single_family": 620,
+      "townhouse": 446,
+      "condo": 650,
+      "multi_family": 491,
+      "all": 637
+    },
+    "IA": {
+      "single_family": 164,
+      "townhouse": 201,
+      "multi_family": 120,
+      "all": 165,
+      "condo": 164
+    },
+    "ID": {
+      "townhouse": 325,
+      "condo": 520,
+      "all": 287,
+      "multi_family": 254,
+      "single_family": 279
+    },
+    "IL": {
+      "condo": 274,
+      "townhouse": 220,
+      "all": 208,
+      "multi_family": 184,
+      "single_family": 194
+    },
+    "IN": {
+      "condo": 164,
+      "townhouse": 177,
+      "all": 154,
+      "multi_family": 106,
+      "single_family": 153
+    },
+    "KS": {
+      "all": 158,
+      "townhouse": 183,
+      "multi_family": 129,
+      "condo": 180,
+      "single_family": 159
+    },
+    "KY": {
+      "all": 168,
+      "single_family": 168,
+      "multi_family": 127,
+      "townhouse": 172,
+      "condo": 175
+    },
+    "LA": {
+      "all": 151,
+      "single_family": 150,
+      "townhouse": 108,
+      "condo": 230,
+      "multi_family": 147
+    },
+    "MA": {
+      "single_family": 387,
+      "condo": 588,
+      "all": 412,
+      "multi_family": 298,
+      "townhouse": 375
+    },
+    "MD": {
+      "single_family": 249,
+      "all": 234,
+      "townhouse": 213,
+      "condo": 236,
+      "multi_family": 166
+    },
+    "ME": {
+      "multi_family": 225,
+      "single_family": 252,
+      "all": 262,
+      "condo": 366,
+      "townhouse": 277
+    },
+    "MI": {
+      "condo": 196,
+      "all": 184,
+      "multi_family": 97,
+      "single_family": 185
+    },
+    "MN": {
+      "multi_family": 185,
+      "single_family": 198,
+      "townhouse": 187,
+      "all": 196,
+      "condo": 203
+    },
+    "MO": {
+      "multi_family": 127,
+      "single_family": 170,
+      "condo": 194,
+      "townhouse": 162,
+      "all": 170
+    },
+    "MS": {
+      "townhouse": 223,
+      "multi_family": 99,
+      "condo": 241,
+      "single_family": 147,
+      "all": 150
+    },
+    "MT": {
+      "all": 299,
+      "single_family": 301,
+      "multi_family": 184,
+      "townhouse": 279,
+      "condo": 322
+    },
+    "NC": {
+      "condo": 280,
+      "single_family": 214,
+      "multi_family": 212,
+      "all": 214,
+      "townhouse": 199
+    },
+    "ND": {
+      "multi_family": 119,
+      "townhouse": 202,
+      "single_family": 154,
+      "all": 155,
+      "condo": 151
+    },
+    "NE": {
+      "condo": 181,
+      "townhouse": 166,
+      "single_family": 163,
+      "all": 162,
+      "multi_family": 113
+    },
+    "NH": {
+      "multi_family": 196,
+      "single_family": 296,
+      "all": 301,
+      "townhouse": 298,
+      "condo": 332
+    },
+    "NJ": {
+      "townhouse": 297,
+      "all": 352,
+      "multi_family": 328,
+      "condo": 445,
+      "single_family": 349
+    },
+    "NM": {
+      "townhouse": 246,
+      "all": 219,
+      "multi_family": 187,
+      "condo": 328,
+      "single_family": 214
+    },
+    "NV": {
+      "single_family": 276,
+      "multi_family": 223,
+      "condo": 244,
+      "all": 270,
+      "townhouse": 253
+    },
+    "NY": {
+      "multi_family": 323,
+      "single_family": 306,
+      "condo": 870,
+      "all": 418,
+      "townhouse": 503
+    },
+    "OH": {
+      "multi_family": 94,
+      "townhouse": 176,
+      "all": 172,
+      "single_family": 173,
+      "condo": 180
+    },
+    "OK": {
+      "single_family": 154,
+      "townhouse": 130,
+      "condo": 127,
+      "multi_family": 110,
+      "all": 153
+    },
+    "OR": {
+      "all": 304,
+      "condo": 316,
+      "townhouse": 288,
+      "multi_family": 251,
+      "single_family": 306
+    },
+    "PA": {
+      "all": 197,
+      "multi_family": 119,
+      "condo": 268,
+      "townhouse": 201,
+      "single_family": 196
+    },
+    "RI": {
+      "single_family": 330,
+      "all": 313,
+      "condo": 328,
+      "multi_family": 225,
+      "townhouse": 254
+    },
+    "SC": {
+      "all": 214,
+      "townhouse": 187,
+      "condo": 269,
+      "multi_family": 215,
+      "single_family": 212
+    },
+    "SD": {
+      "townhouse": 199,
+      "single_family": 186,
+      "all": 186,
+      "condo": 181,
+      "multi_family": 130
+    },
+    "TN": {
+      "single_family": 215,
+      "multi_family": 160,
+      "townhouse": 214,
+      "all": 215,
+      "condo": 255
+    },
+    "TX": {
+      "townhouse": 177,
+      "multi_family": 153,
+      "single_family": 177,
+      "all": 178,
+      "condo": 232
+    },
+    "UT": {
+      "all": 261,
+      "townhouse": 242,
+      "single_family": 249,
+      "condo": 358,
+      "multi_family": 252
+    },
+    "VA": {
+      "townhouse": 284,
+      "multi_family": 164,
+      "condo": 312,
+      "single_family": 234,
+      "all": 250
+    },
+    "VT": {
+      "all": 250,
+      "single_family": 238,
+      "condo": 301,
+      "multi_family": 162,
+      "townhouse": 274
+    },
+    "WA": {
+      "multi_family": 267,
+      "all": 366,
+      "condo": 425,
+      "single_family": 358,
+      "townhouse": 444
+    },
+    "WI": {
+      "single_family": 206,
+      "multi_family": 127,
+      "townhouse": 206,
+      "all": 203,
+      "condo": 223
+    },
+    "WV": {
+      "townhouse": 163,
+      "multi_family": 68,
+      "single_family": 148,
+      "all": 148,
+      "condo": 166
+    },
+    "WY": {
+      "single_family": 252,
+      "all": 268,
+      "condo": 813,
+      "multi_family": 176,
+      "townhouse": 427
+    }
   }
 }

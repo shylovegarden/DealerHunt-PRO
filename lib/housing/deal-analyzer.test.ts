@@ -45,8 +45,9 @@ describe("analyzeHousingDeal — 70% rule", () => {
     expect(a.verdict).toBe("strong");
   });
 
-  it("prefers the real Redfin median sale $/sqft when available (medium confidence)", () => {
-    const psf = marketPsf("IL");
+  it("prefers the real Redfin median sale $/sqft, by property type (medium confidence)", () => {
+    // base.property_type is single_family, so the analyzer should use IL's single-family $/sqft.
+    const psf = marketPsf("IL", "single_family");
     expect(psf).toBeGreaterThan(0); // snapshot ships with all 50 states + DC
     const a = analyzeHousingDeal({ ...base, sqft: 1500, state: "IL" });
     expect(a.arvBasis).toBe("market_psf");
