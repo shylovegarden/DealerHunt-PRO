@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import Link from "next/link";
+import { US_STATES as STATES, nearestState } from "@/lib/housing/us-states";
 
 // Full-country view — every state with its live lead count, heat-colored, click into one. "Detect my
 // state" uses the browser's location → nearest state centroid (free, no API) so a user in Missouri lands
@@ -11,74 +12,6 @@ import Link from "next/link";
 
 const ACCENT = "#2dd4bf";
 const fetcher = (u: string) => fetch(u).then((r) => r.json());
-
-// code → [name, lat, lng]. Centroids power "detect my state"; names + the grid drive the view.
-const STATES: Record<string, [string, number, number]> = {
-  AL: ["Alabama", 32.81, -86.79],
-  AK: ["Alaska", 61.37, -152.4],
-  AZ: ["Arizona", 33.73, -111.43],
-  AR: ["Arkansas", 34.97, -92.37],
-  CA: ["California", 36.12, -119.68],
-  CO: ["Colorado", 39.06, -105.31],
-  CT: ["Connecticut", 41.6, -72.76],
-  DE: ["Delaware", 39.32, -75.51],
-  FL: ["Florida", 27.77, -81.69],
-  GA: ["Georgia", 33.04, -83.64],
-  HI: ["Hawaii", 21.09, -157.5],
-  ID: ["Idaho", 44.24, -114.48],
-  IL: ["Illinois", 40.35, -88.99],
-  IN: ["Indiana", 39.85, -86.26],
-  IA: ["Iowa", 42.01, -93.21],
-  KS: ["Kansas", 38.53, -96.73],
-  KY: ["Kentucky", 37.67, -84.67],
-  LA: ["Louisiana", 31.17, -91.87],
-  ME: ["Maine", 44.69, -69.38],
-  MD: ["Maryland", 39.06, -76.8],
-  MA: ["Massachusetts", 42.23, -71.53],
-  MI: ["Michigan", 43.33, -84.54],
-  MN: ["Minnesota", 45.69, -93.9],
-  MS: ["Mississippi", 32.74, -89.68],
-  MO: ["Missouri", 38.46, -92.29],
-  MT: ["Montana", 46.92, -110.45],
-  NE: ["Nebraska", 41.13, -98.27],
-  NV: ["Nevada", 38.31, -117.06],
-  NH: ["New Hampshire", 43.45, -71.56],
-  NJ: ["New Jersey", 40.3, -74.52],
-  NM: ["New Mexico", 34.84, -106.25],
-  NY: ["New York", 42.17, -74.95],
-  NC: ["North Carolina", 35.63, -79.81],
-  ND: ["North Dakota", 47.53, -99.78],
-  OH: ["Ohio", 40.39, -82.76],
-  OK: ["Oklahoma", 35.57, -96.93],
-  OR: ["Oregon", 44.57, -122.07],
-  PA: ["Pennsylvania", 40.59, -77.21],
-  RI: ["Rhode Island", 41.68, -71.51],
-  SC: ["South Carolina", 33.86, -80.95],
-  SD: ["South Dakota", 44.3, -99.44],
-  TN: ["Tennessee", 35.75, -86.69],
-  TX: ["Texas", 31.05, -97.56],
-  UT: ["Utah", 40.15, -111.86],
-  VT: ["Vermont", 44.05, -72.71],
-  VA: ["Virginia", 37.77, -78.17],
-  WA: ["Washington", 47.38, -121.51],
-  WV: ["West Virginia", 38.49, -80.95],
-  WI: ["Wisconsin", 44.27, -89.62],
-  WY: ["Wyoming", 42.76, -107.3],
-  DC: ["D.C.", 38.9, -77.04],
-};
-
-function nearestState(lat: number, lng: number): string {
-  let best = "MO",
-    bestD = Infinity;
-  for (const [code, [, sLat, sLng]] of Object.entries(STATES)) {
-    const d = (lat - sLat) ** 2 + (lng - sLng) ** 2;
-    if (d < bestD) {
-      bestD = d;
-      best = code;
-    }
-  }
-  return best;
-}
 
 export default function StatesPage() {
   const router = useRouter();

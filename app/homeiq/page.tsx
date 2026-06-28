@@ -1,68 +1,82 @@
-import Link from "next/link";
+"use client";
 
-// HomeIQ landing — the house vertical's front door (Phase 1: FIND). The full lead dashboard is next;
-// this surfaces what's real today (the GovDeals real-estate source is live) and the free source roadmap,
-// honestly (no fabricated listings — statuses reflect actual build state). Same engine as DealerHunt Pro.
+import { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import useSWR from "swr";
+import { stateName, nearestState } from "@/lib/housing/us-states";
+
+// HomeIQ command center — the live, location-aware home. Real totals, the hottest markets, and featured
+// hot leads, with one-tap "find leads near me". Same engine as DealerHunt Pro, pointed at houses, all free.
 
 const ACCENT = "#2dd4bf";
-
-const SOURCES: {
-  name: string;
-  detail: string;
-  status: "live" | "soon" | "planned";
-}[] = [
-  {
-    name: "GovDeals real estate",
-    detail:
-      "Gov / foreclosure disposal — discounted single-family, land, multi-family",
-    status: "live",
-  },
-  {
-    name: "AllSurplus real estate",
-    detail: "Liquidity sister site — same engine, different catalog",
-    status: "soon",
-  },
-  {
-    name: "HUD Homes",
-    detail: "hudhomestore.gov — government-owned homes",
-    status: "soon",
-  },
-  {
-    name: "GSA real estate",
-    detail: "realestatesales.gov — federal property",
-    status: "planned",
-  },
-  {
-    name: "FSBO / Craigslist",
-    detail: "By-owner, motivated, negotiable",
-    status: "planned",
-  },
-  {
-    name: "Pre-foreclosure (NOD)",
-    detail: "County public records — time-sensitive leads",
-    status: "planned",
-  },
-];
-
-const STATUS: Record<string, { label: string; color: string }> = {
-  live: { label: "LIVE", color: ACCENT },
-  soon: { label: "SOON", color: "var(--amber)" },
-  planned: { label: "PLANNED", color: "var(--t4)" },
+const fetcher = (u: string) => fetch(u).then((r) => r.json());
+const TIER_COLOR: Record<string, string> = {
+  hot: "var(--red)",
+  warm: "var(--amber)",
+  standard: "var(--blue)",
 };
 
-export default function HomeIQLanding() {
+interface Lead {
+  id: string;
+  title: string;
+  price?: number;
+  property_type?: string;
+  city?: string;
+  state?: string;
+  image?: string;
+  score: number;
+  tier: string;
+  mao?: number | null;
+  verdict?: string;
+}
+
+export default function HomeIQHome() {
+  const router = useRouter();
+  const [locating, setLocating] = useState(false);
+  const { data } = useSWR(`/api/homeiq/leads?limit=300`, fetcher, {
+    revalidateOnFocus: false,
+  });
+  const leads: Lead[] = data?.leads ?? [];
+  const byState: Record<string, number> = data?.byState ?? {};
+  const byTier = data?.byTier ?? { hot: 0, warm: 0, standard: 0 };
+  const total = data?.total ?? 0;
+
+  const topMarkets = Object.entries(byState)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8);
+  const hot = leads.filter((l) => l.tier === "hot").slice(0, 6);
+
+  const detect = () => {
+    if (!navigator.geolocation) {
+      router.push("/homeiq/states");
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (p) =>
+        router.push(
+          `/homeiq/leads?state=${nearestState(p.coords.latitude, p.coords.longitude)}`,
+        ),
+      () => {
+        setLocating(false);
+        router.push("/homeiq/states");
+      },
+      { timeout: 8000 },
+    );
+  };
+
   return (
     <main className="min-h-screen bg-[var(--s1)] text-[var(--t1)]">
-      <header className="max-w-5xl mx-auto px-6 pt-6 flex items-center justify-between">
+      <header className="max-w-6xl mx-auto px-4 sm:px-6 pt-6 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <span
-            className="w-8 h-8 rounded-[10px] grid place-items-center text-black font-black shadow-sm"
+            className="w-8 h-8 rounded-[10px] grid place-items-center text-black font-black"
             style={{ background: ACCENT }}
-            aria-hidden
           >
             H
           </span>
-          <span className="font-black text-lg tracking-tight">HomeIQ</span>
+          <span className="font-black text-lg">HomeIQ</span>
           <span
             className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full"
             style={{ background: `${ACCENT}22`, color: ACCENT }}
@@ -72,90 +86,182 @@ export default function HomeIQLanding() {
         </div>
         <Link
           href="/welcome"
-          className="text-sm font-semibold text-[var(--t3)] hover:text-[var(--t1)] transition-colors"
+          className="text-sm font-semibold text-[var(--t3)] hover:text-[var(--t1)]"
         >
           ← Switch hunt
         </Link>
       </header>
 
-      <section className="max-w-5xl mx-auto px-6 pt-16 pb-10">
+      <section className="max-w-6xl mx-auto px-4 sm:px-6 pt-12">
         <span
           className="text-[11px] font-black uppercase tracking-[0.3em]"
           style={{ color: ACCENT }}
         >
           Real estate leads
         </span>
-        <h1 className="mt-3 text-[clamp(34px,6vw,68px)] font-black leading-[0.98]">
+        <h1 className="mt-3 text-[clamp(32px,6vw,64px)] font-black leading-[0.98]">
           Every distressed house,
           <br />
           deal-scored before anyone calls.
         </h1>
         <p className="mt-5 max-w-2xl text-[var(--t3)] text-lg leading-relaxed">
-          HomeIQ runs on the same engine as DealerHunt Pro — the chameleon
-          scraper, geocoding, and deal-math — pointed at houses. Discounted,
-          distressed, and foreclosure inventory, found and ranked.{" "}
+          Discounted, distressed, and foreclosure inventory — found, scored, and
+          ranked by equity.{" "}
           <span className="text-[var(--t2)] font-semibold">
-            All free — no paid data brokers.
+            All free, no paid data brokers.
           </span>
         </p>
 
-        <div className="mt-8 flex flex-wrap gap-3">
-          <Link
-            href="/homeiq/leads"
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-full font-bold text-black text-sm transition-transform hover:scale-[1.03]"
+        {/* Live stats */}
+        <div className="mt-7 grid grid-cols-3 gap-3 max-w-xl">
+          <Stat
+            label="Live leads"
+            value={total.toLocaleString()}
+            accent="var(--t1)"
+          />
+          <Stat label="🔥 Hot" value={byTier.hot ?? "—"} accent="var(--red)" />
+          <Stat
+            label="Markets"
+            value={Object.keys(byState).length || "—"}
+            accent={ACCENT}
+          />
+        </div>
+
+        <div className="mt-6 flex flex-wrap gap-3">
+          <button
+            onClick={detect}
+            disabled={locating}
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-full font-bold text-black text-sm disabled:opacity-60"
             style={{ background: ACCENT, boxShadow: `0 8px 30px ${ACCENT}55` }}
           >
-            View live leads
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M5 12h14M13 6l6 6-6 6" />
-            </svg>
+            📍 {locating ? "Locating…" : "Find leads near me"}
+          </button>
+          <Link
+            href="/homeiq/states"
+            className="inline-flex items-center px-5 py-3 rounded-full font-bold text-sm border border-[var(--b1)] text-[var(--t2)] hover:border-[var(--b3)]"
+          >
+            🗺️ Browse all states
+          </Link>
+          <Link
+            href="/homeiq/leads"
+            className="inline-flex items-center px-5 py-3 rounded-full font-bold text-sm border border-[var(--b1)] text-[var(--t2)] hover:border-[var(--b3)]"
+          >
+            All leads →
           </Link>
         </div>
       </section>
 
-      <section className="max-w-5xl mx-auto px-6 pb-24">
-        <h2 className="text-sm font-black uppercase tracking-widest text-[var(--t4)] mb-4">
-          Lead sources
-        </h2>
-        <div className="grid sm:grid-cols-2 gap-3">
-          {SOURCES.map((s) => {
-            const st = STATUS[s.status];
-            return (
-              <div
-                key={s.name}
-                className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] p-4 flex items-start justify-between gap-3"
+      {/* Top markets */}
+      {topMarkets.length > 0 && (
+        <section className="max-w-6xl mx-auto px-4 sm:px-6 pt-12">
+          <h2 className="text-sm font-black uppercase tracking-widest text-[var(--t4)] mb-3">
+            Hottest markets
+          </h2>
+          <div className="flex flex-wrap gap-2">
+            {topMarkets.map(([code, count]) => (
+              <Link
+                key={code}
+                href={`/homeiq/leads?state=${code}`}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-[var(--b1)] bg-[var(--s0)] hover:border-[var(--b3)] transition-colors"
               >
-                <div>
-                  <div className="font-bold text-[var(--t1)]">{s.name}</div>
-                  <div className="text-sm text-[var(--t3)] mt-0.5">
-                    {s.detail}
-                  </div>
-                </div>
-                <span
-                  className="shrink-0 text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full"
-                  style={{ background: `${st.color}1f`, color: st.color }}
-                >
-                  {st.label}
+                <span className="font-bold text-[var(--t1)] text-sm">
+                  {stateName(code)}
                 </span>
-              </div>
-            );
-          })}
-        </div>
-        <p className="mt-6 text-sm text-[var(--t4)]">
-          The full lead dashboard — map, hot-leads feed, lead scores, and the
-          ARV / 70%-rule deal analyzer — is the next phase. The engine already
-          harvests; the surface is coming.
-        </p>
-      </section>
+                <span
+                  className="text-xs font-black px-1.5 py-0.5 rounded-full"
+                  style={{ background: `${ACCENT}22`, color: ACCENT }}
+                >
+                  {count}
+                </span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Featured hot leads */}
+      {hot.length > 0 && (
+        <section className="max-w-6xl mx-auto px-4 sm:px-6 py-12">
+          <h2 className="text-sm font-black uppercase tracking-widest text-[var(--t4)] mb-3">
+            🔥 Hot right now
+          </h2>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {hot.map((l) => (
+              <Link
+                key={l.id}
+                href={`/homeiq/leads/${encodeURIComponent(l.id)}`}
+                className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] overflow-hidden hover:border-[var(--b3)] transition-colors"
+              >
+                <div className="relative h-36 bg-[var(--s2)]">
+                  {l.image ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={l.image}
+                      alt={l.title}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="w-full h-full grid place-items-center text-[var(--t4)] text-xs">
+                      No photo
+                    </div>
+                  )}
+                  <span
+                    className="absolute top-2 left-2 text-xs font-black px-2 py-0.5 rounded text-white"
+                    style={{ background: TIER_COLOR[l.tier] }}
+                  >
+                    {l.score}
+                  </span>
+                </div>
+                <div className="p-3">
+                  <div className="font-black text-[var(--t1)]">
+                    ${(l.price || 0).toLocaleString()}
+                    <span className="font-medium text-sm text-[var(--t3)]">
+                      {l.city
+                        ? ` · ${l.city}, ${l.state || ""}`
+                        : l.state
+                          ? ` · ${l.state}`
+                          : ""}
+                    </span>
+                  </div>
+                  <h3 className="text-sm text-[var(--t2)] truncate mt-0.5">
+                    {l.title}
+                  </h3>
+                  {l.mao != null && (
+                    <div
+                      className="text-[11px] font-bold mt-1"
+                      style={{ color: ACCENT }}
+                    >
+                      Max offer ${l.mao.toLocaleString()} · {l.verdict}
+                    </div>
+                  )}
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
     </main>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: any;
+  accent: string;
+}) {
+  return (
+    <div className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] px-4 py-3">
+      <div className="text-2xl font-black" style={{ color: accent }}>
+        {value}
+      </div>
+      <div className="text-[11px] font-bold uppercase tracking-widest text-[var(--t4)]">
+        {label}
+      </div>
+    </div>
   );
 }
