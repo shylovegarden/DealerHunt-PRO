@@ -107,5 +107,51 @@ describe("chameleonHarvest — full orchestration (injected fetcher)", () => {
     });
     expect(report.ok).toBe(true); // generic extractor backstopped it
     expect(report.count).toBe(1);
+    expect(report.extraction).toBe("structured");
+  });
+
+  it("falls to the AI rung when bespoke + structured both find nothing", async () => {
+    const report = await chameleonHarvest("https://oddsite.example/cars", {
+      aiFallback: true,
+      // a reached page with no JSON island the structured extractor can read
+      fetchImpl: async () => ({
+        html:
+          "<html><body>" +
+          "lots of unstructured text ".repeat(50) +
+          "</body></html>",
+        tier: "static",
+        blocked: false,
+      }),
+      aiExtractImpl: async () => [
+        {
+          source: "x",
+          year: 2014,
+          make: "GMC",
+          model: "Sierra",
+          ask_price: 18000,
+        },
+      ],
+    });
+    expect(report.extraction).toBe("ai");
+    expect(report.ok).toBe(true);
+    expect(report.diagnosis).toMatch(/AI rescue/i);
+  });
+
+  it("does NOT invoke the AI rung when aiFallback is off", async () => {
+    let called = false;
+    const report = await chameleonHarvest("https://oddsite.example/cars", {
+      fetchImpl: async () => ({
+        html: "<html><body>" + "x ".repeat(200) + "</body></html>",
+        tier: "static",
+        blocked: false,
+      }),
+      aiExtractImpl: async () => {
+        called = true;
+        return [{ source: "x", year: 2014, make: "GMC", ask_price: 1 }];
+      },
+    });
+    expect(called).toBe(false);
+    expect(report.extraction).toBe("none");
+    expect(report.ok).toBe(false);
   });
 });

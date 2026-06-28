@@ -48,6 +48,8 @@ export interface ChameleonReport {
   dataStrategy: DataStrategy;
   deals: Partial<Deal>[];
   count: number;
+  /** Which rung of the extraction ladder produced the data. */
+  extraction: "bespoke" | "structured" | "ai" | "none";
   /** One-line human summary of what happened. */
   diagnosis: string;
   /** When ok=false: the precise next move. Undefined when ok. */
@@ -67,6 +69,43 @@ export interface ChameleonOptions {
   extractor?: (html: string) => Partial<Deal>[];
   /** Injectable fetch (defaults to smartFetch) — for tests and for reusing a configured client. */
   fetchImpl?: Fetcher;
+  /** Allow the LLM extraction rung as a last resort when structured extraction finds nothing on a
+   *  reached page. Cost-gated (only fires when a provider key is set); defaults to off. */
+  aiFallback?: boolean;
+  /** Injectable AI extractor (for tests). Defaults to the cost-gated aiExtractVehicles. */
+  aiExtractImpl?: (html: string, url: string) => Promise<Partial<Deal>[]>;
+}
+
+// Map the LLM rescue's loose shape onto Deals. Lazy-imported so the AI SDK stays off the hot path.
+async function aiExtractAsDeals(
+  html: string,
+  url: string,
+  source: string,
+): Promise<Partial<Deal>[]> {
+  const { aiExtractVehicles, aiExtractEnabled } =
+    await import("./tools/ai-extract");
+  if (!aiExtractEnabled()) return [];
+  const vehicles = await aiExtractVehicles(html, url);
+  return vehicles
+    .filter((v) => (v.make || v.title) && (v.year || v.price))
+    .map((v) => ({
+      source,
+      source_url: v.url,
+      vin: v.vin,
+      title:
+        v.title || [v.year, v.make, v.model].filter(Boolean).join(" ").trim(),
+      year: v.year,
+      make: v.make,
+      model: v.model,
+      trim: v.trim,
+      ask_price: v.price ?? 0,
+      mileage: v.mileage,
+      location_city: v.location_city,
+      location_state: v.location_state,
+      condition: v.condition,
+      images: [],
+      scraped_at: new Date().toISOString(),
+    }));
 }
 
 /** Inputs to the verdict — kept pure + exported so the diagnosis logic is unit-tested in isolation. */
@@ -177,11 +216,28 @@ export async function chameleonHarvest(
   const wall = detectAntiBot(html, res.blocked ? 403 : 200).vendor;
   const { framework, dataStrategy } = detectPlatform(html);
 
-  // Bespoke parser first; the generic extractor backstops it (self-healing against markup drift).
+  // Extraction ladder: bespoke parser → free structured (generic) → AI rescue (cost-gated, last). Each
+  // rung backstops the one before, so the chameleon self-heals and still wins on layouts none anticipated.
   let deals: Partial<Deal>[] = [];
+  let extraction: ChameleonReport["extraction"] = "none";
   if (!res.blocked && html) {
-    deals = opts.extractor ? opts.extractor(html) : [];
-    if (deals.length === 0) deals = genericExtract(html, source);
+    if (opts.extractor) {
+      deals = opts.extractor(html);
+      if (deals.length) extraction = "bespoke";
+    }
+    if (deals.length === 0) {
+      deals = genericExtract(html, source);
+      if (deals.length) extraction = "structured";
+    }
+    if (deals.length === 0 && opts.aiFallback) {
+      const ai = opts.aiExtractImpl
+        ? await opts.aiExtractImpl(html, url)
+        : await aiExtractAsDeals(html, url, source);
+      if (ai.length) {
+        deals = ai;
+        extraction = "ai";
+      }
+    }
   }
 
   const verdict = assess({
@@ -192,6 +248,11 @@ export async function chameleonHarvest(
     count: deals.length,
     tier: res.tier,
   });
+  // When the LLM rung won, say so plainly instead of attributing it to the page's data strategy.
+  const diagnosis =
+    verdict.ok && extraction === "ai"
+      ? `${deals.length} vehicle${deals.length === 1 ? "" : "s"} via AI rescue (${res.tier})`
+      : verdict.diagnosis;
 
   return {
     url,
@@ -205,7 +266,8 @@ export async function chameleonHarvest(
     dataStrategy,
     deals,
     count: deals.length,
-    diagnosis: verdict.diagnosis,
+    extraction,
+    diagnosis,
     recommendation: verdict.recommendation,
     durationMs: Date.now() - started,
   };
