@@ -1,6 +1,6 @@
 "use client";
 
-import { use } from "react";
+import { use, useState } from "react";
 import dynamic from "next/dynamic";
 import useSWR from "swr";
 import Link from "next/link";
@@ -92,6 +92,11 @@ export default function LeadDetailPage({
               {lead.source && (
                 <span className="text-xs text-[var(--t4)]">
                   · {lead.source}
+                </span>
+              )}
+              {lead.status && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--s2)] border border-[var(--b1)] text-[var(--t2)]">
+                  {lead.status}
                 </span>
               )}
             </div>
@@ -218,6 +223,7 @@ export default function LeadDetailPage({
 
           {/* Actions */}
           <div className="flex flex-wrap gap-3">
+            <SaveButton listingId={lead.id} />
             {lead.url && (
               <a
                 href={lead.url}
@@ -252,6 +258,57 @@ export default function LeadDetailPage({
   );
 }
 
+// Save the current lead into the user's flip pipeline. 401 → bounce to sign-in; 200/alreadySaved → "Saved".
+function SaveButton({ listingId }: { listingId: string }) {
+  const [state, setState] = useState<"idle" | "saving" | "saved" | "auth">(
+    "idle",
+  );
+  const save = async () => {
+    if (state === "saving" || state === "saved") return;
+    setState("saving");
+    const res = await fetch("/api/homeiq/saved", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ listingId }),
+    });
+    if (res.status === 401) {
+      setState("auth");
+      return;
+    }
+    if (res.ok) setState("saved");
+    else setState("idle");
+  };
+  if (state === "auth") {
+    return (
+      <Link
+        href="/"
+        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-sm bg-[var(--s2)] border border-[var(--b1)] text-[var(--t2)]"
+      >
+        Sign in to save
+      </Link>
+    );
+  }
+  const saved = state === "saved";
+  return (
+    <button
+      onClick={save}
+      disabled={saved || state === "saving"}
+      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-sm border transition-colors"
+      style={
+        saved
+          ? { background: "var(--s2)", borderColor: "var(--b1)", color: ACCENT }
+          : { background: ACCENT, borderColor: ACCENT, color: "#000" }
+      }
+    >
+      {saved
+        ? "✓ In pipeline"
+        : state === "saving"
+          ? "Saving…"
+          : "💾 Save to pipeline"}
+    </button>
+  );
+}
+
 function Shell({ children }: { children: React.ReactNode }) {
   return (
     <main className="min-h-screen bg-[var(--s1)] text-[var(--t1)]">
@@ -265,12 +322,20 @@ function Shell({ children }: { children: React.ReactNode }) {
           </span>
           <span className="font-black text-lg">HomeIQ</span>
         </div>
-        <Link
-          href="/homeiq/leads"
-          className="text-sm font-semibold text-[var(--t3)] hover:text-[var(--t1)]"
-        >
-          ← All leads
-        </Link>
+        <div className="flex items-center gap-4">
+          <Link
+            href="/homeiq/saved"
+            className="text-sm font-semibold text-[var(--t3)] hover:text-[var(--t1)]"
+          >
+            Pipeline
+          </Link>
+          <Link
+            href="/homeiq/leads"
+            className="text-sm font-semibold text-[var(--t3)] hover:text-[var(--t1)]"
+          >
+            ← All leads
+          </Link>
+        </div>
       </header>
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-5">{children}</div>
     </main>

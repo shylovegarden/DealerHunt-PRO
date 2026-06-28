@@ -60,10 +60,35 @@ const PRICES = [
 ];
 const PAGE = 60;
 
+// Friendly labels for the raw `source` values stored on each property.
+const SOURCE_LABELS: Record<string, string> = {
+  gov_auction: "Gov auction",
+  hud: "HUD Homes",
+  gsa_realestate: "GSA Real Estate",
+  redfin: "Redfin",
+  land_bank: "Land banks",
+};
+const sourceLabel = (s: string) =>
+  SOURCE_LABELS[s] ||
+  s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+
+// Color a land-bank listing status so users can triage move-in-ready vs gut-job vs vacant lot at a glance.
+function statusColor(s: string): string {
+  const t = s.toLowerCase();
+  if (/move-?in|renovated|available soon|new construction/.test(t))
+    return "var(--green)";
+  if (/pending|under contract|transfer/.test(t)) return "var(--blue)";
+  if (/renovation|needs|rehab|fixer/.test(t)) return "var(--amber)";
+  if (/vacant|lot|land/.test(t)) return "var(--t4)";
+  return "var(--t3)";
+}
+
 interface Lead {
   id: string;
   title: string;
   price?: number;
+  source?: string;
+  status?: string;
   property_type?: string;
   city?: string;
   state?: string;
@@ -93,6 +118,7 @@ function LeadsInner() {
   );
   const [tier, setTier] = useState("");
   const [type, setType] = useState("");
+  const [source, setSource] = useState("");
   const [sort, setSort] = useState("score");
   const [maxPrice, setMaxPrice] = useState(0);
   const [q, setQ] = useState("");
@@ -106,6 +132,18 @@ function LeadsInner() {
   const all: Lead[] = data?.leads ?? [];
   const points = data?.points ?? [];
   const byState: Record<string, number> = data?.byState ?? {};
+  const bySource: Record<string, number> = data?.bySource ?? {};
+
+  // Source dropdown options, most-populous first, with a friendly label + count.
+  const sourceOptions = useMemo(
+    () => [
+      { key: "", label: "All sources" },
+      ...Object.entries(bySource)
+        .sort((a, b) => b[1] - a[1])
+        .map(([s, n]) => ({ key: s, label: `${sourceLabel(s)} (${n})` })),
+    ],
+    [bySource],
+  );
 
   // The geographic scope set (null = nationwide).
   const scopeSet = useMemo<Set<string> | null>(() => {
@@ -121,6 +159,7 @@ function LeadsInner() {
       r = r.filter((l) => scopeSet.has((l.state || "").toUpperCase()));
     if (tier) r = r.filter((l) => l.tier === tier);
     if (type) r = r.filter((l) => l.property_type === type);
+    if (source) r = r.filter((l) => l.source === source);
     if (maxPrice) r = r.filter((l) => (l.price || 0) <= maxPrice);
     if (q.trim()) {
       const t = q.trim().toLowerCase();
@@ -138,10 +177,13 @@ function LeadsInner() {
       );
     else s.sort((a, b) => b.score - a.score);
     return s;
-  }, [all, scopeSet, tier, type, maxPrice, q, sort]);
+  }, [all, scopeSet, tier, type, source, maxPrice, q, sort]);
 
   // Reset the visible window whenever the result set changes.
-  useEffect(() => setVisible(PAGE), [scopeSet, tier, type, maxPrice, q, sort]);
+  useEffect(
+    () => setVisible(PAGE),
+    [scopeSet, tier, type, source, maxPrice, q, sort],
+  );
 
   // Infinite scroll — extend the list as the sentinel comes into view.
   const sentinel = useRef<HTMLDivElement>(null);
@@ -223,12 +265,20 @@ function LeadsInner() {
             Nationwide — top leads
           </span>
         )}
-        <Link
-          href="/homeiq/states"
-          className="text-sm font-semibold text-[var(--t3)] hover:text-[var(--t1)]"
-        >
-          🗺️ Browse all states
-        </Link>
+        <div className="flex items-center gap-4">
+          <Link
+            href="/homeiq/saved"
+            className="text-sm font-semibold text-[var(--t3)] hover:text-[var(--t1)]"
+          >
+            📋 Pipeline
+          </Link>
+          <Link
+            href="/homeiq/states"
+            className="text-sm font-semibold text-[var(--t3)] hover:text-[var(--t1)]"
+          >
+            🗺️ Browse all states
+          </Link>
+        </div>
       </div>
 
       {/* Filter bar */}
@@ -255,6 +305,7 @@ function LeadsInner() {
           ))}
         </div>
         <Select value={type} onChange={setType} options={TYPES} />
+        <Select value={source} onChange={setSource} options={sourceOptions} />
         <Select
           value={String(maxPrice)}
           onChange={(v) => setMaxPrice(Number(v))}
@@ -325,13 +376,58 @@ function Select({
   );
 }
 
+// Quick-save a lead to the pipeline straight from the list — no need to open the detail page. Stops the
+// card's link navigation. 401 → bounce to sign-in.
+function QuickSave({ listingId }: { listingId: string }) {
+  const [state, setState] = useState<"idle" | "saving" | "saved">("idle");
+  const save = async (e: {
+    preventDefault: () => void;
+    stopPropagation: () => void;
+  }) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (state !== "idle") return;
+    setState("saving");
+    const res = await fetch("/api/homeiq/saved", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ listingId }),
+    });
+    if (res.status === 401) {
+      window.location.href = "/";
+      return;
+    }
+    setState(res.ok ? "saved" : "idle");
+  };
+  return (
+    <button
+      onClick={save}
+      title={state === "saved" ? "In your pipeline" : "Save to pipeline"}
+      aria-label="Save to pipeline"
+      className="absolute top-1.5 right-1.5 z-[1] w-7 h-7 grid place-items-center rounded-full text-sm border transition-colors"
+      style={
+        state === "saved"
+          ? { background: ACCENT, borderColor: ACCENT, color: "#000" }
+          : {
+              background: "var(--s0)",
+              borderColor: "var(--b1)",
+              color: "var(--t3)",
+            }
+      }
+    >
+      {state === "saved" ? "✓" : state === "saving" ? "…" : "♡"}
+    </button>
+  );
+}
+
 function LeadCard({ lead }: { lead: Lead }) {
   const color = TIER_COLOR[lead.tier] || "var(--blue)";
   return (
     <Link
       href={`/homeiq/leads/${encodeURIComponent(lead.id)}`}
-      className="flex gap-3 rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] p-3 hover:border-[var(--b3)] transition-colors"
+      className="relative flex gap-3 rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] p-3 hover:border-[var(--b3)] transition-colors"
     >
+      <QuickSave listingId={lead.id} />
       <div className="relative shrink-0 w-28 h-24 rounded-[var(--r2)] overflow-hidden bg-[var(--s2)]">
         {lead.image ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -364,6 +460,22 @@ function LeadCard({ lead }: { lead: Lead }) {
           <span className="text-[11px] text-[var(--t4)] capitalize">
             {(lead.property_type || "").replace("_", " ")}
           </span>
+          {lead.source && (
+            <span className="text-[10px] font-semibold text-[var(--t4)] px-1.5 py-0.5 rounded-full bg-[var(--s2)] border border-[var(--b1)]">
+              {sourceLabel(lead.source)}
+            </span>
+          )}
+          {lead.status && (
+            <span
+              className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+              style={{
+                color: statusColor(lead.status),
+                background: `${statusColor(lead.status)}1a`,
+              }}
+            >
+              {lead.status}
+            </span>
+          )}
         </div>
         <div className="font-black text-[var(--t1)] mt-0.5">
           ${(lead.price || 0).toLocaleString()}

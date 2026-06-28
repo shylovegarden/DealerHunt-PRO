@@ -321,16 +321,28 @@ export function lookupRealSold(
  */
 async function loadAggregateIndex(supabase: SupabaseClient): Promise<void> {
   try {
-    const { data, error } = await supabase
-      .from("market_aggregates")
-      .select("make, model, year, avg_market_value, unit_count")
-      .gt("avg_market_value", 0)
-      .limit(50000);
-
-    if (error) {
-      // Table may not exist on every environment — degrade silently to comps-only.
-      if (!aggregates) aggregates = new Map();
-      return;
+    // PostgREST caps a single response at ~1000 rows, so `.limit(50000)` silently returned only 1000 of
+    // ~26k aggregate rows — the value index saw 4% of the market. Paginate to load them all.
+    const PAGE = 1000;
+    const MAX = 60000;
+    const data: any[] = [];
+    for (let from = 0; from < MAX; from += PAGE) {
+      const { data: pageRows, error } = await supabase
+        .from("market_aggregates")
+        .select("make, model, year, avg_market_value, unit_count")
+        .gt("avg_market_value", 0)
+        .range(from, from + PAGE - 1);
+      if (error) {
+        // Table may not exist on every environment — degrade silently to comps-only.
+        if (data.length === 0) {
+          if (!aggregates) aggregates = new Map();
+          return;
+        }
+        break;
+      }
+      if (!pageRows || pageRows.length === 0) break;
+      data.push(...pageRows);
+      if (pageRows.length < PAGE) break;
     }
 
     const roll = new Map<string, { sum: number; n: number }>();

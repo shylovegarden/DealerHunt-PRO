@@ -327,39 +327,40 @@ export class DealsService {
     return this.mapDbToDeal(data);
   }
 
+  // Collect the DISTINCT non-null values of one column across ALL active deals. PostgREST caps a single
+  // response at 1000 rows, so a plain select would only see the first 1000 of ~32k deals and silently
+  // drop most filter values (measured: 54/212 makes). Page with .range() to scan the whole table.
+  private async collectDistinctColumn(column: string): Promise<string[]> {
+    const PAGE = 1000;
+    const MAX_PAGES = 60; // safety bound (~60k rows)
+    const seen = new Set<string>();
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const { data, error } = await this.supabase
+        .from("deals")
+        .select(column)
+        .eq("active", true)
+        .not(column, "is", null)
+        .order(column)
+        .range(page * PAGE, page * PAGE + PAGE - 1);
+      if (error) throw new Error(`Failed to fetch ${column}: ${error.message}`);
+      const rows = (data || []) as unknown as Array<Record<string, unknown>>;
+      for (const r of rows) {
+        const v = r[column];
+        // Sanity-drop extraction junk (bare symbols, pure years like "1953"): a real make/source always
+        // has a letter and ≥2 chars. Safe — never drops a legitimate value.
+        if (typeof v === "string" && v.length >= 2 && /[a-z]/i.test(v))
+          seen.add(v.trim());
+      }
+      if (rows.length < PAGE) break; // last page
+    }
+    return Array.from(seen).sort();
+  }
+
   async getAvailableSources(): Promise<string[]> {
-    const { data, error } = await this.supabase
-      .from("deals")
-      .select("source")
-      .eq("active", true)
-      .not("source", "is", null);
-
-    if (error) {
-      throw new Error(`Failed to fetch sources: ${error.message}`);
-    }
-
-    const sources = new Set<string>();
-    for (const item of data || []) {
-      if (item.source) sources.add(item.source);
-    }
-    return Array.from(sources).sort();
+    return this.collectDistinctColumn("source");
   }
 
   async getAvailableMakes(): Promise<string[]> {
-    const { data, error } = await this.supabase
-      .from("deals")
-      .select("make")
-      .eq("active", true)
-      .not("make", "is", null);
-
-    if (error) {
-      throw new Error(`Failed to fetch makes: ${error.message}`);
-    }
-
-    const makes = new Set<string>();
-    for (const item of data || []) {
-      if (item.make) makes.add(item.make);
-    }
-    return Array.from(makes).sort();
+    return this.collectDistinctColumn("make");
   }
 }

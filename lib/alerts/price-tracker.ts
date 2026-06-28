@@ -31,30 +31,44 @@ export async function trackPriceChanges(
   const priceChanges: PriceChange[] = [];
 
   try {
-    // Get current deals with prices
-    let query = supabase
-      .from("deals")
-      .select("id, source_deal_id, title, ask_price, source_url, updated_at")
-      .not("ask_price", "is", null)
-      .order("updated_at", { ascending: false });
-
-    if (vehicleIds && vehicleIds.length > 0) {
-      query = query.in("id", vehicleIds);
-    } else {
-      // Only check recently updated vehicles (last 24 hours)
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      query = query.gte("updated_at", yesterday.toISOString());
+    // Get current deals with prices. PostgREST caps a single response at ~1000 rows; during a scrape far
+    // more than 1000 deals are updated in 24h, so a plain select would only check the newest 1000 for
+    // price drops and miss the rest. Paginate with .range() to cover them all.
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const PAGE = 1000;
+    const MAX = 60000;
+    const vehicles: Array<{
+      id: string;
+      source_deal_id?: string;
+      title?: string;
+      ask_price: number;
+      source_url?: string;
+      updated_at?: string;
+    }> = [];
+    for (let from = 0; from < MAX; from += PAGE) {
+      let query = supabase
+        .from("deals")
+        .select("id, source_deal_id, title, ask_price, source_url, updated_at")
+        .not("ask_price", "is", null)
+        .order("updated_at", { ascending: false })
+        .range(from, from + PAGE - 1);
+      query =
+        vehicleIds && vehicleIds.length > 0
+          ? query.in("id", vehicleIds)
+          : query.gte("updated_at", yesterday.toISOString());
+      const { data: page, error } = await query;
+      if (error) {
+        console.error("[PriceTracker] Error fetching vehicles:", error);
+        if (vehicles.length === 0) return [];
+        break;
+      }
+      if (!page || page.length === 0) break;
+      vehicles.push(...(page as typeof vehicles));
+      if (page.length < PAGE) break;
     }
 
-    const { data: vehicles, error } = await query;
-
-    if (error) {
-      console.error("[PriceTracker] Error fetching vehicles:", error);
-      return [];
-    }
-
-    if (!vehicles || vehicles.length === 0) {
+    if (vehicles.length === 0) {
       return [];
     }
 
