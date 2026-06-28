@@ -1,9 +1,64 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, Suspense } from "react";
 import dynamic from "next/dynamic";
 import useSWR from "swr";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+
+const STATE_NAMES: Record<string, string> = {
+  AL: "Alabama",
+  AK: "Alaska",
+  AZ: "Arizona",
+  AR: "Arkansas",
+  CA: "California",
+  CO: "Colorado",
+  CT: "Connecticut",
+  DE: "Delaware",
+  FL: "Florida",
+  GA: "Georgia",
+  HI: "Hawaii",
+  ID: "Idaho",
+  IL: "Illinois",
+  IN: "Indiana",
+  IA: "Iowa",
+  KS: "Kansas",
+  KY: "Kentucky",
+  LA: "Louisiana",
+  ME: "Maine",
+  MD: "Maryland",
+  MA: "Massachusetts",
+  MI: "Michigan",
+  MN: "Minnesota",
+  MS: "Mississippi",
+  MO: "Missouri",
+  MT: "Montana",
+  NE: "Nebraska",
+  NV: "Nevada",
+  NH: "New Hampshire",
+  NJ: "New Jersey",
+  NM: "New Mexico",
+  NY: "New York",
+  NC: "North Carolina",
+  ND: "North Dakota",
+  OH: "Ohio",
+  OK: "Oklahoma",
+  OR: "Oregon",
+  PA: "Pennsylvania",
+  RI: "Rhode Island",
+  SC: "South Carolina",
+  SD: "South Dakota",
+  TN: "Tennessee",
+  TX: "Texas",
+  UT: "Utah",
+  VT: "Vermont",
+  VA: "Virginia",
+  WA: "Washington",
+  WV: "West Virginia",
+  WI: "Wisconsin",
+  WY: "Wyoming",
+  DC: "D.C.",
+};
 
 // Market-leading housing browse — adapts the Zillow/Redfin split map+list + photo-forward cards, with
 // PropStream-style lead-signal focus (score + distress signals + the 70%-rule max offer). All filtering/
@@ -75,13 +130,28 @@ interface Lead {
 }
 
 export default function HomeIQLeadsPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[var(--s1)]" />}>
+      <LeadsInner />
+    </Suspense>
+  );
+}
+
+function LeadsInner() {
+  const params = useSearchParams();
+  const scopeState = (params.get("state") || "").toUpperCase();
   const [tier, setTier] = useState("");
   const [type, setType] = useState("");
   const [sort, setSort] = useState("score");
   const [maxPrice, setMaxPrice] = useState(0);
   const [q, setQ] = useState("");
 
-  const { data, isLoading } = useSWR(`/api/homeiq/leads?limit=300`, fetcher, {
+  // Location-aware scope: a state in the URL → fetch ALL of that state (server-filtered); else nationwide
+  // top results. "Immediate" (your state) → "extending" (nationwide via the Markets page / clearing scope).
+  const apiUrl = scopeState
+    ? `/api/homeiq/leads?state=${scopeState}&limit=2000`
+    : `/api/homeiq/leads?limit=300`;
+  const { data, isLoading } = useSWR(apiUrl, fetcher, {
     revalidateOnFocus: false,
     dedupingInterval: 120_000,
   });
@@ -141,6 +211,42 @@ export default function HomeIQLeadsPage() {
           ← Switch
         </Link>
       </header>
+
+      {/* Location scope banner */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-4 flex items-center justify-between gap-2 flex-wrap">
+        <div className="text-sm">
+          {scopeState ? (
+            <span className="font-black text-[var(--t1)]">
+              📍 {STATE_NAMES[scopeState] || scopeState}
+              <span className="font-medium text-[var(--t3)]">
+                {" "}
+                · {leads.length} leads in your state
+              </span>
+            </span>
+          ) : (
+            <span className="font-bold text-[var(--t2)]">
+              Nationwide — top leads
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-3 text-sm font-semibold">
+          <Link
+            href="/homeiq/states"
+            className="text-[var(--t3)] hover:text-[var(--t1)]"
+          >
+            🗺️ Browse all states
+          </Link>
+          {scopeState && (
+            <Link
+              href="/homeiq/leads"
+              className="px-3 py-1 rounded-full text-black"
+              style={{ background: ACCENT }}
+            >
+              Expand nationwide ↗
+            </Link>
+          )}
+        </div>
+      </div>
 
       {/* Filter bar — Zillow/Redfin pattern */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-4 flex items-center gap-2 flex-wrap">

@@ -341,11 +341,11 @@ describe("queryProperties", () => {
     expect(mockGte).toHaveBeenCalledWith("lead_score", 80);
   });
 
-  it("should respect limit parameter with max of 500", async () => {
+  it("should respect limit parameter with max of 2000", async () => {
     mockLimit.mockResolvedValue({ data: [], error: null });
 
-    await queryProperties({ limit: 1000 });
-    expect(mockLimit).toHaveBeenCalledWith(500); // Capped at 500
+    await queryProperties({ limit: 5000 });
+    expect(mockLimit).toHaveBeenCalledWith(2000); // Capped at 2000 (raised for the country/state views)
   });
 
   it("should use default limit of 200", async () => {

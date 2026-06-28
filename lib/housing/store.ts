@@ -156,7 +156,7 @@ export async function queryProperties(
   if (q.minScore != null) query = query.gte("lead_score", q.minScore);
   query = query
     .order("lead_score", { ascending: false, nullsFirst: false })
-    .limit(Math.min(500, q.limit ?? 200));
+    .limit(Math.min(2000, q.limit ?? 200));
 
   const { data, error } = await query;
   if (error) {
@@ -195,13 +195,15 @@ export async function propertyStats(): Promise<{
   byTier: Record<string, number>;
   byState: Record<string, number>;
 } | null> {
-  const rows = await queryProperties({ limit: 500 });
+  const rows = await queryProperties({ limit: 2000 });
   if (rows == null) return null;
   const byTier: Record<string, number> = { hot: 0, warm: 0, standard: 0 };
   const byState: Record<string, number> = {};
   for (const r of rows) {
     if (r.lead_tier) byTier[r.lead_tier] = (byTier[r.lead_tier] || 0) + 1;
-    if (r.state) byState[r.state] = (byState[r.state] || 0) + 1;
+    if (r.state)
+      byState[(r.state || "").toUpperCase()] =
+        (byState[(r.state || "").toUpperCase()] || 0) + 1;
   }
   return { total: rows.length, byTier, byState };
 }
