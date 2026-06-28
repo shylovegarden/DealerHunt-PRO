@@ -51,8 +51,9 @@ describe("mileageMultiplier", () => {
     expect(
       mileageMultiplier({ year: 2020, mileage: 20000 }, 2026),
     ).toBeGreaterThan(1);
-    // no data → neutral.
-    expect(mileageMultiplier({ year: 2020 }, 2026)).toBe(1.0);
+    // no mileage data → a mild age-based estimate, NOT neutral (salvage fix: a car with no odometer
+    // shouldn't be valued as if it had average miles). 2020 in 2026 ⇒ age 6 ⇒ 1 − 6·0.012 = 0.928.
+    expect(mileageMultiplier({ year: 2020 }, 2026)).toBeCloseTo(0.928, 3);
   });
 });
 
