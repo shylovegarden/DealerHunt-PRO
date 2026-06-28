@@ -148,6 +148,12 @@ export default function HomeIQHome() {
           >
             All leads →
           </Link>
+          <Link
+            href="/homeiq/market"
+            className="inline-flex items-center px-5 py-3 rounded-full font-bold text-sm border border-[var(--b1)] text-[var(--t2)] hover:border-[var(--b3)]"
+          >
+            📊 Market data
+          </Link>
         </div>
       </section>
 

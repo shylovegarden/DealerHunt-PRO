@@ -116,9 +116,10 @@ function LeadsInner() {
   const [scopeMode, setScopeMode] = useState<"state" | "nearby" | "national">(
     scopeState ? "state" : "national",
   );
-  const [tier, setTier] = useState("");
-  const [type, setType] = useState("");
-  const [source, setSource] = useState("");
+  // Initialize filters from the URL so deep-links from the Market dashboard land pre-filtered.
+  const [tier, setTier] = useState(params.get("tier") || "");
+  const [type, setType] = useState(params.get("type") || "");
+  const [source, setSource] = useState(params.get("source") || "");
   const [sort, setSort] = useState("score");
   const [maxPrice, setMaxPrice] = useState(0);
   const [q, setQ] = useState("");

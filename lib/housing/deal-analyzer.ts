@@ -13,6 +13,7 @@
 // comps) flow in. Pure + tested.
 
 import type { Property } from "./types";
+import { marketPsf } from "./arv-psf";
 
 export type RehabLevel = "light" | "medium" | "heavy" | "gut";
 
@@ -24,8 +25,9 @@ const REPAIR_PSF: Record<RehabLevel, number> = {
   gut: 90, // down to studs
 };
 
-// Approximate regional median $/sqft (public reference, ~2024-25). Coarse on purpose; ARV built on it is
-// flagged low-confidence. A national fallback covers unlisted states.
+// Approximate regional median $/sqft (public reference, ~2024-25). FALLBACK ONLY — used when a state is
+// absent from the Redfin sold-$/sqft snapshot ([[arv-psf]] / state-ppsf.json). Coarse on purpose; ARV built
+// on it is flagged low-confidence. A national fallback covers unlisted states.
 const STATE_PSF: Record<string, number> = {
   CA: 430,
   NY: 320,
@@ -92,7 +94,7 @@ export interface HousingAnalysis {
   rehabLevel: RehabLevel;
   repairEstimate: number | null;
   arv: number | null;
-  arvBasis: "regional_psf" | "comps" | "unknown";
+  arvBasis: "regional_psf" | "market_psf" | "comps" | "unknown";
   arvConfidence: "high" | "medium" | "low" | "none";
   mao: number | null; // Max Allowable Offer = ARV*0.70 - repairs
   equitySpread: number | null; // ARV - ask - repairs (gross potential)
@@ -115,7 +117,7 @@ export function inferRehabLevel(p: Property): RehabLevel {
  */
 export function analyzeHousingDeal(
   p: Property,
-  opts: { arv?: number; rehabLevel?: RehabLevel } = {},
+  opts: { arv?: number; psf?: number; rehabLevel?: RehabLevel } = {},
 ): HousingAnalysis {
   const askPrice = Math.round(p.price ?? 0);
   const rehabLevel = opts.rehabLevel || inferRehabLevel(p);
@@ -135,7 +137,9 @@ export function analyzeHousingDeal(
     notes.push("Repair estimate needs square footage");
   }
 
-  // ARV: explicit > sqft × regional $/sqft (low confidence). No sqft ⇒ unknown (don't guess).
+  // ARV preference: explicit property-level ARV (true comps) > sqft × Redfin median *sale* $/sqft
+  // (real sold data, regional → medium confidence) > sqft × coarse hardcoded reference (low). No sqft ⇒
+  // unknown (don't guess). An injected opts.psf is treated as a market $/sqft (medium confidence).
   let arv: number | null = null;
   let arvBasis: HousingAnalysis["arvBasis"] = "unknown";
   let arvConfidence: HousingAnalysis["arvConfidence"] = "none";
@@ -145,13 +149,24 @@ export function analyzeHousingDeal(
     arvConfidence = "high";
     notes.push("ARV provided");
   } else if (p.property_type !== "land" && p.sqft && p.sqft > 100) {
-    const psf = STATE_PSF[(p.state || "").toUpperCase()] || NATIONAL_PSF;
-    arv = Math.round(p.sqft * psf);
-    arvBasis = "regional_psf";
-    arvConfidence = "low";
-    notes.push(
-      `ARV ≈ ${p.sqft.toLocaleString()} sqft × $${psf}/sqft regional median (rough — confirm with comps)`,
-    );
+    const stateCode = (p.state || "").toUpperCase();
+    const sold = opts.psf && opts.psf > 0 ? opts.psf : marketPsf(stateCode);
+    if (sold != null && sold > 0) {
+      arv = Math.round(p.sqft * sold);
+      arvBasis = "market_psf";
+      arvConfidence = "medium";
+      notes.push(
+        `ARV ≈ ${p.sqft.toLocaleString()} sqft × $${sold}/sqft (Redfin median sale $/sqft, ${stateCode || "US"} — regional, confirm with comps)`,
+      );
+    } else {
+      const psf = STATE_PSF[stateCode] || NATIONAL_PSF;
+      arv = Math.round(p.sqft * psf);
+      arvBasis = "regional_psf";
+      arvConfidence = "low";
+      notes.push(
+        `ARV ≈ ${p.sqft.toLocaleString()} sqft × $${psf}/sqft regional reference (rough — confirm with comps)`,
+      );
+    }
   } else {
     notes.push("ARV needs square footage or comps");
   }
