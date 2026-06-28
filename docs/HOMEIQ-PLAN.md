@@ -68,6 +68,21 @@ price-cut velocity · days-on-market · vacancy · pre-foreclosure/NOD · absent
 price-vs-AVM gap · back-on-market. Same weighted-score shape as the car deal-analyzer; ARV + the 70% rule
 (`MAO = ARV×0.70 − repairs`) is the housing analogue of the car max-bid.
 
+## Vertical isolation — NO bleed between cars & houses (enforced)
+
+Two verticals on one engine ⇒ the #1 risk is data crossing over. It's prevented at every layer, and
+pinned by `lib/housing/vertical-isolation.test.ts` so the gate blocks any regression:
+
+- **Separate tables** — cars → `deals`, houses → `properties`. Nothing queries across them.
+- **Separate mappers** — `maestroAssetToDeal` (car) requires a **model year** (real estate has none → rejected);
+  `maestroAssetToProperty` (house) requires a **real-estate category** (`95B/95F/959` or matching category
+  text → a vehicle fails it → rejected). Bleed is impossible in BOTH directions, even if a category filter leaks.
+- **Separate categories** at the source — vehicles `94A/94Q`, real estate `95B/95F/959` (disjoint).
+- **Separate extractors** — `generic-extractor` (vehicle: needs year+make) vs `extract-property` (house: needs
+  address+home-signal). A car has no address; a house has no make.
+- **Separate UI/API** — `/discover` + `/api/*` read `deals`; `/homeiq/*` + `/api/homeiq/*` read `properties`.
+- **Audited live (2026-06-27):** 0 cars in `properties`, 0 houses in `deals` (31.8k rows).
+
 ## Phases
 
 1. **FIND** (engine reuse — in progress): more free sources → harvest → geocode → map. ← we are here

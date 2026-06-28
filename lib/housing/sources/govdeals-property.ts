@@ -73,6 +73,20 @@ function isUS(a: MaestroAsset): boolean {
   return US_STATE.has((a.locationState || "").toUpperCase());
 }
 
+// VERTICAL ISOLATION GUARD. The maestro fetch is shared with the CAR scrapers, so the property mapper
+// must never accept a vehicle even if a category filter ever leaks. Affirmatively require a real-estate
+// signal: the asset's category code is one of ours, OR its category text reads like real estate. A
+// vehicle (94A/94Q) fails both → it can NEVER become a Property. (Symmetric direction is already safe:
+// the car mapper requires a model year, which real-estate lots don't have.)
+const REAL_ESTATE_CATEGORY_CODES = new Set(["95B", "95F", "959"]);
+function isRealEstate(a: MaestroAsset): boolean {
+  if (a.assetCategory && REAL_ESTATE_CATEGORY_CODES.has(a.assetCategory))
+    return true;
+  return /real estate|residential|single family|multi[- ]?family|vacant land|land parcel|\bacres?\b/i.test(
+    a.categoryDescription || "",
+  );
+}
+
 function propertyTypeFor(a: MaestroAsset): PropertyType {
   const c = (a.categoryDescription || "").toLowerCase();
   if (c.includes("multi")) return "multi_family";
@@ -92,6 +106,7 @@ export function maestroAssetToProperty(
   const { assetId, accountId } = a;
   if (assetId == null || accountId == null) return null;
   if (a.isSoldAuction) return null;
+  if (!isRealEstate(a)) return null; // vertical-isolation guard — never let a vehicle become a Property
   if (!isUS(a)) return null;
 
   const price = Math.round(Number(a.currentBid ?? a.assetBidPrice ?? 0));

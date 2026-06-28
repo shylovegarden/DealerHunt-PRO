@@ -54,6 +54,7 @@ export interface MaestroAsset {
   assetAuctionEndDateUtc?: string;
   lotNumber?: string;
   photo?: string;
+  assetCategory?: string;
   categoryDescription?: string;
   isSoldAuction?: boolean;
 }
