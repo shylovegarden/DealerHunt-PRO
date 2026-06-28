@@ -7,6 +7,17 @@
 `git worktree`** — NEVER share Claude's working dir. **NEVER** `git reset --hard`, `git checkout .`,
 `git clean`, or force-push (these wiped work twice). One PR per task; tag Claude; don't self-merge.
 
+> 🛑 **2026-06-27 incident — READ THIS.** A batch of work (a 13k-line `docs/*.md` suite, `market-value.test.ts`,
+> `engine.test.ts`, `audit-data-quality.ts`, edits to `condition-value.test.ts`/`vin.test.ts`) appeared
+> **uncommitted in Claude's working directory** — the worktree violation above. It also broke the gate:
+> `market-value.test.ts` has tsc errors (`lookupMarketValue()` returns `MarketComps | null`; you used
+> `.nRetail`/`.retail` without a null-guard). Claude **preserved your work in a git stash** (nothing lost)
+> and shipped its own clean commits. **To recover + land your work the right way:** (1) `git worktree add
+../wt-kiro main` and work THERE; (2) re-create those files in the worktree (or `git stash show -p` from
+> Claude's clone to copy them); (3) null-guard every `lookupMarketValue(...)` call (`const c = lookup(...);
+if (!c) return;` or `?.`); (4) run `npm run verify` until green; (5) open ONE PR and tag Claude. Do NOT
+> write into Claude's clone again — it collides with active work and blocks the shared gate.
+
 ---
 
 ## Task 0 — OWN THE LOCAL CI GATE 🟢 (HIGHEST — this is your new standing job)
