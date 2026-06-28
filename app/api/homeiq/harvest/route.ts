@@ -3,6 +3,7 @@ export const maxDuration = 300;
 
 import { NextRequest, NextResponse } from "next/server";
 import { harvestGovDealsProperties } from "@/lib/housing/sources/govdeals-property";
+import { scrapeHudHomes } from "@/lib/housing/sources/hud-homes";
 import { upsertProperties } from "@/lib/housing/store";
 
 // POST /api/homeiq/harvest — refresh the HomeIQ `properties` table from the free sources. Called by the
@@ -26,12 +27,13 @@ export async function POST(req: NextRequest) {
   if (denied) return denied;
 
   try {
-    // GovDeals + AllSurplus residential real estate (both free, same maestro engine).
-    const [gd, ad] = await Promise.all([
+    // Free housing sources: GovDeals + AllSurplus (maestro) + HUD Homes (rich data: sqft/beds → MAO).
+    const [gd, ad, hud] = await Promise.all([
       harvestGovDealsProperties("GD", 5),
       harvestGovDealsProperties("AD", 3).catch(() => []),
+      scrapeHudHomes().catch(() => []),
     ]);
-    const properties = [...gd, ...ad];
+    const properties = [...gd, ...ad, ...hud];
     const written = await upsertProperties(properties);
 
     return NextResponse.json({
@@ -39,7 +41,7 @@ export async function POST(req: NextRequest) {
       harvested: properties.length,
       written: written < 0 ? 0 : written,
       tableMissing: written === -1,
-      sources: { govdeals: gd.length, allsurplus: ad.length },
+      sources: { govdeals: gd.length, allsurplus: ad.length, hud: hud.length },
     });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
