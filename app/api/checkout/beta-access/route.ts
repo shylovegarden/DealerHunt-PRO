@@ -3,10 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import Stripe from "stripe";
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
-  apiVersion: "2026-05-27.dahlia" as any,
-});
+import { getStripe } from "@/lib/stripe";
 
 /**
  * GET /api/checkout/beta-access
@@ -41,7 +38,14 @@ export async function GET(req: Request) {
       return NextResponse.redirect(new URL("/scan", req.url));
     }
 
-    // Create Stripe checkout session
+    // Create Stripe checkout session (billing degrades to "not configured" without keys).
+    const stripe = getStripe();
+    if (!stripe) {
+      return NextResponse.json(
+        { error: "Billing is not configured" },
+        { status: 503 },
+      );
+    }
     const session = await stripe.checkout.sessions.create({
       customer_email: user.email,
       client_reference_id: user.id,
@@ -105,6 +109,14 @@ export async function POST(req: Request) {
     return NextResponse.json(
       { error: "Missing signature or webhook secret" },
       { status: 400 },
+    );
+  }
+
+  const stripe = getStripe();
+  if (!stripe) {
+    return NextResponse.json(
+      { error: "Billing is not configured" },
+      { status: 503 },
     );
   }
 

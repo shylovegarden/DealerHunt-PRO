@@ -1,11 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { Mono } from "@/components/shared/Mono";
 
+// useSearchParams() must sit under a Suspense boundary or static prerender bails out and the build fails.
 export default function BetaSuccessPage() {
+  return (
+    <Suspense fallback={null}>
+      <BetaSuccessInner />
+    </Suspense>
+  );
+}
+
+function BetaSuccessInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const sessionId = searchParams.get("session_id");
