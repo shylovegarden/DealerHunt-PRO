@@ -100,12 +100,25 @@ export default function HomeIQLanding() {
         </p>
 
         <div className="mt-8 flex flex-wrap gap-3">
-          <span
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-black text-sm"
-            style={{ background: ACCENT }}
+          <Link
+            href="/homeiq/leads"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-full font-bold text-black text-sm transition-transform hover:scale-[1.03]"
+            style={{ background: ACCENT, boxShadow: `0 8px 30px ${ACCENT}55` }}
           >
-            First leads flowing — GovDeals real estate is live
-          </span>
+            View live leads
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M5 12h14M13 6l6 6-6 6" />
+            </svg>
+          </Link>
         </div>
       </section>
 
