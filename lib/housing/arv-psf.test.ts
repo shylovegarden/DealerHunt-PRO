@@ -32,4 +32,18 @@ describe("marketPsf", () => {
     expect(marketPsf(undefined)).toBeNull();
     expect(marketPsf("")).toBeNull();
   });
+
+  it("prefers county-level $/sqft (via zip) over the state median", () => {
+    // 90001 → Los Angeles County. LA single-family $/sqft differs from the CA state median.
+    const stateSfh = marketPsf("CA", "single_family");
+    const countySfh = marketPsf("CA", "single_family", "90001");
+    expect(countySfh).toBeGreaterThan(0);
+    expect(countySfh).not.toBe(stateSfh);
+  });
+
+  it("falls back to state when the zip/county has no data", () => {
+    expect(marketPsf("CA", "single_family", "00000")).toBe(
+      marketPsf("CA", "single_family"),
+    );
+  });
 });

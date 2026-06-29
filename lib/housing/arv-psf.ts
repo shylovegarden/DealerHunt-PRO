@@ -1,33 +1,65 @@
 // lib/housing/arv-psf.ts
 //
-// The ARV $/sqft lookup the deal-analyzer prefers: real median *sale* price per sqft per state, snapshotted
-// from Redfin's free Data Center by scripts/fetch-redfin-ppsf.ts. A static JSON import (universal, no I/O at
-// call time) so analyzeHousingDeal stays pure and fast. Returns null for states absent from the snapshot so
-// the analyzer can fall back to its coarse hardcoded reference. Refresh monthly: `npm run data:ppsf`.
+// The ARV $/sqft lookup the deal-analyzer prefers: real median *sale* price per sqft, snapshotted from
+// Redfin's free Data Center. COUNTY-level first (most precise — county medians swing from ~$120 rural to
+// ~$900 metro within one state), via a zip→county crosswalk, then STATE-level, then null so the analyzer
+// falls back to its coarse hardcoded table. Static JSON imports (no call-time I/O) so analyzeHousingDeal
+// stays pure. Refresh: `npm run data:ppsf` (state) + `npm run data:county-ppsf` (county).
 
 import statePpsf from "./data/state-ppsf.json";
+import countyPpsf from "./data/county-ppsf.json";
+import zipCounty from "./data/zip-county.json";
 
 type PpsfByType = Record<string, number>;
 
 const BY_STATE: Record<string, PpsfByType> =
   (statePpsf as { byState?: Record<string, PpsfByType> }).byState || {};
+const BY_COUNTY: Record<string, PpsfByType> =
+  (countyPpsf as { byCounty?: Record<string, PpsfByType> }).byCounty || {};
+const ZIP_COUNTY: Record<string, string> =
+  (zipCounty as { byZip?: Record<string, string> }).byZip || {};
 
 export const PPSF_UPDATED: string =
   (statePpsf as { updated?: string }).updated || "";
 
-/**
- * Median sale $/sqft for a state, preferring the property-type-specific figure (condos and single-family
- * differ a lot) and falling back to the all-residential aggregate. Returns null if the state isn't in the
- * Redfin snapshot so the analyzer can fall back to its coarse hardcoded reference.
- */
-export function marketPsf(
-  stateCode?: string,
-  propertyType?: string,
-): number | null {
-  if (!stateCode) return null;
-  const byType = BY_STATE[stateCode.toUpperCase()];
+// Normalize a county name to match the county-ppsf keys ("Cook County" → "cook county").
+function normCounty(name: string): string {
+  return name
+    .replace(/,\s*[A-Za-z]{2}\s*$/, "")
+    .trim()
+    .toLowerCase();
+}
+
+// Pick the property-type-specific $/sqft, falling back to the all-residential aggregate.
+function pick(byType?: PpsfByType, propertyType?: string): number | null {
   if (!byType) return null;
   const typed = propertyType ? byType[propertyType] : undefined;
   const v = typeof typed === "number" && typed > 0 ? typed : byType.all;
   return typeof v === "number" && v > 0 ? v : null;
+}
+
+/**
+ * Median sale $/sqft for a property, most-precise-first: county (zip→county) → state → null. Prefers the
+ * property-type figure (condo vs single-family diverge sharply), falling back to the all-residential
+ * aggregate at each level.
+ */
+export function marketPsf(
+  stateCode?: string,
+  propertyType?: string,
+  zip?: string | null,
+): number | null {
+  const st = (stateCode || "").toUpperCase();
+  if (!st) return null;
+
+  // County-level first (most precise).
+  if (zip) {
+    const county = ZIP_COUNTY[String(zip).trim().slice(0, 5)];
+    if (county) {
+      const v = pick(BY_COUNTY[`${normCounty(county)}|${st}`], propertyType);
+      if (v != null) return v;
+    }
+  }
+
+  // State-level fallback.
+  return pick(BY_STATE[st], propertyType);
 }

@@ -153,7 +153,7 @@ export function analyzeHousingDeal(
     const sold =
       opts.psf && opts.psf > 0
         ? opts.psf
-        : marketPsf(stateCode, p.property_type);
+        : marketPsf(stateCode, p.property_type, p.zip);
     if (sold != null && sold > 0) {
       arv = Math.round(p.sqft * sold);
       arvBasis = "market_psf";
