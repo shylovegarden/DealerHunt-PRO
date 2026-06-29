@@ -81,7 +81,10 @@ function landBankStatus(p: Property): string | undefined {
 }
 
 function fromStored(r: StoredProperty): Lead {
-  const reasons = (r.signals as any)?.reasons;
+  // Re-score LIVE on read so the latest intelligence (county-anchored ARV + the profit money-gate) is
+  // reflected immediately and the tier stays consistent with the verdict — rather than serving the
+  // stored score frozen at last harvest. The Docker PC's re-score keeps the stored copy fresh for sort.
+  const ls = scoreHousingLead(r as Property);
   return withAnalysis(
     {
       id: r.source_listing_id || r.title,
@@ -99,9 +102,9 @@ function fromStored(r: StoredProperty): Lead {
       bid_count: r.bid_count,
       lat: r.lat,
       lng: r.lng,
-      score: r.lead_score ?? 0,
-      tier: r.lead_tier ?? "standard",
-      signals: Array.isArray(reasons) ? reasons : [],
+      score: ls.score,
+      tier: ls.tier,
+      signals: ls.signals,
     },
     r,
   );
@@ -161,6 +164,8 @@ export async function GET(req: NextRequest) {
     const stored = await queryProperties({ limit: 2000 });
     all =
       stored && stored.length ? stored.map(fromStored) : await liveHarvest();
+    // Order by the LIVE score (re-scored on read) so hottest-first matches the live tiers.
+    all.sort((a, b) => b.score - a.score);
   } catch (e) {
     return NextResponse.json(
       { error: (e as Error).message, leads: [], points: [] },
