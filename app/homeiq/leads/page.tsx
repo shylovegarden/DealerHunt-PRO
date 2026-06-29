@@ -72,6 +72,7 @@ const SOURCE_LABELS: Record<string, string> = {
   gsa_realestate: "GSA Real Estate",
   redfin: "Redfin",
   land_bank: "Land banks",
+  tax_delinquent: "Tax-delinquent",
 };
 const sourceLabel = (s: string) =>
   SOURCE_LABELS[s] ||

@@ -27,6 +27,9 @@ export function housingPriceTerms(
   hasAuctionEnd?: boolean,
 ): HousingPriceTerms {
   const s = (source || "").toLowerCase();
+  // Off-market owner lead (tax-delinquent etc.) — not for sale; the number shown is the assessed value.
+  if (s === "tax_delinquent" || s.includes("delinquent"))
+    return { priceLabel: "Assessed value", kind: "list", isAuction: false };
   if (AUCTION_RX.test(s))
     return { priceLabel: "Starting bid", kind: "auction", isAuction: true };
   if (s === "hud")

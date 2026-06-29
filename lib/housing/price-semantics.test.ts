@@ -26,6 +26,13 @@ describe("housingPriceTerms", () => {
     expect(housingPriceTerms("land_bank").priceLabel).toBe("Price");
   });
 
+  it("labels off-market tax-delinquent leads by assessed value (not for sale)", () => {
+    expect(housingPriceTerms("tax_delinquent")).toMatchObject({
+      priceLabel: "Assessed value",
+      isAuction: false,
+    });
+  });
+
   it("falls back to Asking for ordinary listings", () => {
     expect(housingPriceTerms("redfin")).toMatchObject({
       priceLabel: "Asking",
