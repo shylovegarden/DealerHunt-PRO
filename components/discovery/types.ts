@@ -18,6 +18,7 @@ export interface DiscoveryDeal {
   vin?: string;
   mileage?: number;
   condition?: string;
+  damageType?: string;
   askPrice: number;
   sellEstimate?: number;
   /** Honest confidence for the resale estimate (comp-backed vs baseline guess). */
