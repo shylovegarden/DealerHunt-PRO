@@ -104,6 +104,8 @@ interface Lead {
   tier: string;
   signals: string[];
   mao?: number | null;
+  arv?: number | null;
+  equity?: number | null;
   verdict?: string;
 }
 
@@ -527,6 +529,17 @@ function LeadCard({ lead }: { lead: Lead }) {
               Max offer ${lead.mao.toLocaleString()} · {lead.verdict}
             </span>
           )}
+          {lead.equity != null &&
+            lead.equity > 0 &&
+            (lead.verdict === "strong" || lead.verdict === "fair") && (
+              <span
+                className="text-[11px] font-bold"
+                style={{ color: "var(--green)" }}
+                title="Estimated gross equity = county-anchored ARV − price − repairs (a verified flip)"
+              >
+                ~${Math.round(lead.equity).toLocaleString()} equity
+              </span>
+            )}
           {(lead.signals || [])
             .slice(0, lead.mao != null ? 1 : 2)
             .map((s, i) => (

@@ -128,6 +128,52 @@ describe("listing-signal coverage (price cut + days on market)", () => {
   });
 });
 
+describe("top-grade scoring: keywords, negatives, stacking, grade", () => {
+  it("penalizes full-price ('pride of ownership') wording", () => {
+    const polished = scoreHousingLead({
+      ...base,
+      title:
+        "Stunning, meticulously maintained turnkey home — pride of ownership",
+      price: 95000,
+    });
+    const neutral = scoreHousingLead({ ...base, title: "Home", price: 95000 });
+    expect(polished.score).toBeLessThan(neutral.score);
+  });
+
+  it("tiers keywords: financial urgency outscores pure condition wording", () => {
+    const financial = scoreHousingLead({
+      ...base,
+      title: "Motivated seller must sell — foreclosure",
+      price: 95000,
+    });
+    const condition = scoreHousingLead({
+      ...base,
+      title: "Handyman fixer needs work",
+      price: 95000,
+    });
+    expect(financial.score).toBeGreaterThan(condition.score);
+  });
+
+  it("applies a stacking bonus when 3+ independent signal groups fire", () => {
+    const stacked = scoreHousingLead({
+      ...base,
+      title: "Motivated seller — must sell", // kw group
+      property_type: "single_family",
+      state: "OH",
+      sqft: 2000,
+      price: 30000, // deep discount (price) + big equity room (equity) → 3 groups
+      signals: { status: "Price Reduced" }, // pricecut group → 4
+    } as any);
+    expect(stacked.signals.join(" ")).toMatch(/Stacked \d+ independent/i);
+  });
+
+  it("always returns a letter grade", () => {
+    expect(scoreHousingLead({ ...base, title: "x", price: 1 }).grade).toMatch(
+      /^[ABC][+-]?$/,
+    );
+  });
+});
+
 describe("money gate (verified verdict overrides distress vibes)", () => {
   it("never lets a verified-OVERPRICED house be HOT, however motivated the wording", () => {
     // sqft known + ask far above ARV → analyzer verdict 'pass'. Loud distress words would otherwise
