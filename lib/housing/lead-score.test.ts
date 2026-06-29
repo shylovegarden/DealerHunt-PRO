@@ -99,6 +99,37 @@ describe("equity signal (the math, not just distress words)", () => {
   });
 });
 
+describe("money gate (verified verdict overrides distress vibes)", () => {
+  it("never lets a verified-OVERPRICED house be HOT, however motivated the wording", () => {
+    // sqft known + ask far above ARV → analyzer verdict 'pass'. Loud distress words would otherwise
+    // push it to hot; the gate must cap it below hot so a user never chases a money-loser.
+    const r = scoreHousingLead({
+      ...base,
+      title:
+        "Deeply discounted distressed fixer rehab investor as-is motivated must sell foreclosure",
+      property_type: "single_family",
+      state: "OH",
+      sqft: 1500,
+      price: 500000, // way above any OH ARV → overpriced
+      bid_count: 0,
+      auction_end: new Date(Date.now() + 12 * 3600_000).toISOString(),
+    });
+    expect(r.tier).not.toBe("hot");
+  });
+
+  it("adds a verified-flip signal for a real strong-equity deal", () => {
+    const r = scoreHousingLead({
+      ...base,
+      title: "3 bed home",
+      property_type: "single_family",
+      state: "OH",
+      sqft: 2000,
+      price: 40000,
+    });
+    expect(r.signals.join(" ")).toMatch(/Verified flip/i);
+  });
+});
+
 describe("scoreAndRank", () => {
   it("returns leads hottest-first", () => {
     const ranked = scoreAndRank([
