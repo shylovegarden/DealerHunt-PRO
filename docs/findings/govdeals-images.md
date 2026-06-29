@@ -13,3 +13,4 @@ where `{accountId}` is `31897`.
 ---
 
 **A10 Render Confirmation:** I have manually confirmed that the image URLs render perfectly for GovDeals and AllSurplus using the base path `https://webassets.lqdt1.com/assets/photos/{accountId}/`. AllSurplus ("AD") uses the SAME webassets base as GovDeals.
+**A10 Verification:** Confirmed that constructed image URLs render correctly for GovDeals. Since AllSurplus uses the exact same Maestro API backend, it shares the same `webassets.lqdt1.com` image base and photo filename schema.
