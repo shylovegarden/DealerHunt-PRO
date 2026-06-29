@@ -183,6 +183,16 @@ export function scoreHousingLead(p: Property): LeadScore {
     add(14, "Out-of-state owner — absentee, less attached", "owner_distress");
   else if (sig.absentee) add(8, "Absentee owner", "owner_distress");
   if (sig.bankruptcy) add(10, "Owner in bankruptcy");
+  if (sig.vacant)
+    add(18, "Vacant / unsafe — carrying cost, no attachment", "owner_distress");
+  if (sig.code_violation) {
+    const n = Number(sig.violation_count) || 1;
+    add(
+      n >= 5 ? 20 : 14,
+      `${n} open code violation${n > 1 ? "s" : ""} — accruing fines`,
+      "owner_distress",
+    );
+  }
 
   // 7) EQUITY — the math signal. An ask well below the Max Allowable Offer is a real flip even with no
   // distress words (the sqft-rich HUD/Redfin homes that would otherwise score 0).
