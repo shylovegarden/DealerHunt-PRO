@@ -183,6 +183,14 @@ export function scoreHousingLead(p: Property): LeadScore {
     add(14, "Out-of-state owner — absentee, less attached", "owner_distress");
   else if (sig.absentee) add(8, "Absentee owner", "owner_distress");
   if (sig.bankruptcy) add(10, "Owner in bankruptcy");
+  if (sig.land_bank)
+    add(8, "Land-bank inventory — must-sell public seller", "owner_distress");
+  if (sig.below_market)
+    add(
+      16,
+      "Asking far below assessed value — built-in equity",
+      "owner_distress",
+    );
   if (sig.dangerous)
     add(
       16,
