@@ -71,6 +71,28 @@ export default function SavedPipelinePage() {
     mutate();
   };
 
+  // Record the realized profit on a closed deal — this is the label the future calibration model learns
+  // from (which leads actually made money). Stored in the snapshot; mutate to reflect immediately.
+  const recordOutcome = async (id: string, actualProfit: number) => {
+    mutate(
+      (rows as Saved[]).map((r) =>
+        r.id === id
+          ? {
+              ...r,
+              snapshot: { ...(r.snapshot || {}), outcome: { actualProfit } },
+            }
+          : r,
+      ) as any,
+      false,
+    );
+    await fetch(`/api/homeiq/saved/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ outcome: { actualProfit } }),
+    });
+    mutate();
+  };
+
   return (
     <main className="min-h-screen bg-[var(--s1)] text-[var(--t1)]">
       <header className="max-w-7xl mx-auto px-4 sm:px-6 pt-6 flex items-center justify-between">
@@ -147,6 +169,7 @@ export default function SavedPipelinePage() {
                         onMove={move}
                         onRemove={remove}
                         onNotes={saveNotes}
+                        onOutcome={recordOutcome}
                       />
                     ))}
                     {col.length === 0 && (
@@ -170,15 +193,25 @@ function Card({
   onMove,
   onRemove,
   onNotes,
+  onOutcome,
 }: {
   row: Saved;
   onMove: (id: string, s: string) => void;
   onRemove: (id: string) => void;
   onNotes: (id: string, notes: string) => void;
+  onOutcome: (id: string, profit: number) => void;
 }) {
   const s = row.snapshot || {};
   const color = TIER_COLOR[s.lead_tier] || "var(--blue)";
   const [note, setNote] = useState(row.notes ?? "");
+  const [profit, setProfit] = useState(
+    s.outcome?.actualProfit != null ? String(s.outcome.actualProfit) : "",
+  );
+  const commitProfit = () => {
+    const v = Number(profit.replace(/[^0-9.-]/g, ""));
+    if (Number.isFinite(v) && v !== (s.outcome?.actualProfit ?? NaN))
+      onOutcome(row.id, Math.round(v));
+  };
   const commitNote = () => {
     const trimmed = note.trim();
     if (trimmed !== (row.notes ?? "")) onNotes(row.id, trimmed);
@@ -240,6 +273,21 @@ function Card({
         rows={note ? 2 : 1}
         className="mt-2 w-full text-[11px] px-2 py-1 rounded-[var(--r2)] bg-[var(--s2)] border border-[var(--b1)] text-[var(--t2)] placeholder:text-[var(--t4)] resize-none focus:outline-none focus:border-[var(--t4)]"
       />
+      {/* Closed-deal outcome — feeds the learning loop (which leads actually made money). */}
+      {row.status === "closed" && (
+        <label className="mt-2 flex items-center gap-1.5 text-[11px] font-bold text-[var(--t3)]">
+          Actual profit $
+          <input
+            inputMode="numeric"
+            value={profit}
+            onChange={(e) => setProfit(e.target.value)}
+            onBlur={commitProfit}
+            placeholder="e.g. 28500"
+            className="flex-1 w-full px-2 py-1 rounded-[var(--r2)] bg-[var(--s2)] border border-[var(--b1)] text-[var(--t1)] placeholder:text-[var(--t4)] focus:outline-none focus:border-[var(--green)]"
+            style={{ borderColor: profit ? "var(--green)" : undefined }}
+          />
+        </label>
+      )}
     </div>
   );
 }
