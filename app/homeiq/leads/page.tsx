@@ -75,6 +75,7 @@ const SOURCE_LABELS: Record<string, string> = {
   tax_delinquent: "Tax-delinquent",
   code_violation: "Code violations",
   absentee_owner: "Absentee owner",
+  hud_reo: "HUD REO",
   dangerous_building: "Dangerous building",
   zillow: "Zillow",
   realtor: "Realtor.com",

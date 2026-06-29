@@ -235,6 +235,44 @@ const numStr = (v: unknown) => {
 // ── NATIONAL (statewide parcel layers with owner data → absentee, money-grade) ──────────────
 export const NATIONAL_SOURCES: OpenDataSource[] = [
   {
+    // HUD-owned REO (bank-owned via FHA) — HUD's OWN sanctioned eGIS layer, all 50 states (~5,500). A
+    // forced institutional disposition = classic below-market flip target. Address + geo only (no price),
+    // so it scores on the REO/gov distress flags, not flip math.
+    source: "hud_reo",
+    api: "arcgis",
+    url: "https://egis.hud.gov/arcgis/rest/services/gotit/REOProperties/MapServer/0",
+    state: "US",
+    where: "1=1",
+    limit: 6000,
+    map: (a, g): Property | null => {
+      const address = [a.STREET_NUM, a.DIRECTION_PREFIX, a.STREET_NAME]
+        .map((x) => String(x ?? "").trim())
+        .filter(Boolean)
+        .join(" ");
+      const state = s(a.STATE_CODE);
+      if (!address || !state) return null;
+      return {
+        source: "hud_reo",
+        source_listing_id: `hudreo-${a.CASE_NUM || a.OBJECTID}`,
+        title: `HUD REO · ${address}`,
+        address,
+        city: s(a.CITY),
+        state,
+        zip: a.DISPLAY_ZIP_CODE
+          ? String(a.DISPLAY_ZIP_CODE).slice(0, 5)
+          : undefined,
+        lat: g.lat,
+        lng: g.lng,
+        seller_type: "gov",
+        signals: {
+          reo: true,
+          owner: "HUD (bank-owned)",
+          status: "HUD REO — bank-owned",
+        },
+      };
+    },
+  },
+  {
     // New York STATEWIDE parcels — out-of-state absentee residential. Carries living sqft + market value
     // → real flip math via county sold $/sqft. One config = absentee leads for the whole state.
     source: "absentee_owner",
