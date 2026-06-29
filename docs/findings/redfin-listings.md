@@ -70,3 +70,13 @@ $('script[type="application/ld+json"]').each((i, el) => {
 ```
 
 This extraction method cleanly avoids hitting any heavily-protected XHR JSON APIs and successfully extracts Redfin inventory directly from the SSR HTML.
+
+## REDFIN_SEARCH_URLS
+
+Here are 5 real Redfin metro/search URLs to be used for the harvest:
+
+1. `https://www.redfin.com/city/30794/TX/Dallas`
+2. `https://www.redfin.com/city/30818/TX/Austin`
+3. `https://www.redfin.com/city/16163/WA/Seattle`
+4. `https://www.redfin.com/city/29470/IL/Chicago`
+5. `https://www.redfin.com/city/11458/FL/Miami`
