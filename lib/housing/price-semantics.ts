@@ -28,6 +28,8 @@ export function housingPriceTerms(
 ): HousingPriceTerms {
   const s = (source || "").toLowerCase();
   // Off-market owner lead (tax-delinquent etc.) — not for sale; the number shown is the assessed value.
+  if (s === "absentee_owner")
+    return { priceLabel: "Assessed value", kind: "list", isAuction: false };
   if (s === "dangerous_building")
     return { priceLabel: "Off-market", kind: "list", isAuction: false };
   if (

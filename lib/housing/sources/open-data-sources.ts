@@ -115,6 +115,82 @@ export const MISSOURI_SOURCES: OpenDataSource[] = [
     },
   },
   {
+    // St. Louis County Assessor — out-of-state ABSENTEE owners of residential parcels (a core PropStream
+    // list: remote owners with carrying costs, more willing to deal). Carries value + sqft + year.
+    source: "absentee_owner",
+    api: "arcgis",
+    url: "https://maps.stlouisco.com/hosting/rest/services/Maps/AGS_Parcels/MapServer/0",
+    state: "MO",
+    city: "St. Louis County",
+    where:
+      "OWN_STATE<>'MO' AND TOTAPVAL>40000 AND RESQFT>700 AND PROPCLASS='R'",
+    limit: 5000,
+    map: (a, g): Property | null => {
+      const address = s(a.PROP_ADD);
+      if (!address) return null;
+      return {
+        source: "absentee_owner",
+        source_listing_id: `stlco-${a.LOCATOR}`,
+        title: `Absentee owner · ${address}`,
+        property_type: "single_family",
+        address,
+        city: s(a.MUNICIPALITY) || "St. Louis County",
+        state: "MO",
+        lat: g.lat,
+        lng: g.lng,
+        price: n(a.TOTAPVAL), // assessed value (off-market — no list price)
+        seller_type: "owner",
+        signals: {
+          absentee: true,
+          out_of_state_owner: true,
+          owner: s(a.OWNER_NAME),
+          owner_state: s(a.OWN_STATE),
+          status: `Absentee (${s(a.OWN_STATE)})`,
+        },
+      };
+    },
+  },
+  {
+    // Greene County (Springfield) Assessor — out-of-state absentee residential. iasWorld rejects
+    // resultOffset, so use OID-batch paging.
+    source: "absentee_owner",
+    api: "arcgis",
+    url: "https://greenecountyassessor.org/arcgis/rest/services/IasWorldParcel5/MapServer/0",
+    state: "MO",
+    city: "Springfield",
+    paging: "oid",
+    where: "STATECODE<>'MO' AND P_VALAPR3>40000 AND SFLA>700",
+    limit: 4000,
+    map: (a, g): Property | null => {
+      // iasWorld stores the situs as components (ADRNO/ADRDIR/ADRSTR/ADRSUF); PropAdr is sparse.
+      const parts = [a.ADRNO, a.ADRDIR, a.ADRSTR, a.ADRSUF]
+        .map((x) => String(x ?? "").trim())
+        .filter((x) => x && x !== "0");
+      const address = parts.join(" ") || s(a.PropAdr);
+      if (!address) return null;
+      return {
+        source: "absentee_owner",
+        source_listing_id: `greene-${a.PARID}`,
+        title: `Absentee owner · ${address}`,
+        property_type: "single_family",
+        address,
+        city: "Springfield",
+        state: "MO",
+        lat: g.lat,
+        lng: g.lng,
+        price: n(a.P_VALAPR3),
+        seller_type: "owner",
+        signals: {
+          absentee: true,
+          out_of_state_owner: true,
+          owner: s(a.OWN1),
+          owner_state: s(a.STATECODE),
+          status: `Absentee (${s(a.STATECODE)})`,
+        },
+      };
+    },
+  },
+  {
     // Kansas City "Dangerous Buildings" — open structural-danger cases = vacant/severe distress.
     source: "dangerous_building",
     api: "socrata",

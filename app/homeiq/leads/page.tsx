@@ -74,6 +74,7 @@ const SOURCE_LABELS: Record<string, string> = {
   land_bank: "Land banks",
   tax_delinquent: "Tax-delinquent",
   code_violation: "Code violations",
+  absentee_owner: "Absentee owner",
   dangerous_building: "Dangerous building",
 };
 const sourceLabel = (s: string) =>
