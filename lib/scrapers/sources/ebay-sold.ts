@@ -37,6 +37,48 @@ const QUERIES = [
   "subaru outback",
 ];
 
+// Sold-price anchoring only helps a car if we have sold comps for THAT make/model. The static list above
+// covers the popular flips, but the live inventory spans ~hundreds of models (Acura MDX, Corvette, …) that
+// had ZERO sold coverage → their valuations fell back to inflated asking-price comps. So we additionally
+// derive the top make/model pairs actually present in the active `deals` table and scrape sold prices for
+// those too, so coverage tracks real inventory. Returns "make model" search strings (model = first token,
+// which matches eBay best for the common single-word models).
+async function dynamicQueries(
+  sb: SupabaseClient,
+  limit = 60,
+): Promise<string[]> {
+  const counts = new Map<string, number>();
+  const PAGE = 1000;
+  try {
+    for (let off = 0; off < 24000; off += PAGE) {
+      const { data, error } = await sb
+        .from("deals")
+        .select("make, model")
+        .eq("active", true)
+        .gt("ask_price", 0)
+        .order("id", { ascending: true })
+        .range(off, off + PAGE - 1);
+      if (error || !data?.length) break;
+      for (const d of data as { make: string; model: string }[]) {
+        const mk = (d.make || "").trim().toLowerCase();
+        const md = (d.model || "")
+          .trim()
+          .toLowerCase()
+          .split(/[\s,/]+/)[0]; // first token of the model
+        if (mk.length > 1 && md.length > 1)
+          counts.set(`${mk} ${md}`, (counts.get(`${mk} ${md}`) || 0) + 1);
+      }
+      if (data.length < PAGE) break;
+    }
+  } catch {
+    /* fall back to the static list */
+  }
+  return Array.from(counts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit)
+    .map(([k]) => k);
+}
+
 // Titles that are clearly NOT a whole sellable car — parts, project shells, etc.
 const PARTS_RX =
   /\b(parts?|engine|transmission|motor only|hood|doors?|bumpers?|fenders?|seats?|wheels?|rims?|tires?|tyres?|axle|differential|ecu|ecm|module|mirrors?|headlights?|taillights?|grille|core support|parting out|for parts|no engine|shell only|gauge|cluster|harness|manual|brochure|hub ?cap|emblem|key fob)\b/i;
@@ -196,8 +238,17 @@ export async function scrapeEbaySold(): Promise<number> {
     /* warm-up best-effort */
   }
 
+  // Static popular flips + the top models actually in inventory, deduped, so anchoring reaches the cars
+  // users really see (not just 15 hardcoded models).
+  const sb = admin();
+  const dynamic = await dynamicQueries(sb);
+  const queries = Array.from(new Set([...QUERIES, ...dynamic]));
+  console.log(
+    `[eBay Sold] ${queries.length} queries (${QUERIES.length} static + ${dynamic.length} from live inventory)`,
+  );
+
   const all = new Map<string, SoldRow>();
-  for (const q of QUERIES) {
+  for (const q of queries) {
     try {
       const url =
         `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(q)}` +
@@ -218,7 +269,6 @@ export async function scrapeEbaySold(): Promise<number> {
   }
 
   // Dedupe against what's already stored (the table has no external-id column → natural key).
-  const sb = admin();
   const { data: existing } = await sb
     .from("sold_listings")
     .select("year, make, model, sold_price, sold_at, source")
