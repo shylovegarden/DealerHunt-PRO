@@ -7,6 +7,10 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { US_STATES as ST, nearbyStates } from "@/lib/housing/us-states";
 import { housingPriceTerms } from "@/lib/housing/price-semantics";
+import {
+  readHomeCondition,
+  HOME_CONDITION_TIER_COLOR,
+} from "@/lib/housing/condition";
 
 // Market-leading housing browse — Zillow/Redfin split map+list + photo-forward cards + PropStream-style
 // lead signals. LOCATION-FIRST + PROGRESSIVE: scoped to your state shows it IMMEDIATELY, then "Nearby"
@@ -496,6 +500,25 @@ function LeadCard({ lead }: { lead: Lead }) {
         </div>
         <h3 className="text-sm text-[var(--t2)] truncate">{lead.title}</h3>
         <div className="flex items-center gap-2 mt-1 flex-wrap">
+          {(() => {
+            const c = readHomeCondition({
+              property_type: lead.property_type,
+              status: lead.status,
+              title: lead.title,
+            });
+            if (!c) return null;
+            return (
+              <span
+                className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                style={{
+                  background: `${HOME_CONDITION_TIER_COLOR[c.tier]}1f`,
+                  color: HOME_CONDITION_TIER_COLOR[c.tier],
+                }}
+              >
+                {c.label}
+              </span>
+            );
+          })()}
           {lead.mao != null && (
             <span
               className="text-[11px] font-bold"
