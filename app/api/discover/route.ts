@@ -101,21 +101,32 @@ export async function GET(request: NextRequest) {
       45_000,
       async (): Promise<{ merged: any[]; rowCount: number }> => {
         const supabase = createServerComponentClient();
-        let q = supabase
-          .from("deals")
-          .select(
-            "id, source, source_url, title, year, make, model, trim, vin, mileage, condition, damage_type, ask_price, sell_estimate, mmr_value, deal_analysis, profit_score, true_net_profit, recommended_max_bid, deal_verdict, location_city, location_state, images, last_seen_at, first_seen_at, auction_end_at, options",
-          )
-          .eq("active", true)
-          .gt("ask_price", 0)
-          .order("last_seen_at", { ascending: false })
-          .limit(5000);
-        if (state) q = q.eq("location_state", state);
-        if (maxPrice > 0) q = q.lte("ask_price", maxPrice);
-
-        const { data, error } = await q;
-        if (error) throw new Error(error.message);
-        const rows = data || [];
+        const COLS =
+          "id, source, source_url, title, year, make, model, trim, vin, mileage, condition, damage_type, ask_price, sell_estimate, mmr_value, deal_analysis, profit_score, true_net_profit, recommended_max_bid, deal_verdict, location_city, location_state, images, last_seen_at, first_seen_at, auction_end_at, options";
+        // PostgREST caps a single response at 1000 rows, so a plain `.limit(5000)` silently returned just
+        // the 1000 freshest — which is one recent source's batch (e.g. all copart), burying the other 12
+        // sources and ~31k cars. Page with `.range()` until we've pulled the whole market (up to MAX_ROWS)
+        // so every source + the best deals nationwide actually feed the rails. Cached 45s upstream.
+        const MAX_ROWS = 24000;
+        const PAGE = 1000;
+        const rows: any[] = [];
+        for (let off = 0; off < MAX_ROWS; off += PAGE) {
+          let q = supabase
+            .from("deals")
+            .select(COLS)
+            .eq("active", true)
+            .gt("ask_price", 0)
+            .order("last_seen_at", { ascending: false })
+            .order("id", { ascending: true }) // stable tiebreak across pages
+            .range(off, off + PAGE - 1);
+          if (state) q = q.eq("location_state", state);
+          if (maxPrice > 0) q = q.lte("ask_price", maxPrice);
+          const { data, error } = await q;
+          if (error) throw new Error(error.message);
+          const page = data || [];
+          rows.push(...page);
+          if (page.length < PAGE) break; // last page
+        }
 
         const byVin = new Map<string, any[]>();
         const noVin: any[] = [];
