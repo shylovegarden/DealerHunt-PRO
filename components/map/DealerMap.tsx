@@ -43,14 +43,94 @@ export interface MapPoint {
   lng: number;
   type?: "auction" | "dealer" | "private" | "hub";
   label?: string;
+  // Rich listing fields (housing) → Zillow/Redfin-style price-pill markers + photo-card popups.
+  price?: number;
+  priceLabel?: string; // "Starting bid" / "Asking" / "Assessed value" …
+  score?: number;
+  tier?: string; // hot | warm | standard
+  image?: string;
+  beds?: number;
+  baths?: number;
+  sqft?: number;
+  verdict?: string;
+  url?: string; // detail link
 }
 
 interface DealerMapProps {
   points?: MapPoint[];
 }
 
-// Clustered markers — collapses dense areas into "34" cluster bubbles (Visor map clustering). Uses
-// the raw leaflet.markercluster plugin via the react-leaflet map instance.
+const TIER_HEX: Record<string, string> = {
+  hot: "#ef4444",
+  warm: "#f59e0b",
+  standard: "#2dd4bf",
+};
+const esc = (v: unknown) =>
+  String(v ?? "").replace(
+    /[&<>"]/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!,
+  );
+const fmtPrice = (n: number) =>
+  n >= 1_000_000
+    ? `$${(n / 1_000_000).toFixed(1)}M`
+    : n >= 1000
+      ? `$${Math.round(n / 1000)}k`
+      : `$${n}`;
+
+// Zillow-style price/score pill marker (housing), colored by lead tier.
+function pillIcon(p: MapPoint): L.DivIcon {
+  const color = TIER_HEX[p.tier ?? ""] || "#2563eb";
+  const text =
+    p.price && p.price > 0
+      ? fmtPrice(p.price)
+      : p.score != null
+        ? String(p.score)
+        : "•";
+  return new L.DivIcon({
+    className: "deal-pin",
+    html: `<div style="background:${color};color:#fff;font:700 11px/1 system-ui;padding:5px 8px;border-radius:13px;white-space:nowrap;border:1.5px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.45)">${esc(text)}</div>`,
+    iconSize: [1, 1],
+    iconAnchor: [0, 0],
+  });
+}
+
+// Rich photo-card popup (housing) — image + price + meta + score/verdict + a detail link.
+function cardPopup(p: MapPoint): string {
+  const color = TIER_HEX[p.tier ?? ""] || "#2563eb";
+  const img = p.image
+    ? `<img src="${esc(p.image)}" style="width:100%;height:120px;object-fit:cover;display:block" onerror="this.style.display='none'"/>`
+    : "";
+  const price =
+    p.price && p.price > 0
+      ? `$${p.price.toLocaleString()}`
+      : esc(p.priceLabel || "");
+  const meta = [
+    p.beds ? `${p.beds} bd` : null,
+    p.baths ? `${p.baths} ba` : null,
+    p.sqft ? `${p.sqft.toLocaleString()} sqft` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  return `<div style="width:208px;font-family:system-ui">
+    ${img}
+    <div style="padding:8px 10px">
+      <div style="font-weight:800;font-size:15px;color:#111">${price}</div>
+      <div style="font-weight:600;font-size:12px;color:#555;margin-top:2px">${esc(p.name)}</div>
+      ${meta ? `<div style="font-size:11px;color:#777;margin-top:2px">${meta}</div>` : ""}
+      ${
+        p.score != null || p.verdict
+          ? `<div style="margin-top:5px;font-weight:700;font-size:11px;color:${color}">${
+              p.score != null ? `Score ${p.score}` : ""
+            }${p.score != null && p.verdict ? " · " : ""}${esc(p.verdict || "")}</div>`
+          : ""
+      }
+      ${p.url ? `<a href="${esc(p.url)}" style="display:block;margin-top:7px;font-weight:700;font-size:12px;color:#0d9488;text-decoration:none">View details →</a>` : ""}
+    </div>
+  </div>`;
+}
+
+// Clustered markers — dense areas collapse into count bubbles; housing points render as price pills with
+// photo-card popups, cars keep the dot + text popup.
 function ClusteredMarkers({ points }: { points: MapPoint[] }) {
   const map = useMap();
   useEffect(() => {
@@ -59,11 +139,16 @@ function ClusteredMarkers({ points }: { points: MapPoint[] }) {
       maxClusterRadius: 50,
     });
     for (const p of points) {
+      const rich =
+        (p.price != null && p.price > 0) || p.image || p.score != null;
       const marker = L.marker([p.lat, p.lng], {
-        icon: icons[p.type ?? "dealer"],
+        icon: rich ? pillIcon(p) : icons[p.type ?? "dealer"],
       });
       marker.bindPopup(
-        `<div style="padding:2px"><strong>${p.name}</strong>${p.label ? `<br/><span style="font-size:11px;color:#888">${p.label}</span>` : ""}</div>`,
+        rich
+          ? cardPopup(p)
+          : `<div style="padding:2px"><strong>${esc(p.name)}</strong>${p.label ? `<br/><span style="font-size:11px;color:#888">${esc(p.label)}</span>` : ""}</div>`,
+        rich ? { minWidth: 208, maxWidth: 240 } : undefined,
       );
       group.addLayer(marker);
     }

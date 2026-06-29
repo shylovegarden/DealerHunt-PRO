@@ -11,6 +11,7 @@ import {
   type StoredProperty,
 } from "@/lib/housing/store";
 import { STATE_COORDS } from "@/lib/geo";
+import { housingPriceTerms } from "@/lib/housing/price-semantics";
 import type { Property } from "@/lib/housing/types";
 
 // GET /api/homeiq/leads?state=IL&tier=hot — scored real-estate leads, hottest-first, with map points.
@@ -30,6 +31,9 @@ interface Lead {
   state?: string;
   zip?: string;
   image?: string;
+  beds?: number;
+  baths?: number;
+  sqft?: number;
   auction_end?: string;
   bid_count?: number;
   lat?: number;
@@ -98,6 +102,9 @@ function fromStored(r: StoredProperty): Lead {
       state: r.state,
       zip: r.zip,
       image: r.images?.[0],
+      beds: r.beds,
+      baths: r.baths,
+      sqft: r.sqft,
       auction_end: r.auction_end,
       bid_count: r.bid_count,
       lat: r.lat,
@@ -125,6 +132,9 @@ function fromLive(p: Property): Lead {
       state: p.state,
       zip: p.zip,
       image: p.images?.[0],
+      beds: p.beds,
+      baths: p.baths,
+      sqft: p.sqft,
       auction_end: p.auction_end,
       bid_count: p.bid_count,
       lat: p.lat,
@@ -207,6 +217,17 @@ export async function GET(req: NextRequest) {
         type:
           l.tier === "hot" ? "hub" : l.tier === "warm" ? "auction" : "dealer",
         label: `$${(l.price || 0).toLocaleString()} · score ${l.score} · ${l.city || ""} ${l.state || ""}`,
+        // Rich fields for the Zillow-style map (price-pill marker + photo-card popup).
+        price: l.price,
+        priceLabel: housingPriceTerms(l.source, !!l.auction_end).priceLabel,
+        score: l.score,
+        tier: l.tier,
+        image: l.image,
+        beds: l.beds,
+        baths: l.baths,
+        sqft: l.sqft,
+        verdict: l.verdict ?? undefined,
+        url: `/homeiq/leads/${encodeURIComponent(l.id)}`,
       };
     })
     .filter(Boolean);
