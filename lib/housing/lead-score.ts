@@ -112,9 +112,22 @@ export function scoreHousingLead(p: Property): LeadScore {
     else if (room >= 0) add(5, "At/near the max offer");
   }
 
+  // 8) MONEY GATE — the verified 70%-rule verdict (when ARV is computable) overrides distress "vibes".
+  // A lead the math says is OVERPRICED must never surface as a top "hot" lead, however motivated the
+  // wording — that's where a user loses money. Conversely a verified flip earns a real bump.
+  let overpriced = false;
+  if (deal.verdict === "strong")
+    add(12, "Verified flip — strong equity (70% rule)");
+  else if (deal.verdict === "fair") add(6, "Verified flip — fair equity");
+  else if (deal.verdict === "pass") {
+    overpriced = true;
+    score -= 15; // signals can't manufacture a hot lead out of an overpriced house
+  }
+
   score = Math.max(0, Math.min(100, Math.round(score)));
-  const tier: LeadTier =
-    score >= 70 ? "hot" : score >= 45 ? "warm" : "standard";
+  let tier: LeadTier = score >= 70 ? "hot" : score >= 45 ? "warm" : "standard";
+  // Hard ceiling: a verified-overpriced lead is capped below "hot" no matter how high the vibe score.
+  if (overpriced && tier === "hot") tier = "warm";
 
   return {
     score,
