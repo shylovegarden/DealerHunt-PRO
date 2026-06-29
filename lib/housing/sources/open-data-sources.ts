@@ -226,8 +226,106 @@ export const MISSOURI_SOURCES: OpenDataSource[] = [
   },
 ];
 
+// Parse a string-formatted number ("  99,400" → 99400). Many county fields ship numbers as text.
+const numStr = (v: unknown) => {
+  const x = Number(String(v ?? "").replace(/[^0-9.]/g, ""));
+  return Number.isFinite(x) && x > 0 ? x : undefined;
+};
+
+// ── NATIONAL (statewide parcel layers with owner data → absentee, money-grade) ──────────────
+export const NATIONAL_SOURCES: OpenDataSource[] = [
+  {
+    // New York STATEWIDE parcels — out-of-state absentee residential. Carries living sqft + market value
+    // → real flip math via county sold $/sqft. One config = absentee leads for the whole state.
+    source: "absentee_owner",
+    api: "arcgis",
+    url: "https://gisservices.its.ny.gov/arcgis/rest/services/NYS_Tax_Parcel_Centroid_Points/FeatureServer/0",
+    state: "NY",
+    where:
+      "MAIL_STATE NOT IN ('NY') AND (PROP_CLASS LIKE '21%' OR PROP_CLASS LIKE '22%' OR PROP_CLASS LIKE '23%') AND FULL_MARKET_VAL > 50000 AND FULL_MARKET_VAL < 900000 AND SQFT_LIVING > 500",
+    limit: 6000,
+    map: (a, g): Property | null => {
+      const address =
+        s(a.PARCEL_ADDR) ||
+        [s(a.LOC_ST_NBR), s(a.LOC_STREET)].filter(Boolean).join(" ");
+      if (!address) return null;
+      const cls = String(a.PROP_CLASS || "");
+      return {
+        source: "absentee_owner",
+        source_listing_id: `ny-${a.MUNI_PARCEL_ID || a.OBJECTID}`,
+        title: `Absentee owner · ${address}`,
+        property_type: cls.startsWith("21") ? "single_family" : "multi_family",
+        address,
+        city: s(a.CITYTOWN_NAME) || s(a.MUNI_NAME),
+        state: "NY",
+        zip: s(a.LOC_ZIP),
+        lat: g.lat,
+        lng: g.lng,
+        price: n(a.FULL_MARKET_VAL),
+        sqft: n(a.SQFT_LIVING),
+        seller_type: "owner",
+        signals: {
+          absentee: true,
+          out_of_state_owner: true,
+          owner: s(a.PRIMARY_OWNER),
+          owner_state: s(a.MAIL_STATE),
+          status: `Absentee (${s(a.MAIL_STATE)})`,
+        },
+      };
+    },
+  },
+  {
+    // Maricopa County AZ (Phoenix metro) — out-of-state absentee. Numbers ship as formatted strings;
+    // map parses them and requires a living-space value (residential filter).
+    source: "absentee_owner",
+    api: "arcgis",
+    url: "https://gis.mcassessor.maricopa.gov/arcgis/rest/services/Parcels/MapServer/0",
+    state: "AZ",
+    where: "MAIL_STATE NOT IN ('AZ') AND PHYSICAL_CITY IS NOT NULL",
+    limit: 6000,
+    map: (a, g): Property | null => {
+      const parts = [
+        a.PHYSICAL_STREET_NUM,
+        a.PHYSICAL_STREET_DIR,
+        a.PHYSICAL_STREET_NAME,
+        a.PHYSICAL_STREET_TYPE,
+      ]
+        .map((x) => String(x ?? "").trim())
+        .filter(Boolean);
+      const address = parts.join(" ") || s(a.PHYSICAL_ADDRESS);
+      const sqft = numStr(a.LIVING_SPACE);
+      if (!address || !sqft || sqft < 500) return null; // residential w/ a real structure
+      return {
+        source: "absentee_owner",
+        source_listing_id: `maricopa-${a.APN}`,
+        title: `Absentee owner · ${address}`,
+        property_type: "single_family",
+        address,
+        city: s(a.PHYSICAL_CITY) || "Phoenix",
+        state: "AZ",
+        zip: s(a.PHYSICAL_ZIP),
+        lat: n(a.LATITUDE) ?? g.lat,
+        lng: n(a.LONGITUDE) ?? g.lng,
+        price: numStr(a.FCV_CUR),
+        sqft,
+        seller_type: "owner",
+        signals: {
+          absentee: true,
+          out_of_state_owner: true,
+          owner: s(a.OWNER_NAME),
+          owner_state: s(a.MAIL_STATE),
+          status: `Absentee (${s(a.MAIL_STATE)})`,
+        },
+      };
+    },
+  },
+];
+
 // All configured open-data jurisdictions (grows state by state).
-export const OPEN_DATA_SOURCES: OpenDataSource[] = [...MISSOURI_SOURCES];
+export const OPEN_DATA_SOURCES: OpenDataSource[] = [
+  ...MISSOURI_SOURCES,
+  ...NATIONAL_SOURCES,
+];
 
 /** Harvest all configured open-data off-market leads (Missouri-first; whole-US as configs are added). */
 export function fetchOpenDataLeads(
