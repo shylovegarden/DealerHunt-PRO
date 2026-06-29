@@ -1,11 +1,13 @@
 // lib/housing/lead-score.ts
 //
-// HomeIQ's lead intelligence — the housing analogue of the car deal-analyzer's GO/PASS. It reads the
-// signals that tell a flipper "this seller will deal": distress language, deep discount, an auction
-// closing soon, thin competition, the gov-disposal channel. Pure + weighted, so every lead gets a 0–100
-// score AND the reasons WHY — never a black box. Tuned for what GovDeals real estate actually carries
-// today (title text + price + auction window + bid count); new signals (price-cut velocity, DOM,
-// pre-foreclosure, vacancy) slot in as we add sources that expose them.
+// HomeIQ's lead intelligence — the housing analogue of the car deal-analyzer's GO/PASS. Models the way the
+// top motivated-seller platforms (PropStream / BatchLeads / DistressIQ) actually rank leads: a weighted
+// MOTIVATION score from independent signal GROUPS, a super-linear STACKING bonus when several groups fire
+// at once (the documented core of their predictive power), tiered distress keywords + negative ("full
+// price") keywords to kill false positives, and a verified-equity MONEY GATE so an overpriced house can
+// never top the list. Pure + transparent: every lead returns the exact reasons + a 0–100 score, tier, and
+// letter grade. Listing-only today; parcel/owner signals (tax-delinquent, absentee, pre-foreclosure) slot
+// into the same group/stacking framework as those free county sources come online.
 
 import type { Property } from "./types";
 import { analyzeHousingDeal } from "./deal-analyzer";
@@ -15,12 +17,22 @@ export type LeadTier = "hot" | "warm" | "standard";
 export interface LeadScore {
   score: number; // 0–100
   tier: LeadTier;
+  grade: string; // A+ … C- (glanceable, like the commercial "DealScore")
   signals: string[]; // human-readable reasons, strongest first
 }
 
-// Words sellers/agents use that scream "motivated / discounted / needs work" = opportunity.
-const DISTRESS_RE =
-  /\b(deeply discounted|discount(ed)?|distress(ed)?|fixer|rehab|handyman|as-?is|tlc|investor|motivated|foreclosure|reo|bank ?owned|must sell|short sale|estate|probate|vacant|tear ?down|cash only|below market|opportunity|potential|affordable|value)\b/gi;
+// Tiered distress keywords — financial/legal urgency outranks circumstantial outranks condition. We award
+// the HIGHEST tier matched (+ a small breadth bonus), not a sum, so wording can't run away with the score.
+const KW_FINANCIAL =
+  /\b(must sell|bring (all )?offers|priced to sell|quick close|motivated|deeply discounted|distress(ed)?|foreclosure|short sale|bank ?owned|reo|auction|below market)\b/i;
+const KW_CIRCUMSTANTIAL =
+  /\b(estate sale|estate|probate|inherited|relocat(e|ing|ion)|divorce|out[-\s]?of[-\s]?state|vacant|moving)\b/i;
+const KW_CONDITION =
+  /\b(as-?is|investor special|handyman|fixer|needs? work|rehab|tear ?down|cash only|tlc|gut)\b/i;
+const KW_COSMETIC = /\b(dated|needs? updating|outdated|original condition)\b/i;
+// "Full-price intent" wording — a retail seller, not a deal. Penalize so a polished listing can't sneak in.
+const KW_NEGATIVE =
+  /\b(pride of ownership|luxurious|stunning|meticulous(ly)?|immaculate|pristine|turn[-\s]?key|move[-\s]?in ready|fully renovated|like new|gorgeous|dream home)\b/i;
 
 function hoursUntil(iso?: string): number | null {
   if (!iso) return null;
@@ -38,7 +50,6 @@ function discountPoints(p: Property): { pts: number; why?: string } {
     if (price < 15000) return { pts: 10, why: "Cheap lot (<$15k)" };
     return { pts: 2 };
   }
-  // Houses (single/multi/condo/townhouse).
   if (price < 25000)
     return { pts: 25, why: `Deep value — only $${price.toLocaleString()}` };
   if (price < 60000)
@@ -47,31 +58,69 @@ function discountPoints(p: Property): { pts: number; why?: string } {
   return { pts: 2 };
 }
 
+function gradeFor(score: number): string {
+  if (score >= 85) return "A+";
+  if (score >= 76) return "A";
+  if (score >= 70) return "A-";
+  if (score >= 62) return "B+";
+  if (score >= 54) return "B";
+  if (score >= 45) return "B-";
+  if (score >= 32) return "C";
+  return "C-";
+}
+
 /**
  * Score one Property as a lead. Deterministic + transparent: the returned signals are exactly what drove
- * the number. ≥70 = hot, ≥45 = warm, else standard.
+ * the number. Motivation GROUPS (keywords, price-cut, days-on-market, below-market/equity) earn points;
+ * 3+ groups firing applies a stacking bonus. A verified-overpriced verdict can never be hot.
  */
 export function scoreHousingLead(p: Property): LeadScore {
   let score = 0;
   const signals: { pts: number; text: string }[] = [];
-  const add = (pts: number, text: string) => {
+  const groups = new Set<string>(); // independent motivation evidence (for the stacking bonus)
+  const add = (pts: number, text: string, group?: string) => {
     score += pts;
-    if (pts > 0) signals.push({ pts, text });
+    if (pts > 0) {
+      signals.push({ pts, text });
+      if (group) groups.add(group);
+    }
   };
 
-  // 1) Distress / motivation language (stacks, capped) — the strongest tell.
-  const title = `${p.title || ""} ${p.description || ""}`;
-  const hits = Array.from(
-    new Set((title.match(DISTRESS_RE) || []).map((s) => s.toLowerCase())),
-  );
-  if (hits.length) {
-    const pts = Math.min(30, hits.length * 11);
-    add(pts, `Motivated-seller language: ${hits.slice(0, 3).join(", ")}`);
+  const text = `${p.title || ""} ${p.description || ""}`;
+
+  // 1) Distress / motivation language — highest tier matched, + breadth bonus, − full-price penalty.
+  let kwPts = 0;
+  let kwWhy = "";
+  if (KW_FINANCIAL.test(text)) {
+    kwPts = 20;
+    kwWhy = "Financial/urgency wording (must-sell / foreclosure / motivated)";
+  } else if (KW_CIRCUMSTANTIAL.test(text)) {
+    kwPts = 14;
+    kwWhy = "Circumstantial wording (estate / probate / relocation / vacant)";
+  } else if (KW_CONDITION.test(text)) {
+    kwPts = 8;
+    kwWhy = "Condition wording (as-is / fixer / handyman)";
+  } else if (KW_COSMETIC.test(text)) {
+    kwPts = 2;
+    kwWhy = "Light cosmetic wording";
+  }
+  if (kwPts > 0) {
+    // Breadth: a second distinct distress register reinforces motivation.
+    const registers = [KW_FINANCIAL, KW_CIRCUMSTANTIAL, KW_CONDITION].filter(
+      (re) => re.test(text),
+    ).length;
+    if (registers >= 2) kwPts = Math.min(30, kwPts + 6);
+    add(kwPts, kwWhy, kwPts >= 8 ? "kw" : undefined);
+  }
+  if (KW_NEGATIVE.test(text)) {
+    score -= 10; // polished, full-price listing — not a deal
+    signals.push({ pts: 0.01, text: "Full-price wording (−)" });
   }
 
-  // 2) Deep discount (price vs type).
+  // 2) Deep discount vs type (a below-market entry price).
   const d = discountPoints(p);
-  if (d.pts) add(d.pts, d.why || "Discounted");
+  if (d.pts)
+    add(d.pts, d.why || "Discounted", d.pts >= 8 ? "price" : undefined);
 
   // 3) Auction closing soon = time-sensitive, less competition near the end.
   const hrs = hoursUntil(p.auction_end);
@@ -87,72 +136,78 @@ export function scoreHousingLead(p: Property): LeadScore {
   }
 
   // 5) Gov / foreclosure disposal channel = inherently a must-sell seller.
-  if (p.seller_type === "gov" || p.seller_type === "bank") {
+  if (p.seller_type === "gov" || p.seller_type === "bank")
     add(10, "Gov / bank disposal — must-sell seller");
-  }
 
-  // 6) Property-type fit for the typical flipper (a house beats raw land for most).
+  // 6) Property-type fit for the typical flipper.
   if (p.property_type === "single_family")
     add(6, "Single-family — broadest buyer pool");
   else if (p.property_type === "multi_family")
     add(5, "Multi-family — rental upside");
 
-  // 6b) PRICE CUT — a published reduction is one of the strongest "seller will deal" tells the big
-  // platforms (PropStream/BatchLeads) surface. Read the per-source status (price reduced / drop / cut).
+  // 6b) PRICE CUT — a published reduction is one of the strongest "seller will deal" tells.
   const status = String(
     (p.signals as any)?.status || (p.signals as any)?.sale_type || "",
   ).toLowerCase();
   if (/reduc|price\s*drop|price\s*cut/.test(status))
-    add(14, "Price reduced — seller is actively dropping the ask");
+    add(14, "Price reduced — seller is actively dropping the ask", "pricecut");
 
-  // 6c) DAYS ON MARKET — a stale listing is a softening seller. created_at ≈ when we first saw it (a
-  // conservative lower bound on true days-on-market); the signal sharpens as inventory ages in the store.
+  // 6c) DAYS ON MARKET — a stale listing is a softening seller (created_at ≈ first-seen lower bound).
   const firstSeen = (p as any).created_at as string | undefined;
   if (firstSeen) {
     const days = (Date.now() - Date.parse(firstSeen)) / 86_400_000;
     if (Number.isFinite(days)) {
       if (days >= 90)
-        add(10, `On market ${Math.round(days)}d — stale, negotiable`);
-      else if (days >= 45) add(6, "On market 45d+ — softening");
+        add(10, `On market ${Math.round(days)}d — stale, negotiable`, "dom");
+      else if (days >= 45) add(6, "On market 45d+ — softening", "dom");
     }
   }
 
-  // 7) EQUITY — the math signal. When sqft is known the deal-analyzer can run the 70% rule; an ask well
-  // below the Max Allowable Offer is a real flip even with no distress words (HUD/Redfin sqft-rich homes
-  // that would otherwise score 0). This is what surfaces the genuinely-underpriced listings.
+  // 7) EQUITY — the math signal. An ask well below the Max Allowable Offer is a real flip even with no
+  // distress words (the sqft-rich HUD/Redfin homes that would otherwise score 0).
   const deal = analyzeHousingDeal(p);
   if (deal.mao != null && deal.mao > 0 && p.price != null && p.price > 0) {
-    const room = (deal.mao - p.price) / deal.mao; // fraction the ask sits below the max offer
+    const room = (deal.mao - p.price) / deal.mao;
     if (room >= 0.3)
       add(
         24,
         `Priced ~${Math.round(room * 100)}% below max offer — strong equity`,
+        "equity",
       );
-    else if (room >= 0.12) add(13, "Below max offer — real equity room");
+    else if (room >= 0.12)
+      add(13, "Below max offer — real equity room", "equity");
     else if (room >= 0) add(5, "At/near the max offer");
   }
 
-  // 8) MONEY GATE — the verified 70%-rule verdict (when ARV is computable) overrides distress "vibes".
-  // A lead the math says is OVERPRICED must never surface as a top "hot" lead, however motivated the
-  // wording — that's where a user loses money. Conversely a verified flip earns a real bump.
+  // ── STACKING BONUS — the super-linear payoff to overlap that the commercial scorers are built on.
+  if (groups.size >= 3) {
+    const bonus = Math.round(score * 0.25);
+    add(bonus, `Stacked ${groups.size} independent signals (×1.25)`);
+  }
+
+  // 8) MONEY GATE — the verified 70%-rule verdict overrides distress "vibes". Strong/fair earn a bump; a
+  // "pass" (overpriced) is penalized AND hard-capped below hot so a user never chases a money-loser.
   let overpriced = false;
   if (deal.verdict === "strong")
     add(12, "Verified flip — strong equity (70% rule)");
   else if (deal.verdict === "fair") add(6, "Verified flip — fair equity");
   else if (deal.verdict === "pass") {
     overpriced = true;
-    score -= 15; // signals can't manufacture a hot lead out of an overpriced house
+    score -= 15;
   }
 
   score = Math.max(0, Math.min(100, Math.round(score)));
   let tier: LeadTier = score >= 70 ? "hot" : score >= 45 ? "warm" : "standard";
-  // Hard ceiling: a verified-overpriced lead is capped below "hot" no matter how high the vibe score.
   if (overpriced && tier === "hot") tier = "warm";
 
   return {
     score,
     tier,
-    signals: signals.sort((a, b) => b.pts - a.pts).map((s) => s.text),
+    grade: gradeFor(score),
+    signals: signals
+      .filter((s) => s.pts >= 1)
+      .sort((a, b) => b.pts - a.pts)
+      .map((s) => s.text),
   };
 }
 
