@@ -4,6 +4,7 @@ import { use, useState } from "react";
 import dynamic from "next/dynamic";
 import useSWR from "swr";
 import Link from "next/link";
+import { housingPriceTerms } from "@/lib/housing/price-semantics";
 
 const DealerMap = dynamic(() => import("@/components/map/DealerMap"), {
   ssr: false,
@@ -104,6 +105,9 @@ export default function LeadDetailPage({
               {lead.title}
             </h1>
             <p className="text-[var(--t3)] mt-1">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--t4)] mr-1.5">
+                {housingPriceTerms(lead.source, !!lead.auction_end).priceLabel}
+              </span>
               <span className="text-xl font-black text-[var(--t1)]">
                 {money(lead.price)}
               </span>
