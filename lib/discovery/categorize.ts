@@ -3,6 +3,8 @@
 // the CarGurus/Kayak mechanism: a market-relative deal grade + segment/price/title tags so the
 // app can present the most useful, browsable view. Pure functions, $0, no external APIs.
 
+import { isAuctionChannel } from "@/lib/sources/source-meta";
+
 export type Segment =
   | "truck"
   | "suv"
@@ -230,6 +232,9 @@ export function categorize(deal: {
   // a markup-on-ask value yields a circular "discount", so we don't grade those (CarGurus
   // only badges a car when it has enough real comparables).
   sellBasis?: string | null;
+  // For auction lots, ask_price is just the CURRENT/opening bid — grading off it fakes a huge discount.
+  source?: string | null;
+  recommended_max_bid?: number | null;
 }): DealTags {
   const trusted =
     deal.sellBasis === "comps" ||
@@ -238,7 +243,15 @@ export function categorize(deal: {
   const market = trusted
     ? (deal.sell_estimate ?? deal.mmr_value) || null
     : null;
-  const g = dealGrade(deal.ask_price, market);
+  // An auction's opening/current bid will rise, so a low bid isn't a real discount. Grade against the
+  // realistic acquisition cost — the higher of the current bid and the engine's recommended max bid — so
+  // an opening bid never fakes a "Great Deal", and an overheated lot (bid above max) grades down honestly.
+  const isAuction = isAuctionChannel(deal.source);
+  const gradeAgainst =
+    isAuction && deal.recommended_max_bid && deal.recommended_max_bid > 0
+      ? Math.max(deal.ask_price || 0, deal.recommended_max_bid)
+      : deal.ask_price;
+  const g = dealGrade(gradeAgainst, market);
   const tier = priceTier(deal.ask_price);
   return {
     segment: segmentOf(deal.make, deal.model),
