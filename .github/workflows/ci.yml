@@ -1,36 +1,26 @@
-name: CI
-
-# Quality gate — tsc/lint/tests. NOTE (2026-06-27): GitHub Actions billing is exhausted, so automatic
-# runs only fail instantly (no compute) and add noise. The REAL gate is now LOCAL: `npm run verify`
-# (scripts/verify.mjs), enforced on every push by the .husky/pre-push hook — same three checks, zero
-# Actions minutes. Kiro owns keeping it green (docs/handouts/KIRO.md). This workflow is kept manual-only
-# (workflow_dispatch) so it's here to re-enable the moment billing is restored — just add back:
-#   push: { branches: [main] }
-#   pull_request:
+name: CI Quality Gate
 
 on:
-  workflow_dispatch:
-
-# Cancel superseded runs on the same ref to save minutes.
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  push:
+    branches: [main]
+  pull_request:
 
 jobs:
-  quality:
+  build-and-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
-      - name: Install
+      - name: Install dependencies
         run: npm ci
-      - name: Typecheck
+      - name: Run typecheck
         run: npx tsc --noEmit
-      - name: Lint (fails on errors; warnings allowed)
+      - name: Run linter
         run: npm run lint
-      - name: Tests
+      - name: Run tests
         run: npm test
+      - name: Run npm audit
+        run: npm audit --omit=dev || true # Warns but does not fail the build
