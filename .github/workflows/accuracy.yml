@@ -3,38 +3,35 @@ name: Accuracy Regression Gate
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 0 * * 0' # Weekly on Sundays
+    - cron: '0 0 * * 0' # weekly on sunday
 
 jobs:
   accuracy:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+
     env:
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
-      
+
       - name: Install dependencies
         run: npm ci
-        
+
       - name: Run valuation backtest
         run: |
           npx tsx scripts/valuation-backtest.ts | tee /tmp/acc.txt
           MAPE=$(grep -o 'MAPE: [0-9.]*' /tmp/acc.txt | awk '{print $2}')
-          if [ -z "$MAPE" ]; then
-            echo "Error: Could not parse MAPE from output"
+          echo "Found MAPE: $MAPE"
+          if awk -v mape="$MAPE" 'BEGIN { exit (mape > 15 ? 0 : 1) }'; then
+            echo "MAPE exceeds 15%. Failing workflow."
             exit 1
-          fi
-          
-          # Compare MAPE > 15 using awk (bc is not always pre-installed)
-          if awk 'BEGIN {if ('"$MAPE"' > 15) exit 0; else exit 1}'; then
-            echo "MAPE $MAPE > 15. Failing build."
-            exit 1
-          else
-            echo "MAPE $MAPE is acceptable."
           fi
