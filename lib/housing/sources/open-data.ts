@@ -21,6 +21,9 @@ export interface OpenDataSource {
   where?: string;
   /** Total rows to pull (paged under the hood). */
   limit?: number;
+  /** ArcGIS paging strategy: "offset" (default) or "oid" for layers that reject resultOffset (some
+   *  Tyler/iasWorld county services) — those need returnIdsOnly + OBJECTID-IN batching. */
+  paging?: "offset" | "oid";
   /** Map one raw row/feature → a Property (return null to skip). `attrs` is the row (Socrata) or
    *  feature.attributes (ArcGIS); `geom` is {lat,lng} when available. */
   map: (
@@ -60,7 +63,81 @@ async function fetchSocrata(cfg: OpenDataSource): Promise<Property[]> {
   return out;
 }
 
+// Map an ArcGIS feature list through the source's `map`, extracting lon/lat geometry.
+function mapArcgisFeatures(
+  feats: { attributes: Record<string, any>; geometry?: any }[],
+  cfg: OpenDataSource,
+): Property[] {
+  const out: Property[] = [];
+  for (const f of feats) {
+    const g: any = f.geometry || {};
+    let lng = Number(g.x ?? g.longitude);
+    let lat = Number(g.y ?? g.latitude);
+    // Polygon parcel layers return `rings` — derive a centroid from the first ring's vertices.
+    if (
+      (!Number.isFinite(lat) || !Number.isFinite(lng)) &&
+      Array.isArray(g.rings?.[0])
+    ) {
+      const ring = g.rings[0] as number[][];
+      let sx = 0,
+        sy = 0;
+      for (const [x, y] of ring) {
+        sx += x;
+        sy += y;
+      }
+      lng = sx / ring.length;
+      lat = sy / ring.length;
+    }
+    const p = cfg.map(f.attributes || {}, {
+      lat: Number.isFinite(lat) ? lat : undefined,
+      lng: Number.isFinite(lng) ? lng : undefined,
+    });
+    if (p) out.push(p);
+  }
+  return out;
+}
+
+// For layers that reject resultOffset: pull the matching OBJECTIDs, then fetch attributes in IN() batches.
+async function fetchArcGISByOID(cfg: OpenDataSource): Promise<Property[]> {
+  const cap = Math.min(cfg.limit ?? 2000, 50000);
+  const idParams = new URLSearchParams({
+    where: cfg.where || "1=1",
+    returnIdsOnly: "true",
+    f: "json",
+  });
+  const idRes = await fetch(`${cfg.url}/query?${idParams.toString()}`);
+  if (!idRes.ok) return [];
+  const idJson = (await idRes.json()) as {
+    objectIdFieldName?: string;
+    objectIds?: number[];
+  };
+  const oidField = idJson.objectIdFieldName || "OBJECTID";
+  const ids = (idJson.objectIds || []).slice(0, cap);
+  if (!ids.length) return [];
+
+  const out: Property[] = [];
+  const BATCH = 200;
+  for (let i = 0; i < ids.length; i += BATCH) {
+    const batch = ids.slice(i, i + BATCH);
+    const params = new URLSearchParams({
+      where: `${oidField} IN (${batch.join(",")})`,
+      outFields: "*",
+      f: "json",
+      outSR: "4326",
+      returnGeometry: "true",
+    });
+    const res = await fetch(`${cfg.url}/query?${params.toString()}`);
+    if (!res.ok) continue;
+    const json = (await res.json()) as {
+      features?: { attributes: Record<string, any>; geometry?: any }[];
+    };
+    out.push(...mapArcgisFeatures(json.features || [], cfg));
+  }
+  return out;
+}
+
 async function fetchArcGIS(cfg: OpenDataSource): Promise<Property[]> {
+  if (cfg.paging === "oid") return fetchArcGISByOID(cfg);
   const cap = Math.min(cfg.limit ?? 2000, 50000);
   const out: Property[] = [];
   for (let off = 0; off < cap; off += PAGE) {
@@ -82,16 +159,7 @@ async function fetchArcGIS(cfg: OpenDataSource): Promise<Property[]> {
     };
     const feats = json.features;
     if (!Array.isArray(feats) || !feats.length) break;
-    for (const f of feats) {
-      const g = f.geometry || {};
-      const lng = Number(g.x ?? g.longitude);
-      const lat = Number(g.y ?? g.latitude);
-      const p = cfg.map(f.attributes || {}, {
-        lat: Number.isFinite(lat) ? lat : undefined,
-        lng: Number.isFinite(lng) ? lng : undefined,
-      });
-      if (p) out.push(p);
-    }
+    out.push(...mapArcgisFeatures(feats, cfg));
     if (feats.length < take) break;
   }
   return out;
