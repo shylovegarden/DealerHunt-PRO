@@ -74,6 +74,7 @@ const SOURCE_LABELS: Record<string, string> = {
   land_bank: "Land banks",
   tax_delinquent: "Tax-delinquent",
   code_violation: "Code violations",
+  dangerous_building: "Dangerous building",
 };
 const sourceLabel = (s: string) =>
   SOURCE_LABELS[s] ||
@@ -492,7 +493,7 @@ function LeadCard({ lead }: { lead: Lead }) {
             {housingPriceTerms(lead.source, !!lead.auction_end).priceLabel}
           </span>
           <span className="font-black text-[var(--t1)]">
-            ${(lead.price || 0).toLocaleString()}
+            {lead.price ? `$${lead.price.toLocaleString()}` : "—"}
           </span>
           <span className="font-medium text-sm text-[var(--t3)]">
             {lead.city
