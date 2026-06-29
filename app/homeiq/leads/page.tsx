@@ -6,6 +6,7 @@ import useSWR from "swr";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { US_STATES as ST, nearbyStates } from "@/lib/housing/us-states";
+import { housingPriceTerms } from "@/lib/housing/price-semantics";
 
 // Market-leading housing browse — Zillow/Redfin split map+list + photo-forward cards + PropStream-style
 // lead signals. LOCATION-FIRST + PROGRESSIVE: scoped to your state shows it IMMEDIATELY, then "Nearby"
@@ -478,8 +479,13 @@ function LeadCard({ lead }: { lead: Lead }) {
             </span>
           )}
         </div>
-        <div className="font-black text-[var(--t1)] mt-0.5">
-          ${(lead.price || 0).toLocaleString()}
+        <div className="mt-0.5">
+          <span className="text-[9px] font-bold uppercase tracking-widest text-[var(--t4)] mr-1.5">
+            {housingPriceTerms(lead.source, !!lead.auction_end).priceLabel}
+          </span>
+          <span className="font-black text-[var(--t1)]">
+            ${(lead.price || 0).toLocaleString()}
+          </span>
           <span className="font-medium text-sm text-[var(--t3)]">
             {lead.city
               ? ` · ${lead.city}, ${lead.state || ""}`
