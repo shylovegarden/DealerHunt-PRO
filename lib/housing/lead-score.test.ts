@@ -99,6 +99,35 @@ describe("equity signal (the math, not just distress words)", () => {
   });
 });
 
+describe("listing-signal coverage (price cut + days on market)", () => {
+  it("rewards a published price reduction", () => {
+    const reduced = scoreHousingLead({
+      ...base,
+      title: "House",
+      price: 90000,
+      signals: { status: "Price Reduced" },
+    } as any);
+    const plain = scoreHousingLead({
+      ...base,
+      title: "House",
+      price: 90000,
+    });
+    expect(reduced.score).toBeGreaterThan(plain.score);
+    expect(reduced.signals.join(" ")).toMatch(/Price reduced/i);
+  });
+
+  it("rewards a stale (long days-on-market) listing", () => {
+    const old = new Date(Date.now() - 120 * 86_400_000).toISOString();
+    const stale = scoreHousingLead({
+      ...base,
+      title: "House",
+      price: 90000,
+      created_at: old,
+    } as any);
+    expect(stale.signals.join(" ")).toMatch(/on market/i);
+  });
+});
+
 describe("money gate (verified verdict overrides distress vibes)", () => {
   it("never lets a verified-OVERPRICED house be HOT, however motivated the wording", () => {
     // sqft known + ask far above ARV → analyzer verdict 'pass'. Loud distress words would otherwise

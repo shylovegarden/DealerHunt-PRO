@@ -97,6 +97,26 @@ export function scoreHousingLead(p: Property): LeadScore {
   else if (p.property_type === "multi_family")
     add(5, "Multi-family — rental upside");
 
+  // 6b) PRICE CUT — a published reduction is one of the strongest "seller will deal" tells the big
+  // platforms (PropStream/BatchLeads) surface. Read the per-source status (price reduced / drop / cut).
+  const status = String(
+    (p.signals as any)?.status || (p.signals as any)?.sale_type || "",
+  ).toLowerCase();
+  if (/reduc|price\s*drop|price\s*cut/.test(status))
+    add(14, "Price reduced — seller is actively dropping the ask");
+
+  // 6c) DAYS ON MARKET — a stale listing is a softening seller. created_at ≈ when we first saw it (a
+  // conservative lower bound on true days-on-market); the signal sharpens as inventory ages in the store.
+  const firstSeen = (p as any).created_at as string | undefined;
+  if (firstSeen) {
+    const days = (Date.now() - Date.parse(firstSeen)) / 86_400_000;
+    if (Number.isFinite(days)) {
+      if (days >= 90)
+        add(10, `On market ${Math.round(days)}d — stale, negotiable`);
+      else if (days >= 45) add(6, "On market 45d+ — softening");
+    }
+  }
+
   // 7) EQUITY — the math signal. When sqft is known the deal-analyzer can run the 70% rule; an ask well
   // below the Max Allowable Offer is a real flip even with no distress words (HUD/Redfin sqft-rich homes
   // that would otherwise score 0). This is what surfaces the genuinely-underpriced listings.
