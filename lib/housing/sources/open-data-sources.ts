@@ -23,8 +23,97 @@ function pointLatLng(geo: any): { lat?: number; lng?: number } {
   return {};
 }
 
+function mapClass(cls?: string): Property["property_type"] {
+  const c = (cls || "").toLowerCase();
+  if (/single|residential/.test(c) && !/vacant/.test(c)) return "single_family";
+  if (/multi|apartment|duplex/.test(c)) return "multi_family";
+  if (/condo/.test(c)) return "condo";
+  if (/vacant|land|lot/.test(c)) return "land";
+  return undefined;
+}
+
 // ── MISSOURI ──────────────────────────────────────────────────────────────
 export const MISSOURI_SOURCES: OpenDataSource[] = [
+  {
+    // Kansas City Land Bank & Homesteading — public inventory sold cheap; carries asking_price +
+    // market_value + sqft + owner → an equity-visible, money-grade off-market lead.
+    source: "land_bank",
+    api: "socrata",
+    url: "https://data.kcmo.org/resource/4257-6mtc.json",
+    state: "MO",
+    city: "Kansas City",
+    where: "available = true",
+    limit: 5000,
+    map: (a, g): Property | null => {
+      const address = s(a.address);
+      if (!address) return null;
+      const asking = n(a.asking_price);
+      const mv = n(a.market_value);
+      const belowMarket = !!(asking && mv && asking < mv * 0.7);
+      return {
+        source: "land_bank",
+        source_listing_id: `kcmo-lb-${a.parcel_number}`,
+        title: `Land bank · ${address}`,
+        property_type: mapClass(a.property_class),
+        address,
+        city: "Kansas City",
+        state: "MO",
+        zip: s(a.zip_code),
+        lat: g.lat,
+        lng: g.lng,
+        price: asking ?? mv, // the land-bank acquisition price
+        seller_type: "gov",
+        signals: {
+          land_bank: true,
+          market_value: mv,
+          below_market: belowMarket,
+          owner: s(a.current_owners),
+          status: s(a.property_status) || "Land bank — available",
+        },
+      };
+    },
+  },
+  {
+    // St. Louis City Assessor — distressed parcels only (tax-delinquent OR vacant building). Carries
+    // TaxBalDue + vacancy + out-of-state owner + assessed value. SQFT here mixes building/lot, so we do
+    // NOT trust it for ARV (0-margin-for-error) — these score on owner-distress, not flip math.
+    source: "tax_delinquent",
+    api: "arcgis",
+    url: "https://maps8.stlouis-mo.gov/arcgis/rest/services/ASSESSOR/Assessor_Public_Parcels/MapServer/11",
+    state: "MO",
+    city: "St. Louis",
+    where: "TaxBalDue > 1000 OR VacBldgYear > 0",
+    limit: 5000,
+    map: (a, g): Property | null => {
+      const address = s(a.SITEADDR);
+      if (!address) return null;
+      const taxDue = n(a.TaxBalDue);
+      const vacant = (n(a.VacBldgYear) || 0) > 0 || a.VacantLot === 1;
+      const outOfState =
+        !!a.OwnerState && String(a.OwnerState).toUpperCase() !== "MO";
+      return {
+        source: "tax_delinquent",
+        source_listing_id: `stl-${a.ParcelId}`,
+        title: `${vacant ? "Vacant / " : ""}Tax-delinquent · ${address.trim()}`,
+        address: address.trim(),
+        city: "St. Louis",
+        state: "MO",
+        lat: g.lat,
+        lng: g.lng,
+        price: n(a.AsdTotal),
+        seller_type: "owner",
+        signals: {
+          tax_delinquent: !!taxDue,
+          total_due: taxDue,
+          vacant,
+          out_of_state_owner: outOfState,
+          absentee: outOfState,
+          owner: s(a.OwnerName),
+          status: vacant ? "Vacant" : "Tax-delinquent",
+        },
+      };
+    },
+  },
   {
     // Kansas City "Dangerous Buildings" — open structural-danger cases = vacant/severe distress.
     source: "dangerous_building",
