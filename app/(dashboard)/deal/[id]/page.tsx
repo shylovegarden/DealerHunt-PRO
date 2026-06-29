@@ -793,7 +793,10 @@ export default function DealPage({
           <CardContent className="p-5 space-y-4">
             <div className="flex items-center justify-between">
               <label className="text-sm font-bold text-[var(--t2)] flex-1">
-                Ask Price
+                {
+                  buyTerm(dealData?.deal?.source ?? serverDeal?.source)
+                    .priceLabel
+                }
               </label>
               <div className="relative w-32">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--t3)] font-bold">

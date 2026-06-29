@@ -78,6 +78,8 @@ export const DiscoveryCard = memo(function DiscoveryCard({
     ? TITLE_STYLES[deal.titleClass]
     : undefined;
   const multi = deal.listingCount > 1;
+  // Channel-correct wording so an auction's CURRENT BID isn't shown as a fixed "purchase price".
+  const terms = buyTerms(deal.source);
 
   return (
     <motion.div
@@ -169,7 +171,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                   backdropFilter: "blur(8px)",
                   color: m.color,
                 }}
-                title={`${m.label} · ${buyTerms(deal.source).channelTag}`}
+                title={`${m.label} · ${terms.channelTag}`}
               >
                 <span
                   className="inline-block h-1.5 w-1.5 rounded-full"
@@ -391,7 +393,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
           <div className="mt-auto grid grid-cols-2 gap-2 pt-2 border-t border-[var(--b1)]">
             <div>
               <p className="text-[9px] font-bold uppercase tracking-widest text-[var(--t4)]">
-                Purchase Price
+                {terms.priceLabel}
               </p>
               <span className="font-mono text-lg font-black leading-none text-[var(--t1)] tracking-tight">
                 ${deal.askPrice.toLocaleString()}
@@ -448,7 +450,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                 style={{ background: "var(--s1)" }}
               >
                 <span className="font-semibold text-[var(--t4)]">
-                  {buyTerms(deal.source).maxLabel}
+                  {terms.maxLabel}
                 </span>
                 <span className="font-mono font-bold text-[var(--green)]">
                   {deal.recommendedMaxBid
