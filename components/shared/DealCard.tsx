@@ -13,6 +13,7 @@ import {
   formatCondition,
 } from "./deal-card/utils";
 import { SourceBadge } from "@/components/shared/SourceBadge";
+import { buyTerm } from "@/lib/deal-terms";
 
 export const DealCard = memo(function DealCard({
   id,
@@ -218,7 +219,7 @@ export const DealCard = memo(function DealCard({
         >
           <div>
             <p className="text-[9px] uppercase tracking-widest text-[var(--t4)] font-semibold mb-0.5">
-              Ask Price
+              {buyTerm(source).priceLabel}
             </p>
             <Mono className="text-sm font-extrabold text-[var(--t1)]">
               ${askPrice.toLocaleString()}
