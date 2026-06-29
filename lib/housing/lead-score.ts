@@ -163,6 +163,27 @@ export function scoreHousingLead(p: Property): LeadScore {
     }
   }
 
+  // 6d) OWNER DISTRESS (parcel/county data) — the high-value off-market signals the paid platforms sell,
+  // carried in signals by the county connectors (e.g. tax-delinquent source). Tax delinquency is weighted
+  // by years owed; a scheduled sheriff/tax sale is a hard deadline; absentee/out-of-state = less attached.
+  const sig = (p.signals as any) || {};
+  if (sig.tax_delinquent) {
+    const yrs = Number(sig.years_owed) || 0;
+    if (yrs >= 3)
+      add(
+        26,
+        `Tax-delinquent ${yrs}yrs — escalating toward tax sale`,
+        "owner_distress",
+      );
+    else add(14, "Tax-delinquent — financial pressure", "owner_distress");
+  }
+  if (sig.sheriff_sale)
+    add(28, "Sheriff/tax sale scheduled — hard deadline", "owner_distress");
+  if (sig.out_of_state_owner)
+    add(14, "Out-of-state owner — absentee, less attached", "owner_distress");
+  else if (sig.absentee) add(8, "Absentee owner", "owner_distress");
+  if (sig.bankruptcy) add(10, "Owner in bankruptcy");
+
   // 7) EQUITY — the math signal. An ask well below the Max Allowable Offer is a real flip even with no
   // distress words (the sqft-rich HUD/Redfin homes that would otherwise score 0).
   const deal = analyzeHousingDeal(p);

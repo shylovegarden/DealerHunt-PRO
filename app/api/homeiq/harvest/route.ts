@@ -12,6 +12,7 @@ import { scrapeDetroitLandBank } from "@/lib/housing/sources/detroit-landbank";
 import { scrapeCuyahogaLandBank } from "@/lib/housing/sources/cuyahoga-landbank";
 import { scrapeGeneseeLandBank } from "@/lib/housing/sources/genesee-landbank";
 import { scrapeLucasLandBank } from "@/lib/housing/sources/lucas-landbank";
+import { fetchPhillyTaxDelinquent } from "@/lib/housing/sources/tax-delinquent";
 import { upsertProperties } from "@/lib/housing/store";
 
 // POST /api/homeiq/harvest — refresh the HomeIQ `properties` table from the free sources. Called by the
@@ -36,20 +37,33 @@ export async function POST(req: NextRequest) {
 
   try {
     // Free housing sources: GovDeals + AllSurplus (maestro) + HUD Homes (rich data: sqft/beds → MAO).
-    const [gd, ad, hud, gsare, redfin, psre, mbre, dlb, cclb, genlb, luclb] =
-      await Promise.all([
-        harvestGovDealsProperties("GD", 5),
-        harvestGovDealsProperties("AD", 3).catch(() => []),
-        scrapeHudHomes().catch(() => []),
-        scrapeGsaRealEstate().catch(() => []),
-        scrapeRedfin().catch(() => []), // fleet-only (PerimeterX); [] elsewhere
-        scrapePublicSurplusProperties().catch(() => []),
-        scrapeMunicibidProperties().catch(() => []),
-        scrapeDetroitLandBank().catch(() => []),
-        scrapeCuyahogaLandBank().catch(() => []),
-        scrapeGeneseeLandBank().catch(() => []),
-        scrapeLucasLandBank().catch(() => []),
-      ]);
+    const [
+      gd,
+      ad,
+      hud,
+      gsare,
+      redfin,
+      psre,
+      mbre,
+      dlb,
+      cclb,
+      genlb,
+      luclb,
+      txd,
+    ] = await Promise.all([
+      harvestGovDealsProperties("GD", 5),
+      harvestGovDealsProperties("AD", 3).catch(() => []),
+      scrapeHudHomes().catch(() => []),
+      scrapeGsaRealEstate().catch(() => []),
+      scrapeRedfin().catch(() => []), // fleet-only (PerimeterX); [] elsewhere
+      scrapePublicSurplusProperties().catch(() => []),
+      scrapeMunicibidProperties().catch(() => []),
+      scrapeDetroitLandBank().catch(() => []),
+      scrapeCuyahogaLandBank().catch(() => []),
+      scrapeGeneseeLandBank().catch(() => []),
+      scrapeLucasLandBank().catch(() => []),
+      fetchPhillyTaxDelinquent(2000).catch(() => []), // off-market tax-delinquent owners
+    ]);
     const properties = [
       ...gd,
       ...ad,
@@ -62,6 +76,7 @@ export async function POST(req: NextRequest) {
       ...cclb,
       ...genlb,
       ...luclb,
+      ...txd,
     ];
     const written = await upsertProperties(properties);
 
@@ -82,6 +97,7 @@ export async function POST(req: NextRequest) {
         cuyahoga_landbank: cclb.length,
         genesee_landbank: genlb.length,
         lucas_landbank: luclb.length,
+        tax_delinquent: txd.length,
       },
     });
   } catch (e) {
