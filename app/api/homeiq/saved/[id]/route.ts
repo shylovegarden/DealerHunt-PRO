@@ -32,10 +32,40 @@ export async function PATCH(
   if (typeof body.status === "string" && STAGES.includes(body.status))
     patch.status = body.status;
   if (typeof body.notes === "string") patch.notes = body.notes;
+
+  const sb = createServerComponentClient();
+
+  // OUTCOME CAPTURE — the learning loop. When a deal resolves, record the ACTUAL numbers into the
+  // snapshot jsonb (no schema change). The snapshot already holds the lead's features at save-time
+  // (score/tier/mao/arv/verdict/source); pairing them with the realized profit is the training data a
+  // future calibration model learns from (which leads actually make money). num-only, merge-preserving.
+  if (body.outcome && typeof body.outcome === "object") {
+    const num = (v: unknown) => {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : undefined;
+    };
+    const o = body.outcome as Record<string, unknown>;
+    const { data: cur } = await sb
+      .from("saved_properties")
+      .select("snapshot")
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    const snap: Record<string, any> =
+      cur?.snapshot && typeof cur.snapshot === "object" ? cur.snapshot : {};
+    snap.outcome = {
+      ...(snap.outcome || {}),
+      actualProfit: num(o.actualProfit),
+      salePrice: num(o.salePrice),
+      purchasePrice: num(o.purchasePrice),
+      at: new Date().toISOString(),
+    };
+    patch.snapshot = snap;
+  }
+
   if (!Object.keys(patch).length)
     return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
 
-  const sb = createServerComponentClient();
   const { error } = await sb
     .from("saved_properties")
     .update(patch)
