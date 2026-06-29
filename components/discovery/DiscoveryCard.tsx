@@ -10,6 +10,10 @@ import { daysOnMarket, domTier } from "@/lib/intelligence/days-on-market";
 import { proxiedImage } from "@/lib/image-url";
 import { sourceMeta, buyTerms, tint } from "@/lib/sources/source-meta";
 import { CONFIDENCE_META } from "@/lib/valuation/confidence";
+import {
+  readCondition,
+  CONDITION_TIER_COLOR,
+} from "@/lib/intelligence/condition";
 
 const TITLE_STYLES: Record<
   string,
@@ -80,6 +84,8 @@ export const DiscoveryCard = memo(function DiscoveryCard({
   const multi = deal.listingCount > 1;
   // Channel-correct wording so an auction's CURRENT BID isn't shown as a fixed "purchase price".
   const terms = buyTerms(deal.source);
+  // Operability read — "Runs & drives" vs "Needs work" vs "Non-runner": the first thing a flipper checks.
+  const cond = readCondition(deal.condition, deal.damageType);
 
   return (
     <motion.div
@@ -279,6 +285,26 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                   style={{ background: deal.laneColor }}
                 />
                 {LANE_LABELS[deal.lane] || deal.lane}
+              </span>
+            )}
+            {cond && (
+              <span
+                className="inline-flex items-center gap-1 rounded-[var(--r1)] px-1.5 py-0.5 text-[10px] font-bold"
+                style={{
+                  background: `${CONDITION_TIER_COLOR[cond.tier]}1f`,
+                  color: CONDITION_TIER_COLOR[cond.tier],
+                }}
+                title={
+                  cond.runs === "yes"
+                    ? "Runs & drives"
+                    : cond.runs === "no"
+                      ? "Does not run"
+                      : "Operability unconfirmed"
+                }
+              >
+                {cond.runs === "yes" ? "✓ " : cond.runs === "no" ? "✕ " : ""}
+                {cond.label}
+                {cond.detail ? ` · ${cond.detail}` : ""}
               </span>
             )}
             {deal.mileage ? (

@@ -47,6 +47,7 @@ function mapDeal(
     vin: d.vin,
     mileage: d.mileage,
     condition: d.condition,
+    damageType: d.damage_type,
     askPrice: Number(d.ask_price || 0),
     sellEstimate: d.sell_estimate != null ? Number(d.sell_estimate) : undefined,
     // Honest confidence for the resale number, so the card shows whether it's comp-backed or a guess.
