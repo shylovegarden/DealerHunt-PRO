@@ -76,6 +76,11 @@ const SOURCE_LABELS: Record<string, string> = {
   code_violation: "Code violations",
   absentee_owner: "Absentee owner",
   dangerous_building: "Dangerous building",
+  zillow: "Zillow",
+  realtor: "Realtor.com",
+  homes: "Homes.com",
+  movoto: "Movoto",
+  trulia: "Trulia",
 };
 const sourceLabel = (s: string) =>
   SOURCE_LABELS[s] ||
