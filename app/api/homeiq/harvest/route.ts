@@ -14,6 +14,7 @@ import { scrapeGeneseeLandBank } from "@/lib/housing/sources/genesee-landbank";
 import { scrapeLucasLandBank } from "@/lib/housing/sources/lucas-landbank";
 import { fetchPhillyTaxDelinquent } from "@/lib/housing/sources/tax-delinquent";
 import { fetchPhillyCodeViolations } from "@/lib/housing/sources/code-violations";
+import { fetchOpenDataLeads } from "@/lib/housing/sources/open-data-sources";
 import { upsertProperties } from "@/lib/housing/store";
 
 // POST /api/homeiq/harvest — refresh the HomeIQ `properties` table from the free sources. Called by the
@@ -52,6 +53,7 @@ export async function POST(req: NextRequest) {
       luclb,
       txd,
       civ,
+      od,
     ] = await Promise.all([
       harvestGovDealsProperties("GD", 5),
       harvestGovDealsProperties("AD", 3).catch(() => []),
@@ -66,6 +68,7 @@ export async function POST(req: NextRequest) {
       scrapeLucasLandBank().catch(() => []),
       fetchPhillyTaxDelinquent(2000).catch(() => []), // off-market tax-delinquent owners
       fetchPhillyCodeViolations(1500).catch(() => []), // open code-violation / vacant owners
+      fetchOpenDataLeads().catch(() => []), // generic open-data registry (Missouri-first, US rollout)
     ]);
     const properties = [
       ...gd,
@@ -81,6 +84,7 @@ export async function POST(req: NextRequest) {
       ...luclb,
       ...txd,
       ...civ,
+      ...od,
     ];
     const written = await upsertProperties(properties);
 
@@ -103,6 +107,7 @@ export async function POST(req: NextRequest) {
         lucas_landbank: luclb.length,
         tax_delinquent: txd.length,
         code_violation: civ.length,
+        open_data: od.length,
       },
     });
   } catch (e) {
