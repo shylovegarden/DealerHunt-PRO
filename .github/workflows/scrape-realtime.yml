@@ -12,7 +12,7 @@ name: Scrape (near real-time, rotating)
 on:
   workflow_dispatch:
   schedule:
-    - cron: '15 * * * *' # run hourly (GitHub throttles on-the-hour, so 15 mins past the hour)
+    - cron: '15 */2 * * *' # run every 2h (GitHub Actions billing fix)
 
 concurrency:
   group: scrape-realtime

@@ -12,8 +12,8 @@ on:
         required: false
         default: ''
   schedule:
-    # Staggered to spread free-minute usage. Times are UTC.
-    - cron: '0 */6 * * *'   # every 6h — full default set
+    # Reduced to 1/day to prevent GitHub Actions billing limits on private repos
+    - cron: '0 0 * * *'
 
 concurrency:
   group: scrape
@@ -34,6 +34,7 @@ jobs:
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SCRAPE_SECRET: ${{ secrets.SCRAPE_SECRET }}
       FLARESOLVERR_URL: http://localhost:8191/v1
       GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
       RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
