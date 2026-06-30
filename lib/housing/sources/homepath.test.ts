@@ -53,8 +53,18 @@ describe("parseHomePath", () => {
     expect(p.source_listing_id).toBe(`fnma-${SAMPLE.propertyUuid}`);
   });
 
+  it("drops non-Fannie ListHub (MLS) rows — only true REO is kept", () => {
+    expect(
+      parseHomePath({
+        ...SAMPLE,
+        listingType: "LISTHUB",
+        propertyListingStatus: "LISTHUB",
+      }),
+    ).toBeNull();
+  });
+
   it("returns null without an id or address", () => {
     expect(parseHomePath({ city: "X" })).toBeNull();
-    expect(parseHomePath({ reoId: "k" })).toBeNull(); // no address
+    expect(parseHomePath({ reoId: "k", listingType: "LISTED" })).toBeNull(); // REO but no address
   });
 });
