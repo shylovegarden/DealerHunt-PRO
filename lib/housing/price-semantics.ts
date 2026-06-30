@@ -30,6 +30,8 @@ export function housingPriceTerms(
   // Off-market owner lead (tax-delinquent etc.) — not for sale; the number shown is the assessed value.
   if (s === "absentee_owner")
     return { priceLabel: "Assessed value", kind: "list", isAuction: false };
+  if (s === "mls")
+    return { priceLabel: "List price", kind: "list", isAuction: false };
   if (s === "hud_reo")
     return { priceLabel: "REO — bank-owned", kind: "list", isAuction: false };
   if (s === "foreclosure")
