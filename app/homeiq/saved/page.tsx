@@ -3,6 +3,7 @@
 import { useState } from "react";
 import useSWR from "swr";
 import Link from "next/link";
+import { CalibrationCard } from "@/components/home/CalibrationCard";
 
 // HomeIQ pipeline — the saved-leads board. Move a lead through the flip stages, jot notes, remove. Each
 // saved row carries a snapshot so it survives even if the source listing is pruned.
@@ -131,6 +132,9 @@ export default function SavedPipelinePage() {
         )}
         {!isLoading && !unauth && rows.length > 0 && (
           <>
+            {/* The learning loop, made visible — calibrates the score against deals you actually close. */}
+            <CalibrationCard />
+
             {/* Mobile: stage chip selector + a single full-width column. */}
             <div className="md:hidden">
               <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-1 -mx-1 px-1">

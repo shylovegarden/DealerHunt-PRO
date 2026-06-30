@@ -68,6 +68,46 @@ export interface OutcomeSummary {
   readyToTrain: boolean;
 }
 
+// How much real resolved data each tier needs before its win rate is trusted to nudge scoring (below this
+// the sample is noise).
+const MIN_TIER_RESOLVED = 8;
+// The learned nudge is clamped to ±15% so a small, noisy sample can never dominate the hand-tuned base.
+const CAL_MIN = 0.85;
+const CAL_MAX = 1.15;
+
+export interface TierCalibration {
+  /** Per-tier score multiplier learned from realized win rates (1 = no change). */
+  byTier: Record<string, number>;
+  /** How many resolved outcomes this calibration is based on — surfaced to the user for honesty. */
+  basis: number;
+}
+
+/**
+ * Turn realized outcomes into a per-tier score multiplier — the actual LEARNING step. For each predicted
+ * tier we compare its real win rate to the overall win rate: a tier that wins MORE often than average gets
+ * nudged up, one that wins less gets nudged down, clamped to ±15%. Returns null until there's enough real
+ * data (readyToTrain) — so with no/insufficient outcomes the score is unchanged. NEVER invents a signal: a
+ * tier without ≥MIN_TIER_RESOLVED real resolutions keeps a factor of exactly 1.
+ */
+export function calibrationFromOutcomes(
+  summary: OutcomeSummary,
+): TierCalibration | null {
+  if (!summary.readyToTrain || !summary.winRate || summary.resolved === 0)
+    return null;
+  const overall = summary.winRate;
+  if (overall <= 0) return null;
+  const byTier: Record<string, number> = {};
+  for (const [tier, s] of Object.entries(summary.winRateByTier)) {
+    if (s.resolved < MIN_TIER_RESOLVED) {
+      byTier[tier] = 1;
+      continue;
+    }
+    const tierRate = s.won / s.resolved;
+    byTier[tier] = Math.max(CAL_MIN, Math.min(CAL_MAX, tierRate / overall));
+  }
+  return { byTier, basis: summary.resolved };
+}
+
 /** Aggregate training rows into a calibration view (and a gate for when a model becomes worth training). */
 export function summarizeOutcomes(rows: OutcomeRow[]): OutcomeSummary {
   const resolvedRows = rows.filter((r) => r.resolved);

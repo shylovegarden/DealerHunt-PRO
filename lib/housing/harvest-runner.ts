@@ -24,6 +24,7 @@ import { harvestReso } from "./sources/reso";
 import { enrichRedfinProperties } from "./sources/redfin-enrich";
 import { upsertProperties, reconcileStaleProperties } from "./store";
 import { loadLivePsf, refreshMarketTemp } from "./live-psf";
+import { loadCalibration } from "./calibration";
 
 export interface HarvestResult {
   ok: boolean;
@@ -38,6 +39,9 @@ export async function runHousingHarvest(): Promise<HarvestResult> {
   // Inject our own live SOLD $/sqft into arv-psf BEFORE scoring, so every lead's ARV/equity uses the
   // freshest comps we've harvested (falls back to the static snapshot per-ZIP where we have none yet).
   await loadLivePsf().catch(() => {});
+  // Inject the learned tier calibration (realized pipeline outcomes) before scoring too — no-op until
+  // enough deals have been closed/killed, then stored scores start reflecting what actually converts.
+  await loadCalibration().catch(() => {});
   const [
     gd,
     ad,

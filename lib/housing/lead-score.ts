@@ -12,8 +12,17 @@
 import type { Property } from "./types";
 import { analyzeHousingDeal } from "./deal-analyzer";
 import { rentCashflow } from "./rent";
+import type { TierCalibration } from "./outcomes";
 
 export type LeadTier = "hot" | "warm" | "standard";
+
+// LEARNED calibration (injectable, like the live-psf map). Computed from realized pipeline outcomes
+// (calibrationFromOutcomes) and set once per harvest/request; null until there's enough real resolved data,
+// so today this is a transparent no-op — the score only starts bending once users actually close/kill deals.
+let TIER_CAL: TierCalibration | null = null;
+export function setTierCalibration(c: TierCalibration | null): void {
+  TIER_CAL = c;
+}
 
 export interface LeadScore {
   score: number; // 0–100
@@ -303,14 +312,34 @@ export function scoreHousingLead(p: Property): LeadScore {
   let tier: LeadTier = score >= 70 ? "hot" : score >= 45 ? "warm" : "standard";
   if (overpriced && tier === "hot") tier = "warm";
 
+  // LEARNED CALIBRATION — nudge by how the predicted tier ACTUALLY converts in the pipeline. No-op until
+  // there's enough real resolved data (TIER_CAL stays null), so this never bends the score on a guess.
+  const bonusSignals: string[] = [];
+  if (TIER_CAL) {
+    const f = TIER_CAL.byTier[tier];
+    if (typeof f === "number" && f !== 1) {
+      score = Math.max(0, Math.min(100, Math.round(score * f)));
+      tier = score >= 70 ? "hot" : score >= 45 ? "warm" : "standard";
+      if (overpriced && tier === "hot") tier = "warm";
+      bonusSignals.push(
+        `Calibrated from ${TIER_CAL.basis} closed/dead deals (${f > 1 ? "+" : ""}${Math.round(
+          (f - 1) * 100,
+        )}%)`,
+      );
+    }
+  }
+
   return {
     score,
     tier,
     grade: gradeFor(score),
-    signals: signals
-      .filter((s) => s.pts >= 1)
-      .sort((a, b) => b.pts - a.pts)
-      .map((s) => s.text),
+    signals: [
+      ...signals
+        .filter((s) => s.pts >= 1)
+        .sort((a, b) => b.pts - a.pts)
+        .map((s) => s.text),
+      ...bonusSignals,
+    ],
   };
 }
 

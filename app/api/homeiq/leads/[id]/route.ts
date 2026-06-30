@@ -6,6 +6,7 @@ import { scoreHousingLead } from "@/lib/housing/lead-score";
 import { analyzeHousingDeal } from "@/lib/housing/deal-analyzer";
 import { rentCashflow } from "@/lib/housing/rent";
 import { loadLivePsf } from "@/lib/housing/live-psf";
+import { loadCalibration } from "@/lib/housing/calibration";
 import type { Property } from "@/lib/housing/types";
 
 // GET /api/homeiq/leads/[id] — one property's full HomeIQ analysis: lead score (with reasons), the
@@ -16,8 +17,10 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  // Inject live sold $/sqft so this lead's ARV uses our freshest comps; grab the ZIP's market temperature.
+  // Inject live sold $/sqft (freshest ARV comps) + the learned tier calibration (realized pipeline
+  // outcomes) so this lead's score reflects everything we've learned. Both are no-ops until data exists.
   const temp = await loadLivePsf().catch(() => null);
+  await loadCalibration().catch(() => null);
   const row = await getProperty(id);
   if (!row) {
     return NextResponse.json({ error: "Lead not found" }, { status: 404 });

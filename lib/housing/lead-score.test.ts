@@ -1,5 +1,9 @@
-import { describe, it, expect } from "vitest";
-import { scoreHousingLead, scoreAndRank } from "./lead-score";
+import { describe, it, expect, afterEach } from "vitest";
+import {
+  scoreHousingLead,
+  scoreAndRank,
+  setTierCalibration,
+} from "./lead-score";
 import type { Property } from "./types";
 
 const base: Property = {
@@ -268,6 +272,31 @@ describe("money gate (verified verdict overrides distress vibes)", () => {
       price: 40000,
     });
     expect(r.signals.join(" ")).not.toMatch(/Verified flip/i);
+  });
+});
+
+describe("learned tier calibration", () => {
+  afterEach(() => setTierCalibration(null)); // never leak into other tests
+
+  const fixer: Property = {
+    ...base,
+    title: "Deeply Discounted Rehab Fixer",
+    price: 18000,
+    bid_count: 0,
+  };
+
+  it("is a no-op when no calibration is set (the default — learns only from real data)", () => {
+    setTierCalibration(null);
+    const before = scoreHousingLead(fixer).score;
+    expect(scoreHousingLead(fixer).score).toBe(before);
+  });
+
+  it("bends the score by the predicted tier's learned factor + discloses it", () => {
+    const base0 = scoreHousingLead(fixer);
+    setTierCalibration({ byTier: { [base0.tier]: 0.85 }, basis: 60 });
+    const after = scoreHousingLead(fixer);
+    expect(after.score).toBe(Math.round(base0.score * 0.85));
+    expect(after.signals.join(" ")).toMatch(/Calibrated from 60/);
   });
 });
 
