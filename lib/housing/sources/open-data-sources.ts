@@ -294,6 +294,55 @@ export const CITY_FEED_SOURCES: OpenDataSource[] = [
     },
   },
   {
+    // New York City — the annual tax-lien SALE list (properties whose unpaid taxes/charges are about to be
+    // sold to a lien trust → the owner can lose the property). Severe financial distress in the biggest US
+    // market. Residential building classes (A=1-fam, B=2-fam, C=walk-up apts), recent cycles only. No geo/
+    // owner in the feed → geocoded by address (house # + street + borough) on upsert.
+    source: "tax_delinquent",
+    api: "socrata",
+    url: "https://data.cityofnewyork.us/resource/9rz4-mjek.json",
+    state: "NY",
+    city: "New York",
+    where:
+      "(building_class LIKE 'A%' OR building_class LIKE 'B%' OR building_class LIKE 'C%') AND month > '2024-06-01'",
+    limit: 5000,
+    map: (a): Property | null => {
+      const street = [s(a.house_number), s(a.street_name)]
+        .filter(Boolean)
+        .join(" ");
+      if (!street || !a.block || !a.lot) return null;
+      const boro =
+        (
+          {
+            "1": "Manhattan",
+            "2": "Bronx",
+            "3": "Brooklyn",
+            "4": "Queens",
+            "5": "Staten Island",
+          } as Record<string, string>
+        )[String(a.borough)] || "New York";
+      const cls = String(a.building_class || "");
+      return {
+        source: "tax_delinquent",
+        // Borough-Block-Lot = NYC's parcel id → dedupes a property that recurs across monthly cycles.
+        source_listing_id: `nyc-tl-${a.borough}-${a.block}-${a.lot}`,
+        title: `Tax-lien sale list · ${street}`,
+        property_type: cls.startsWith("A") ? "single_family" : "multi_family",
+        address: street,
+        city: boro,
+        state: "NY",
+        zip: s(a.zip_code),
+        seller_type: "owner",
+        signals: {
+          tax_delinquent: true,
+          status: "On NYC tax-lien sale list",
+          // "water_debt_only = Y" = only a water charge (lesser); N = an actual property-tax lien.
+          water_only: String(a.water_debt_only).toUpperCase() === "Y",
+        },
+      };
+    },
+  },
+  {
     // Bexar County, TX (San Antonio) — mortgage foreclosure filings (Layer 0). Point geometry.
     source: "foreclosure",
     api: "arcgis",
