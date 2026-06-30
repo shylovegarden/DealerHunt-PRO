@@ -11,6 +11,7 @@ import {
   readHomeCondition,
   HOME_CONDITION_TIER_COLOR,
 } from "@/lib/housing/condition";
+import { LEAD_CATEGORIES, leadCategories } from "@/lib/housing/categories";
 
 // Market-leading housing browse — Zillow/Redfin split map+list + photo-forward cards + PropStream-style
 // lead signals. LOCATION-FIRST + PROGRESSIVE: scoped to your state shows it IMMEDIATELY, then "Nearby"
@@ -137,6 +138,7 @@ function LeadsInner() {
   const [tier, setTier] = useState(params.get("tier") || "");
   const [type, setType] = useState(params.get("type") || "");
   const [source, setSource] = useState(params.get("source") || "");
+  const [category, setCategory] = useState(params.get("category") || "");
   const [sort, setSort] = useState("score");
   const [maxPrice, setMaxPrice] = useState(0);
   const [q, setQ] = useState("");
@@ -178,6 +180,7 @@ function LeadsInner() {
     if (tier) r = r.filter((l) => l.tier === tier);
     if (type) r = r.filter((l) => l.property_type === type);
     if (source) r = r.filter((l) => l.source === source);
+    if (category) r = r.filter((l) => leadCategories(l).includes(category));
     if (maxPrice) r = r.filter((l) => (l.price || 0) <= maxPrice);
     if (q.trim()) {
       const t = q.trim().toLowerCase();
@@ -195,12 +198,12 @@ function LeadsInner() {
       );
     else s.sort((a, b) => b.score - a.score);
     return s;
-  }, [all, scopeSet, tier, type, source, maxPrice, q, sort]);
+  }, [all, scopeSet, tier, type, source, category, maxPrice, q, sort]);
 
   // Reset the visible window whenever the result set changes.
   useEffect(
     () => setVisible(PAGE),
-    [scopeSet, tier, type, source, maxPrice, q, sort],
+    [scopeSet, tier, type, source, category, maxPrice, q, sort],
   );
 
   // Infinite scroll — extend the list as the sentinel comes into view.
@@ -330,6 +333,42 @@ function LeadsInner() {
           options={PRICES.map((p) => ({ key: String(p.key), label: p.label }))}
         />
         <Select value={sort} onChange={setSort} options={SORTS} />
+      </div>
+
+      {/* Quick Lists — PropStream-style lead categories (vacant / absentee / tax-delinquent / REO …). */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-3 flex items-center gap-1.5 flex-wrap">
+        <button
+          onClick={() => setCategory("")}
+          className="px-3 py-1.5 rounded-full text-xs font-bold transition-colors"
+          style={{
+            background: category === "" ? ACCENT : "var(--s2)",
+            color: category === "" ? "#000" : "var(--t3)",
+            border: "1px solid var(--b1)",
+          }}
+        >
+          All leads
+        </button>
+        {LEAD_CATEGORIES.map((c) => {
+          const count = all.filter((l) =>
+            leadCategories(l).includes(c.key),
+          ).length;
+          if (count === 0) return null;
+          return (
+            <button
+              key={c.key}
+              onClick={() => setCategory(category === c.key ? "" : c.key)}
+              className="px-3 py-1.5 rounded-full text-xs font-bold transition-colors"
+              style={{
+                background: category === c.key ? ACCENT : "var(--s2)",
+                color: category === c.key ? "#000" : "var(--t3)",
+                border: "1px solid var(--b1)",
+              }}
+            >
+              {c.label}{" "}
+              <span style={{ opacity: 0.6 }}>{count.toLocaleString()}</span>
+            </button>
+          );
+        })}
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-3 text-xs font-bold uppercase tracking-widest text-[var(--t4)]">
