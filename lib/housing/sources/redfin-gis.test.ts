@@ -73,10 +73,17 @@ describe("areaToBBox", () => {
 });
 
 describe("configuredAreas", () => {
-  it("falls back to the built-in metro seed when REDFIN_AREAS is unset", () => {
+  it("falls back to a nationwide metro seed (all regions) when REDFIN_AREAS is unset", () => {
     const prev = process.env.REDFIN_AREAS;
     delete process.env.REDFIN_AREAS;
-    expect(configuredAreas().length).toBeGreaterThan(5);
+    const areas = configuredAreas();
+    expect(areas.length).toBeGreaterThan(40); // nationwide, not a handful of cities
+    const states = new Set(areas.map((a) => a.name.slice(-2)));
+    expect(states.size).toBeGreaterThan(30); // many distinct states covered
+    // sanity: spans the country (a NE, a SE, a Midwest, a West anchor present)
+    const names = areas.map((a) => a.name);
+    for (const m of ["New York NY", "Miami FL", "Chicago IL", "Los Angeles CA"])
+      expect(names).toContain(m);
     if (prev !== undefined) process.env.REDFIN_AREAS = prev;
   });
   it("parses REDFIN_AREAS override", () => {

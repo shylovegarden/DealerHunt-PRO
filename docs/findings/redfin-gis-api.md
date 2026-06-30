@@ -45,12 +45,21 @@ skip to the line containing `ADDRESS`. Longitudes are negative (US) — parse co
 
 ## Coverage by tiling
 
-Each call is capped at 350 rows. We seed major metros (centroid + radius → bbox) and **quad-subdivide**
-any box that hits the cap, so dense metros are fully covered. Verified: one small Atlanta box (4-mi radius)
-returned **2,553 active listings, 100% with MLS#, price, beds/baths/sqft, lat/lng, and brokerage.**
+Each call is capped at 350 rows. We seed **~67 metros (every state + DC, nationwide)** (centroid + radius →
+bbox) and **quad-subdivide** any box that hits the cap, so dense metros are fully covered. Verified: one
+small Atlanta box (4-mi radius) returned **2,553 active listings, 100% with MLS#, price, beds/baths/sqft,
+lat/lng, brokerage**; Miami a 3-mi box → 2,997.
+
+**Budget + rotation (so it's safe AND complete):** each run is wall-clock-budgeted (`REDFIN_TIME_BUDGET_MS`,
+default 240s — under the 300s harvest route limit) and starts at a rotating metro (by clock), so any single
+run is bounded but successive runs cycle through the whole country (upsert dedupes across runs). The
+always-on worker can raise the budget to sweep everything in one pass. `REDFIN_MAX_AREAS` caps metros/run.
+
+Note on throttling: heavy single-IP probing can soft-throttle gis-csv (a box returns 0). The connector
+degrades to `[]` gracefully; the fleet's IP spread + per-box/per-metro pacing keep it clean.
 
 Implemented in `lib/housing/sources/redfin-gis.ts` (`harvestRedfinGis` for-sale, `harvestRedfinSold` comps).
-Config: `REDFIN_AREAS="Name|lat|lng|radiusMiles,…"` (built-in metro seed runs by default).
+Config: `REDFIN_AREAS="Name|lat|lng|radiusMiles,…"` (built-in nationwide seed runs by default).
 
 ## Related doors
 

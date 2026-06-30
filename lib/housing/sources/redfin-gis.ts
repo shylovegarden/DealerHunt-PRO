@@ -31,24 +31,85 @@ export interface RedfinArea {
   radiusMi: number;
 }
 
-// Built-in seed: major US metros. Plain centroids + radius (no Redfin ids) — config, not data. Tunable/
-// extendable via REDFIN_AREAS. Kept broad-but-modest so a default run is polite; the fleet scales it out.
+// Built-in seed: the largest market in (essentially) every state + the top national metros — NATIONWIDE
+// coverage out of the box, not a handful of cities. Plain centroids + radius (no Redfin ids) — config, not
+// data. Tunable/extendable via REDFIN_AREAS. Radii kept modest so each box's quad-subdivide stays bounded;
+// the gis-csv door isn't anti-bot-walled, but the fleet's IP spread + the connector's per-box pacing keep
+// even a full national sweep polite. "Leave NONE undiscovered" — the whole country, every harvest.
 const SEED_AREAS: RedfinArea[] = [
+  // — Northeast —
+  { name: "New York NY", lat: 40.7128, lng: -74.006, radiusMi: 18 },
+  { name: "Philadelphia PA", lat: 39.9526, lng: -75.1652, radiusMi: 14 },
+  { name: "Pittsburgh PA", lat: 40.4406, lng: -79.9959, radiusMi: 14 },
+  { name: "Boston MA", lat: 42.3601, lng: -71.0589, radiusMi: 14 },
+  { name: "Newark NJ", lat: 40.7357, lng: -74.1724, radiusMi: 12 },
+  { name: "Hartford CT", lat: 41.7658, lng: -72.6734, radiusMi: 14 },
+  { name: "Providence RI", lat: 41.824, lng: -71.4128, radiusMi: 12 },
+  { name: "Manchester NH", lat: 42.9956, lng: -71.4548, radiusMi: 14 },
+  { name: "Portland ME", lat: 43.6591, lng: -70.2568, radiusMi: 14 },
+  { name: "Burlington VT", lat: 44.4759, lng: -73.2121, radiusMi: 14 },
+  // — Mid-Atlantic / Southeast —
+  { name: "Baltimore MD", lat: 39.2904, lng: -76.6122, radiusMi: 12 },
+  { name: "Washington DC", lat: 38.9072, lng: -77.0369, radiusMi: 14 },
+  { name: "Richmond VA", lat: 37.5407, lng: -77.436, radiusMi: 16 },
+  { name: "Wilmington DE", lat: 39.7391, lng: -75.5398, radiusMi: 12 },
+  { name: "Charlotte NC", lat: 35.2271, lng: -80.8431, radiusMi: 18 },
+  { name: "Raleigh NC", lat: 35.7796, lng: -78.6382, radiusMi: 16 },
+  { name: "Columbia SC", lat: 34.0007, lng: -81.0348, radiusMi: 16 },
+  { name: "Charleston SC", lat: 32.7765, lng: -79.9311, radiusMi: 16 },
   { name: "Atlanta GA", lat: 33.749, lng: -84.388, radiusMi: 18 },
+  { name: "Jacksonville FL", lat: 30.3322, lng: -81.6557, radiusMi: 18 },
+  { name: "Orlando FL", lat: 28.5383, lng: -81.3792, radiusMi: 18 },
+  { name: "Tampa FL", lat: 27.9506, lng: -82.4572, radiusMi: 16 },
+  { name: "Miami FL", lat: 25.7617, lng: -80.1918, radiusMi: 16 },
+  { name: "Birmingham AL", lat: 33.5186, lng: -86.8104, radiusMi: 16 },
+  { name: "Jackson MS", lat: 32.2988, lng: -90.1848, radiusMi: 16 },
+  { name: "Nashville TN", lat: 36.1627, lng: -86.7816, radiusMi: 18 },
+  { name: "Memphis TN", lat: 35.1495, lng: -90.049, radiusMi: 16 },
+  { name: "Louisville KY", lat: 38.2527, lng: -85.7585, radiusMi: 16 },
+  { name: "New Orleans LA", lat: 29.9511, lng: -90.0715, radiusMi: 14 },
+  { name: "Charleston WV", lat: 38.3498, lng: -81.6326, radiusMi: 16 },
+  // — Midwest —
+  { name: "Chicago IL", lat: 41.8781, lng: -87.6298, radiusMi: 18 },
   { name: "Detroit MI", lat: 42.331, lng: -83.046, radiusMi: 14 },
   { name: "Cleveland OH", lat: 41.4993, lng: -81.6944, radiusMi: 12 },
-  { name: "Philadelphia PA", lat: 39.9526, lng: -75.1652, radiusMi: 14 },
+  { name: "Columbus OH", lat: 39.9612, lng: -82.9988, radiusMi: 16 },
+  { name: "Indianapolis IN", lat: 39.7684, lng: -86.1581, radiusMi: 18 },
+  { name: "Milwaukee WI", lat: 43.0389, lng: -87.9065, radiusMi: 14 },
+  { name: "Minneapolis MN", lat: 44.9778, lng: -93.265, radiusMi: 16 },
   { name: "St. Louis MO", lat: 38.627, lng: -90.1994, radiusMi: 14 },
   { name: "Kansas City MO", lat: 39.0997, lng: -94.5786, radiusMi: 16 },
-  { name: "Memphis TN", lat: 35.1495, lng: -90.049, radiusMi: 16 },
-  { name: "Birmingham AL", lat: 33.5186, lng: -86.8104, radiusMi: 16 },
-  { name: "Baltimore MD", lat: 39.2904, lng: -76.6122, radiusMi: 12 },
-  { name: "Indianapolis IN", lat: 39.7684, lng: -86.1581, radiusMi: 18 },
+  { name: "Des Moines IA", lat: 41.5868, lng: -93.625, radiusMi: 16 },
+  { name: "Omaha NE", lat: 41.2565, lng: -95.9345, radiusMi: 14 },
+  { name: "Wichita KS", lat: 37.6872, lng: -97.3301, radiusMi: 14 },
+  { name: "Fargo ND", lat: 46.8772, lng: -96.7898, radiusMi: 12 },
+  { name: "Sioux Falls SD", lat: 43.5446, lng: -96.7311, radiusMi: 12 },
+  // — South Central —
   { name: "Houston TX", lat: 29.7604, lng: -95.3698, radiusMi: 22 },
   { name: "Dallas TX", lat: 32.7767, lng: -96.797, radiusMi: 20 },
-  { name: "Tampa FL", lat: 27.9506, lng: -82.4572, radiusMi: 16 },
+  { name: "San Antonio TX", lat: 29.4241, lng: -98.4936, radiusMi: 18 },
+  { name: "Austin TX", lat: 30.2672, lng: -97.7431, radiusMi: 18 },
+  { name: "Oklahoma City OK", lat: 35.4676, lng: -97.5164, radiusMi: 18 },
+  { name: "Little Rock AR", lat: 34.7465, lng: -92.2896, radiusMi: 16 },
+  // — Mountain / West —
+  { name: "Denver CO", lat: 39.7392, lng: -104.9903, radiusMi: 18 },
   { name: "Phoenix AZ", lat: 33.4484, lng: -112.074, radiusMi: 22 },
-  { name: "Chicago IL", lat: 41.8781, lng: -87.6298, radiusMi: 16 },
+  { name: "Albuquerque NM", lat: 35.0844, lng: -106.6504, radiusMi: 16 },
+  { name: "Las Vegas NV", lat: 36.1699, lng: -115.1398, radiusMi: 18 },
+  { name: "Salt Lake City UT", lat: 40.7608, lng: -111.891, radiusMi: 16 },
+  { name: "Boise ID", lat: 43.615, lng: -116.2023, radiusMi: 16 },
+  { name: "Billings MT", lat: 45.7833, lng: -108.5007, radiusMi: 12 },
+  { name: "Cheyenne WY", lat: 41.14, lng: -104.8202, radiusMi: 10 },
+  // — Pacific —
+  { name: "Los Angeles CA", lat: 34.0522, lng: -118.2437, radiusMi: 20 },
+  { name: "San Diego CA", lat: 32.7157, lng: -117.1611, radiusMi: 16 },
+  { name: "San Francisco CA", lat: 37.7749, lng: -122.4194, radiusMi: 14 },
+  { name: "Sacramento CA", lat: 38.5816, lng: -121.4944, radiusMi: 16 },
+  { name: "Portland OR", lat: 45.5152, lng: -122.6784, radiusMi: 16 },
+  { name: "Seattle WA", lat: 47.6062, lng: -122.3321, radiusMi: 16 },
+  { name: "Spokane WA", lat: 47.6588, lng: -117.426, radiusMi: 14 },
+  { name: "Anchorage AK", lat: 61.2181, lng: -149.9003, radiusMi: 16 },
+  { name: "Honolulu HI", lat: 21.3099, lng: -157.8581, radiusMi: 12 },
 ];
 
 /** Areas to harvest: REDFIN_AREAS override (or augment) the built-in metro seed. */
@@ -296,7 +357,7 @@ async function fetchCsv(url: string): Promise<string | null> {
 async function harvestBox(
   b: BBox,
   byId: Map<string, Property>,
-  opts: { wantSold?: boolean; depth?: number } = {},
+  opts: { wantSold?: boolean; depth?: number; deadline?: number } = {},
 ): Promise<void> {
   const depth = opts.depth ?? 0;
   const csv = await fetchCsv(
@@ -306,7 +367,12 @@ async function harvestBox(
   const rows = parseRedfinCsv(csv, opts.wantSold);
   for (const p of rows) byId.set(p.source_listing_id!, p);
   // Truncated box → recurse into quadrants (cap depth so we don't fan out forever on ultra-dense cores).
-  if (rows.length >= CAP_HIT && depth < 3) {
+  // Stop subdividing once the run's time budget is spent so one dense metro can't starve the rest.
+  if (
+    rows.length >= CAP_HIT &&
+    depth < 3 &&
+    !(opts.deadline && Date.now() > opts.deadline)
+  ) {
     for (const q of quarters(b)) {
       await new Promise((r) => setTimeout(r, 250)); // polite spacing per box
       await harvestBox(q, byId, { ...opts, depth: depth + 1 });
@@ -314,14 +380,38 @@ async function harvestBox(
   }
 }
 
-/** Harvest active/coming-soon MLS listings across the configured areas. Free, no anti-bot, nationwide. */
-export async function harvestRedfinGis(
-  areas: RedfinArea[] = configuredAreas(),
+// A budgeted, rotating national sweep. Each run starts at a different metro (rotation by clock) and stops
+// when the time budget is spent — so any single run is bounded (safe under the 300s serverless route) while
+// successive runs cycle through the whole country (upsert dedupes across runs → full national coverage over
+// time). The always-on worker can raise REDFIN_TIME_BUDGET_MS to sweep everything in one pass.
+function rotated<T>(items: T[]): T[] {
+  if (items.length < 2) return items;
+  const offset = Math.floor(Date.now() / 60_000) % items.length;
+  return [...items.slice(offset), ...items.slice(0, offset)];
+}
+
+async function sweep(
+  areas: RedfinArea[],
+  wantSold: boolean,
 ): Promise<Property[]> {
+  const budgetMs = Math.max(
+    20_000,
+    parseInt(process.env.REDFIN_TIME_BUDGET_MS || "240000", 10) || 240_000,
+  );
+  const maxAreas = Math.max(
+    1,
+    parseInt(process.env.REDFIN_MAX_AREAS || String(areas.length), 10) ||
+      areas.length,
+  );
+  const deadline = Date.now() + budgetMs;
+  const order = rotated(areas).slice(0, maxAreas);
   const byId = new Map<string, Property>();
-  for (const a of areas) {
+  let covered = 0;
+  for (const a of order) {
+    if (Date.now() > deadline) break;
     try {
-      await harvestBox(areaToBBox(a), byId);
+      await harvestBox(areaToBBox(a), byId, { wantSold, deadline });
+      covered++;
     } catch (e) {
       console.warn(
         `[HomeIQ:RedfinGIS] ${a.name} failed:`,
@@ -332,30 +422,21 @@ export async function harvestRedfinGis(
   }
   const out = Array.from(byId.values());
   console.log(
-    `[HomeIQ:RedfinGIS] ${out.length} MLS listings across ${areas.length} areas`,
+    `[HomeIQ:RedfinGIS] ${out.length} ${wantSold ? "sold comps" : "MLS listings"} across ${covered}/${order.length} areas (budget ${Math.round(budgetMs / 1000)}s)`,
   );
   return out;
+}
+
+/** Harvest active/coming-soon MLS listings across the configured areas. Free, no anti-bot, nationwide. */
+export async function harvestRedfinGis(
+  areas: RedfinArea[] = configuredAreas(),
+): Promise<Property[]> {
+  return sweep(areas, false);
 }
 
 /** Sold comps (last 90d) for the valuation layer — anchors sell-estimates to real closed prices. */
 export async function harvestRedfinSold(
   areas: RedfinArea[] = configuredAreas(),
 ): Promise<Property[]> {
-  const byId = new Map<string, Property>();
-  for (const a of areas) {
-    try {
-      await harvestBox(areaToBBox(a), byId, { wantSold: true });
-    } catch (e) {
-      console.warn(
-        `[HomeIQ:RedfinGIS] sold ${a.name} failed:`,
-        (e as Error).message,
-      );
-    }
-    await new Promise((r) => setTimeout(r, 400));
-  }
-  const out = Array.from(byId.values());
-  console.log(
-    `[HomeIQ:RedfinGIS] ${out.length} sold comps across ${areas.length} areas`,
-  );
-  return out;
+  return sweep(areas, true);
 }
