@@ -11,6 +11,7 @@
 
 import type { Property } from "./types";
 import { analyzeHousingDeal } from "./deal-analyzer";
+import { rentCashflow } from "./rent";
 
 export type LeadTier = "hot" | "warm" | "standard";
 
@@ -259,6 +260,26 @@ export function scoreHousingLead(p: Property): LeadScore {
     else if (room >= 0.12)
       add(13, "Below max offer — real equity room", "equity");
     else if (room >= 0) add(5, "At/near the max offer");
+  }
+
+  // 7b) RENTAL CASHFLOW — the buy-and-hold lens. A strong cap rate (ZIP market rent vs the all-in basis,
+  // 50% rule) is its own reason to buy, independent of flip equity. Basis = ask + estimated repairs when
+  // known so the yield isn't flattered. A property that both flips AND cashflows stacks higher.
+  const cf = rentCashflow(p.price, p.zip, {
+    basis:
+      p.price && deal.repairEstimate != null
+        ? p.price + deal.repairEstimate
+        : undefined,
+  });
+  if (cf) {
+    if (cf.rating === "strong")
+      add(
+        16,
+        `Strong rental cashflow — ${cf.capRatePct}% cap rate`,
+        "cashflow",
+      );
+    else if (cf.rating === "decent")
+      add(9, `Decent rental cashflow — ${cf.capRatePct}% cap rate`, "cashflow");
   }
 
   // ── STACKING BONUS — the super-linear payoff to overlap that the commercial scorers are built on.

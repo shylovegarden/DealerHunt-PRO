@@ -58,16 +58,19 @@ need to.
 | Pre-foreclosure / NOD / lis pendens           | 🟡 per-county | public records, fragmented — add per county to the open-data registry             |
 | **Owner name + mailing address** (skip-trace) | 🔑/💲         | county assessor (free, per-county) → phone/email is the one honest paid exception |
 
-## Rental / cashflow (buy-and-hold) — the one real gap
+## Rental / cashflow (buy-and-hold) — NOW BUILT ✅
 
-| Data                  | Status          | Path                                                                                         |
-| --------------------- | --------------- | -------------------------------------------------------------------------------------------- |
-| Rent estimate by ZIP  | 🔑              | Census ACS median gross rent (free **Census API key**) or HUD Fair Market Rents (free token) |
-| Cap rate / GRM signal | ➖ ready to add | once a rent layer lands, slots into `deal-analyzer` like the ARV $/sqft did                  |
+| Data                              | Status           | Source                                                                    |
+| --------------------------------- | ---------------- | ------------------------------------------------------------------------- |
+| Rent estimate by ZIP              | ✅ free, keyless | Zillow ZORI (`npm run data:zori` → `zip-rent.json`, 8,444 ZIPs)           |
+| Cap rate / GRM / monthly cashflow | ✅               | `lib/housing/rent.ts` (50% rule, all-in basis = ask + repairs)            |
+| Cashflow lead signal              | ✅ scored        | `lead-score.ts` (strong cap rate is its own buy reason; stacks with flip) |
+| Cashflow on the lead detail page  | ✅               | rent / cap rate / monthly cashflow card                                   |
 
-This is the honest "not-yet-built" item: a robust free rent source needs a 30-second free API key (like a
-Census key — unlock the whole Census: rent, income, vacancy, demographics). Wired turnkey the moment you
-want the buy-and-hold dimension; today HomeIQ is tuned for flips/wholesale, where we're complete.
+Built with **no key** — Zillow publishes ZORI as a free public CSV (same pattern as the Redfin $/sqft
+feeds). A $70k Atlanta home rents ~$1,978/mo → strong cap rate → flagged hot; an expensive coastal home
+correctly shows a thin/negative cap. Coarse (ZIP-typical market rent), clearly labeled. HUD FMR / Census
+ACS remain optional cross-checks if ever wanted.
 
 ## Neighborhood / context (free, available to add)
 
@@ -76,7 +79,6 @@ GreatSchools / crime (💲 mostly paid). These sharpen _area_ evaluation; not bl
 
 ---
 
-**Verdict: for finding and analyzing deals, we are not missing anything that a paid MLS license or data
-broker would give us.** The only genuine free-but-not-yet-built dimension is rental/cashflow (a free key
-away), and the only genuinely-paid thing worth anything is skip-trace phone/email — which we deliberately
-leave as a user decision rather than bake in a paid broker.
+**Verdict: for finding and analyzing deals — flip AND buy-and-hold — we are not missing anything that a
+paid MLS license or data broker would give us.** The only genuinely-paid thing worth anything is skip-trace
+phone/email, which we deliberately leave as a user decision rather than bake in a paid broker.

@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getProperty } from "@/lib/housing/store";
 import { scoreHousingLead } from "@/lib/housing/lead-score";
 import { analyzeHousingDeal } from "@/lib/housing/deal-analyzer";
+import { rentCashflow } from "@/lib/housing/rent";
 import type { Property } from "@/lib/housing/types";
 
 // GET /api/homeiq/leads/[id] — one property's full HomeIQ analysis: lead score (with reasons), the
@@ -23,6 +24,13 @@ export async function GET(
   // Prefer the stored score; recompute reasons + the deal analysis transparently.
   const score = scoreHousingLead(p);
   const analysis = analyzeHousingDeal(p);
+  // Buy-and-hold view (rent → cap rate / cashflow), on the all-in basis (ask + estimated repairs).
+  const cashflow = rentCashflow(p.price, p.zip, {
+    basis:
+      p.price && analysis.repairEstimate != null
+        ? p.price + analysis.repairEstimate
+        : undefined,
+  });
 
   return NextResponse.json({
     lead: {
@@ -84,6 +92,7 @@ export async function GET(
       tier: row.lead_tier ?? score.tier,
       signals: score.signals,
       analysis,
+      cashflow,
     },
   });
 }

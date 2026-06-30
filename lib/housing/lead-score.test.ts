@@ -157,6 +157,30 @@ describe("listing-signal coverage (price cut + days on market)", () => {
   });
 });
 
+describe("rental cashflow signal (buy-and-hold lens)", () => {
+  it("rewards a strong-cap-rate buy in a ZIP with known rent", () => {
+    // 30303 (Atlanta) is in the ZORI snapshot; a low price → high cap rate → cashflow signal fires.
+    const strong = scoreHousingLead({
+      ...base,
+      title: "Rental",
+      property_type: "single_family",
+      zip: "30303",
+      price: 60000,
+    } as any);
+    expect(strong.signals.join(" ")).toMatch(/rental cashflow|cap rate/i);
+  });
+
+  it("does not fire for a ZIP with no rent data", () => {
+    const none = scoreHousingLead({
+      ...base,
+      title: "Rental",
+      zip: "00000",
+      price: 60000,
+    } as any);
+    expect(none.signals.join(" ")).not.toMatch(/cashflow/i);
+  });
+});
+
 describe("top-grade scoring: keywords, negatives, stacking, grade", () => {
   it("penalizes full-price ('pride of ownership') wording", () => {
     const polished = scoreHousingLead({

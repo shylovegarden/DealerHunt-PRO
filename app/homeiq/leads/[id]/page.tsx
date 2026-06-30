@@ -28,6 +28,13 @@ const VERDICT_COLOR: Record<string, string> = {
   pass: "var(--red)",
 };
 
+const CASHFLOW_COLOR: Record<string, string> = {
+  strong: "var(--green)",
+  decent: ACCENT,
+  thin: "var(--amber)",
+  negative: "var(--red)",
+};
+
 const money = (n?: number | null) =>
   n != null ? `$${Math.round(n).toLocaleString()}` : "—";
 
@@ -58,6 +65,7 @@ export default function LeadDetailPage({
 
   const tierColor = TIER_COLOR[lead.tier] || "var(--blue)";
   const a = lead.analysis || {};
+  const cf = lead.cashflow;
   const points =
     lead.lat != null && lead.lng != null
       ? [
@@ -285,6 +293,30 @@ export default function LeadDetailPage({
               </ul>
             )}
           </Card>
+
+          {/* Rental cashflow — the buy-and-hold lens */}
+          {cf && (
+            <Card title="Rental cashflow (buy & hold)">
+              <div className="grid grid-cols-3 gap-3">
+                <Metric
+                  label="Rent (est.)"
+                  value={`${money(cf.monthlyRent)}/mo`}
+                />
+                <Metric
+                  label="Cap rate"
+                  value={`${cf.capRatePct}%`}
+                  accent={CASHFLOW_COLOR[cf.rating] || ACCENT}
+                  sub={cf.rating}
+                />
+                <Metric
+                  label="Cashflow"
+                  value={`${money(cf.monthlyCashflow)}/mo`}
+                  sub="50% rule, all-cash"
+                />
+              </div>
+              <p className="mt-3 text-xs text-[var(--t4)]">{cf.note}</p>
+            </Card>
+          )}
 
           {/* Facts */}
           {(lead.beds ||
