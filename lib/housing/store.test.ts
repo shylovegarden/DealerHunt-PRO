@@ -344,8 +344,8 @@ describe("queryProperties", () => {
     expect(mockGte).toHaveBeenCalledWith("lead_score", 80);
   });
 
-  it("should respect limit parameter with max of 2000", async () => {
-    // Full 1000-row pages force pagination; the loop must stop at the 2000 cap (2 pages), not page 5000.
+  it("should respect limit parameter with max of 3000", async () => {
+    // Full 1000-row pages force pagination; the loop must stop at the 3000 cap (3 pages), not page 5000.
     const fullPage = Array.from({ length: 1000 }, (_, i) => ({
       id: String(i),
     }));
@@ -354,7 +354,8 @@ describe("queryProperties", () => {
     await queryProperties({ limit: 5000 });
     expect(mockRange).toHaveBeenCalledWith(0, 999);
     expect(mockRange).toHaveBeenCalledWith(1000, 1999);
-    expect(mockRange).not.toHaveBeenCalledWith(2000, 2999); // capped at 2000
+    expect(mockRange).toHaveBeenCalledWith(2000, 2999);
+    expect(mockRange).not.toHaveBeenCalledWith(3000, 3999); // capped at 3000
   });
 
   it("should use default limit of 200", async () => {
