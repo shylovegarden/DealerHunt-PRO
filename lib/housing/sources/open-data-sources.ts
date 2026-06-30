@@ -15,6 +15,13 @@ const n = (v: unknown) => {
   const x = Number(v);
   return Number.isFinite(x) && x > 0 ? x : undefined;
 };
+// Join owner mailing-address components into a direct-mail-ready string (public record).
+const mailing = (...parts: unknown[]) =>
+  parts
+    .map((p) => (p == null ? "" : String(p).trim()))
+    .filter(Boolean)
+    .join(", ") || undefined;
+
 // Socrata GeoJSON point column → {lat,lng} ([lng,lat] order).
 function pointLatLng(geo: any): { lat?: number; lng?: number } {
   const c = geo?.coordinates;
@@ -145,6 +152,7 @@ export const MISSOURI_SOURCES: OpenDataSource[] = [
           out_of_state_owner: true,
           owner: s(a.OWNER_NAME),
           owner_state: s(a.OWN_STATE),
+          owner_mailing: mailing(a.OWN_ADD, a.OWN_CITY, a.OWN_STATE, a.OWN_ZIP),
           status: `Absentee (${s(a.OWN_STATE)})`,
         },
       };
@@ -185,6 +193,12 @@ export const MISSOURI_SOURCES: OpenDataSource[] = [
           out_of_state_owner: true,
           owner: s(a.OWN1),
           owner_state: s(a.STATECODE),
+          owner_mailing: mailing(
+            a.Own_Addr || a.OWN_ADDR,
+            a.CITYNAME,
+            a.STATECODE,
+            a.ZIP1,
+          ),
           status: `Absentee (${s(a.STATECODE)})`,
         },
       };
@@ -307,6 +321,12 @@ export const NATIONAL_SOURCES: OpenDataSource[] = [
           out_of_state_owner: true,
           owner: s(a.PRIMARY_OWNER),
           owner_state: s(a.MAIL_STATE),
+          owner_mailing: mailing(
+            a.MAIL_ADDR,
+            a.MAIL_CITY,
+            a.MAIL_STATE,
+            a.MAIL_ZIP,
+          ),
           status: `Absentee (${s(a.MAIL_STATE)})`,
         },
       };
@@ -352,6 +372,9 @@ export const NATIONAL_SOURCES: OpenDataSource[] = [
           out_of_state_owner: true,
           owner: s(a.OWNER_NAME),
           owner_state: s(a.MAIL_STATE),
+          owner_mailing:
+            s(a.MAIL_ADDRESS) ||
+            mailing(a.MAIL_ADDR1, a.MAIL_CITY, a.MAIL_STATE, a.MAIL_ZIP),
           status: `Absentee (${s(a.MAIL_STATE)})`,
         },
       };

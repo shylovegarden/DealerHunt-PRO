@@ -97,6 +97,11 @@ export function parseTaxDelinquent(rows: PhillyDelinquentRow[]): Property[] {
         years_owed: years,
         oldest_year_owed: num(r.oldest_year_owed) || undefined,
         owner: r.owner,
+        owner_mailing:
+          [r.mailing_address, r.mailing_city, r.mailing_state]
+            .map((x) => (x == null ? "" : String(x).trim()))
+            .filter(Boolean)
+            .join(", ") || undefined,
         absentee,
         out_of_state_owner: outOfState,
         sheriff_sale: truthy(r.sheriff_sale),

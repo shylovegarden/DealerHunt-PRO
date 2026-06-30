@@ -149,6 +149,49 @@ export default function LeadDetailPage({
             </div>
           </Card>
 
+          {/* Owner & contact — public-record owner + mailing address (direct-mail ready). Phone/email is
+              NOT scraped; it requires a licensed, compliant skip-trace provider (TCPA/DNC rules apply). */}
+          {(lead.owner || lead.ownerMailing) && (
+            <Card title="Owner & contact">
+              <div className="space-y-2 text-sm">
+                {lead.owner && (
+                  <div>
+                    <span className="text-[var(--t4)]">Owner of record: </span>
+                    <span className="font-semibold text-[var(--t1)]">
+                      {lead.owner}
+                    </span>
+                  </div>
+                )}
+                {lead.ownerMailing && (
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <span className="text-[var(--t4)]">Mailing: </span>
+                      <span className="text-[var(--t2)]">
+                        {lead.ownerMailing}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() =>
+                        navigator.clipboard.writeText(
+                          `${lead.owner || ""}\n${lead.ownerMailing}`.trim(),
+                        )
+                      }
+                      className="shrink-0 text-[11px] font-bold px-2 py-1 rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s2)] text-[var(--t2)] hover:border-[var(--b3)]"
+                    >
+                      Copy for mail
+                    </button>
+                  </div>
+                )}
+                <p className="text-[11px] text-[var(--t4)] leading-snug pt-1 border-t border-[var(--b1)]">
+                  Public record (county assessor / tax roll) — ready for{" "}
+                  <strong className="text-[var(--t3)]">direct mail</strong>.
+                  Phone &amp; email require a licensed skip-trace provider;
+                  calling/texting is subject to TCPA &amp; Do-Not-Call rules.
+                </p>
+              </div>
+            </Card>
+          )}
+
           {/* Deal analysis — the 70% rule */}
           <Card title="Flip analysis (70% rule)">
             {a.mao != null ? (
