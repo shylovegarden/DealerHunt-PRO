@@ -82,6 +82,7 @@ export async function GET(req: NextRequest) {
         lat,
         lng,
         approx,
+        price: Number(d.ask_price) || undefined, // → Zillow-style price-pill marker
         type: typeForVerdict(d.deal_verdict),
         label: `${money(d.ask_price)} · ${Number(d.true_net_profit) >= 0 ? "+" : ""}${money(d.true_net_profit)} profit${d.location_city ? ` · ${d.location_city}, ${d.location_state || ""}` : d.location_state ? ` · ${d.location_state}` : ""}`,
       };
