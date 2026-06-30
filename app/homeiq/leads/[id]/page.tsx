@@ -269,6 +269,13 @@ export default function LeadDetailPage({
           <Card title="Flip analysis (70% rule)">
             {a.mao != null ? (
               <div className="space-y-3">
+                <FlipWaterfall
+                  price={lead.price}
+                  repairs={a.repairEstimate}
+                  arv={a.arv}
+                  mao={a.mao}
+                  equity={a.equitySpread}
+                />
                 <div className="grid grid-cols-3 gap-3">
                   <Metric
                     label="ARV (est.)"
@@ -367,6 +374,9 @@ export default function LeadDetailPage({
               </div>
             </Card>
           )}
+
+          {/* Similar leads nearby */}
+          <SimilarLeads state={lead.state} excludeId={lead.id} zip={lead.zip} />
 
           {/* Actions */}
           <div className="flex flex-wrap gap-3">
@@ -512,6 +522,166 @@ function Card({
       </h2>
       {children}
     </motion.div>
+  );
+}
+
+// Flip economics as a single stacked bar: ARV is the full width; the all-in basis (ask + repairs) fills
+// from the left, the rest is the equity spread (green) or overpay (red). A marker shows the 70%-rule MAO
+// ceiling. Pure inline SVG/flex — no chart lib, animates with framer-motion.
+function FlipWaterfall({
+  price,
+  repairs,
+  arv,
+  mao,
+  equity,
+}: {
+  price?: number | null;
+  repairs?: number | null;
+  arv?: number | null;
+  mao?: number | null;
+  equity?: number | null;
+}) {
+  if (!arv || arv <= 0) return null;
+  const ask = Math.max(0, price || 0);
+  const rep = Math.max(0, repairs || 0);
+  const spread = equity ?? arv - ask - rep;
+  const pct = (n: number) => `${Math.max(0, Math.min(100, (n / arv) * 100))}%`;
+  const overpay = spread < 0;
+  const maoPct =
+    mao != null ? Math.max(0, Math.min(100, (mao / arv) * 100)) : null;
+  const fmt = (n?: number | null) =>
+    n != null ? `$${Math.round(n).toLocaleString()}` : "—";
+  return (
+    <div>
+      <div className="relative h-7 w-full rounded-md overflow-hidden bg-[var(--s2)] border border-[var(--b1)]">
+        <motion.div
+          className="absolute inset-y-0 left-0 flex"
+          initial={{ width: 0 }}
+          animate={{ width: "100%" }}
+          transition={{ duration: 0.7, ease: "easeOut" }}
+        >
+          <div
+            style={{ width: pct(ask), background: "var(--blue)" }}
+            className="h-full"
+            title={`Ask ${fmt(ask)}`}
+          />
+          <div
+            style={{ width: pct(rep), background: "var(--amber)" }}
+            className="h-full"
+            title={`Repairs ${fmt(rep)}`}
+          />
+          <div
+            style={{
+              width: pct(Math.abs(spread)),
+              background: overpay ? "var(--red)" : "var(--green)",
+            }}
+            className="h-full"
+            title={`${overpay ? "Overpay" : "Equity"} ${fmt(Math.abs(spread))}`}
+          />
+        </motion.div>
+        {maoPct != null && (
+          <div
+            className="absolute inset-y-0 w-0.5 bg-[var(--t1)]"
+            style={{ left: `${maoPct}%` }}
+            title={`Max offer ${fmt(mao)}`}
+          >
+            <span className="absolute -top-0 left-1 text-[8px] font-black text-[var(--t1)] whitespace-nowrap">
+              MAO
+            </span>
+          </div>
+        )}
+      </div>
+      <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] font-bold">
+        <span style={{ color: "var(--blue)" }}>■ Ask {fmt(ask)}</span>
+        <span style={{ color: "var(--amber)" }}>■ Repairs {fmt(rep)}</span>
+        <span style={{ color: overpay ? "var(--red)" : "var(--green)" }}>
+          ■ {overpay ? "Overpay" : "Equity"} {fmt(Math.abs(spread))}
+        </span>
+        <span className="text-[var(--t4)]">ARV {fmt(arv)}</span>
+      </div>
+    </div>
+  );
+}
+
+// Similar leads — a scroll rail of other hot/warm deals in the same state (closest by ZIP first). Self-
+// fetches the state-scoped list and filters out the current lead. Returns null when there's nothing nearby.
+function SimilarLeads({
+  state,
+  excludeId,
+  zip,
+}: {
+  state?: string;
+  excludeId: string;
+  zip?: string;
+}) {
+  const { data } = useSWR(
+    state ? `/api/homeiq/leads?state=${state}` : null,
+    fetcher,
+  );
+  if (!state || !data?.leads) return null;
+  const z = (zip || "").slice(0, 3);
+  const near = (data.leads as any[])
+    .filter(
+      (l) => l.id !== excludeId && (l.tier === "hot" || l.tier === "warm"),
+    )
+    .sort((a, b) => {
+      // ZIP-3 proximity first, then score.
+      const az = String(a.zip || "").slice(0, 3) === z ? 1 : 0;
+      const bz = String(b.zip || "").slice(0, 3) === z ? 1 : 0;
+      return bz - az || (b.score || 0) - (a.score || 0);
+    })
+    .slice(0, 8);
+  if (!near.length) return null;
+  return (
+    <Card title="Similar leads nearby">
+      <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1 snap-x">
+        {near.map((l) => (
+          <Link
+            key={l.id}
+            href={`/homeiq/leads/${encodeURIComponent(l.id)}`}
+            className="snap-start shrink-0 w-44 rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s0)] overflow-hidden hover:border-[var(--home-bd)] transition-colors"
+          >
+            <div className="h-24 bg-[var(--s2)] relative">
+              {l.image ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={l.image}
+                  alt={l.title}
+                  className="w-full h-full object-cover"
+                  loading="lazy"
+                />
+              ) : (
+                <div className="w-full h-full grid place-items-center text-[var(--t4)] text-[10px]">
+                  No photo
+                </div>
+              )}
+              <span
+                className="absolute top-1 left-1 text-[10px] font-black px-1.5 py-0.5 rounded text-white"
+                style={{ background: TIER_COLOR[l.tier] || "var(--blue)" }}
+              >
+                {l.score}
+              </span>
+            </div>
+            <div className="p-2">
+              <div className="font-black text-sm text-[var(--t1)]">
+                {money(l.price)}
+              </div>
+              <div className="text-[11px] text-[var(--t3)] truncate">
+                {l.city ? `${l.city}, ${l.state}` : l.state}
+              </div>
+              {l.mao != null && (
+                <div
+                  className="text-[10px] font-bold mt-0.5"
+                  style={{ color: VERDICT_COLOR[l.verdict] || ACCENT }}
+                >
+                  🔨 {money(l.mao)} · {l.verdict}
+                </div>
+              )}
+            </div>
+          </Link>
+        ))}
+      </div>
+    </Card>
   );
 }
 
