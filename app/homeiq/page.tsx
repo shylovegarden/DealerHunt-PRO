@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import { stateName, nearestState } from "@/lib/housing/us-states";
 import { HomeIQSearch } from "@/components/home/HomeIQSearch";
+import { HousingTicker } from "@/components/home/HousingTicker";
 import { useCountUp } from "@/hooks/useCountUp";
 
 // HomeIQ command center — the live, location-aware home. Real totals, the hottest markets, and featured
@@ -148,6 +149,13 @@ export default function HomeIQHome() {
           </Link>
         </div>
       </section>
+
+      {/* Live ticker — hottest leads scrolling by, derived from the data already loaded. */}
+      {leads.length > 0 && (
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 mt-7">
+          <HousingTicker leads={leads} />
+        </div>
+      )}
 
       {/* Top markets */}
       {topMarkets.length > 0 && (
