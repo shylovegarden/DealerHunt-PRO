@@ -7,7 +7,7 @@ import Link from "next/link";
 // HomeIQ pipeline — the saved-leads board. Move a lead through the flip stages, jot notes, remove. Each
 // saved row carries a snapshot so it survives even if the source listing is pruned.
 
-const ACCENT = "#2dd4bf";
+const ACCENT = "var(--home)";
 const fetcher = (u: string) => fetch(u).then((r) => r.json());
 
 const STAGES: { key: string; label: string }[] = [
@@ -106,7 +106,7 @@ export default function SavedPipelinePage() {
           <span className="font-black text-lg">HomeIQ</span>
           <span
             className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full"
-            style={{ background: `${ACCENT}22`, color: ACCENT }}
+            style={{ background: "var(--home-lo)", color: ACCENT }}
           >
             Pipeline
           </span>

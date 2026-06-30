@@ -4,6 +4,9 @@ import { use, useState } from "react";
 import dynamic from "next/dynamic";
 import useSWR from "swr";
 import Link from "next/link";
+import { motion } from "framer-motion";
+import { toast } from "sonner";
+import { ImageGallery } from "@/components/shared/ImageGallery";
 import { housingPriceTerms } from "@/lib/housing/price-semantics";
 
 const DealerMap = dynamic(() => import("@/components/map/DealerMap"), {
@@ -13,7 +16,7 @@ const DealerMap = dynamic(() => import("@/components/map/DealerMap"), {
   ),
 });
 
-const ACCENT = "#2dd4bf";
+const ACCENT = "var(--home)";
 const fetcher = (u: string) => fetch(u).then((r) => r.json());
 
 const TIER_COLOR: Record<string, string> = {
@@ -53,7 +56,15 @@ export default function LeadDetailPage({
   if (isLoading)
     return (
       <Shell>
-        <p className="text-[var(--t4)] py-20 text-center">Loading lead…</p>
+        <div className="grid lg:grid-cols-[1fr_minmax(320px,40%)] gap-6">
+          <div className="space-y-4">
+            <div className="h-7 w-2/3 rounded shimmer" />
+            <div className="h-64 w-full rounded-[var(--r3)] shimmer" />
+            <div className="h-28 w-full rounded-[var(--r3)] shimmer" />
+            <div className="h-28 w-full rounded-[var(--r3)] shimmer" />
+          </div>
+          <div className="h-72 rounded-[var(--r3)] shimmer" />
+        </div>
       </Shell>
     );
   if (!lead)
@@ -131,13 +142,16 @@ export default function LeadDetailPage({
             </p>
           </div>
 
-          {lead.image && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={lead.image}
-              alt={lead.title}
-              className="w-full max-h-72 object-cover rounded-[var(--r3)] border border-[var(--b1)]"
-            />
+          {(lead.images?.length || lead.image) && (
+            <div className="rounded-[var(--r3)] overflow-hidden border border-[var(--b1)]">
+              <ImageGallery
+                images={
+                  lead.images?.length
+                    ? lead.images
+                    : [lead.image].filter(Boolean)
+                }
+              />
+            </div>
           )}
 
           {/* Lead score */}
@@ -405,8 +419,12 @@ function SaveButton({ listingId }: { listingId: string }) {
       setState("auth");
       return;
     }
-    if (res.ok) setState("saved");
-    else setState("idle");
+    if (res.ok) {
+      toast.success("Saved to pipeline 📋", {
+        description: "Track it on your pipeline board.",
+      });
+      setState("saved");
+    } else setState("idle");
   };
   if (state === "auth") {
     return (
@@ -480,12 +498,17 @@ function Card({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] p-4">
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35 }}
+      className="glass-panel"
+    >
       <h2 className="text-[11px] font-black uppercase tracking-widest text-[var(--t4)] mb-3">
         {title}
       </h2>
       {children}
-    </div>
+    </motion.div>
   );
 }
 
@@ -653,7 +676,7 @@ function ScoreRing({ score, color }: { score: number; color: string }) {
           stroke="var(--b1)"
           strokeWidth="5"
         />
-        <circle
+        <motion.circle
           cx="28"
           cy="28"
           r={r}
@@ -662,7 +685,10 @@ function ScoreRing({ score, color }: { score: number; color: string }) {
           strokeWidth="5"
           strokeLinecap="round"
           strokeDasharray={c}
-          strokeDashoffset={off}
+          initial={{ strokeDashoffset: c }}
+          animate={{ strokeDashoffset: off }}
+          transition={{ duration: 0.9, ease: "easeOut" }}
+          style={{ filter: `drop-shadow(0 0 4px ${color}66)` }}
         />
       </svg>
       <span

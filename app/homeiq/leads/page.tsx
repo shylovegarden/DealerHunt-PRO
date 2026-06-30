@@ -4,6 +4,8 @@ import { useState, useMemo, useEffect, useRef, Suspense } from "react";
 import dynamic from "next/dynamic";
 import useSWR from "swr";
 import Link from "next/link";
+import { motion } from "framer-motion";
+import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
 import { US_STATES as ST, nearbyStates } from "@/lib/housing/us-states";
 import { housingPriceTerms } from "@/lib/housing/price-semantics";
@@ -27,7 +29,7 @@ const DealerMap = dynamic(() => import("@/components/map/DealerMap"), {
   ),
 });
 
-const ACCENT = "#2dd4bf";
+const ACCENT = "var(--home)";
 const fetcher = (u: string) => fetch(u).then((r) => r.json());
 const TIER_COLOR: Record<string, string> = {
   hot: "var(--red)",
@@ -120,6 +122,9 @@ function exportLeadsCsv(leads: Lead[]) {
   a.download = `homeiq-leads-${leads.length}.csv`;
   a.click();
   URL.revokeObjectURL(url);
+  toast.success(`Exported ${leads.length} leads`, {
+    description: "Owner + mailing + deal math — ready for mail-merge.",
+  });
 }
 
 const TIERS = [
@@ -347,15 +352,15 @@ function LeadsInner() {
       <header className="max-w-7xl mx-auto px-4 sm:px-6 pt-6 flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2.5">
           <span
-            className="w-8 h-8 rounded-[10px] grid place-items-center text-black font-black"
-            style={{ background: ACCENT }}
+            className="w-8 h-8 rounded-[10px] grid place-items-center text-black font-black shadow-[var(--shadow2)]"
+            style={{ background: "var(--grad-home)" }}
           >
             H
           </span>
           <span className="font-black text-lg">HomeIQ</span>
           <span
             className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full"
-            style={{ background: `${ACCENT}22`, color: ACCENT }}
+            style={{ background: "var(--home-lo)", color: ACCENT }}
           >
             Leads
           </span>
@@ -530,18 +535,19 @@ function LeadsInner() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 grid lg:grid-cols-[1fr_minmax(360px,46%)] gap-5">
         <div className="space-y-3 order-2 lg:order-1">
-          {isLoading && (
-            <p className="text-[var(--t4)] text-sm py-10 text-center">
-              Harvesting live leads…
-            </p>
-          )}
+          {isLoading &&
+            Array.from({ length: 6 }).map((_, i) => <CardSkeleton key={i} />)}
           {!isLoading && leads.length === 0 && (
-            <p className="text-[var(--t4)] text-sm py-10 text-center">
-              No leads match — try widening the scope.
-            </p>
+            <div className="py-16 text-center">
+              <div className="text-4xl mb-3">🔍</div>
+              <p className="text-[var(--t2)] font-bold">No leads match</p>
+              <p className="text-[var(--t4)] text-sm mt-1">
+                Try widening the scope or clearing a filter.
+              </p>
+            </div>
           )}
-          {shown.map((l) => (
-            <LeadCard key={l.id} lead={l} />
+          {shown.map((l, i) => (
+            <LeadCard key={l.id} lead={l} index={i} />
           ))}
           <div ref={sentinel} className="h-8" />
           {visible < leads.length && (
@@ -606,7 +612,10 @@ function QuickSave({ listingId }: { listingId: string }) {
       window.location.href = "/";
       return;
     }
-    setState(res.ok ? "saved" : "idle");
+    if (res.ok) {
+      toast.success("Saved to pipeline 📋");
+      setState("saved");
+    } else setState("idle");
   };
   return (
     <button
@@ -643,7 +652,12 @@ function AlertButton({ criteria }: { criteria: Record<string, unknown> }) {
         body: JSON.stringify(criteria),
       });
       if (r.status === 401) return setState("auth");
-      setState(r.ok ? "done" : "idle");
+      if (r.ok) {
+        toast.success("Alert set 🔔", {
+          description: "We'll email you when a new matching deal appears.",
+        });
+        setState("done");
+      } else setState("idle");
     } catch {
       setState("idle");
     }
@@ -675,207 +689,232 @@ function AlertButton({ criteria }: { criteria: Record<string, unknown> }) {
   );
 }
 
-function LeadCard({ lead }: { lead: Lead }) {
+// Shimmer placeholder while leads load — same shape as the real card.
+function CardSkeleton() {
+  return (
+    <div className="flex gap-3 rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] p-3">
+      <div className="shrink-0 w-28 h-24 rounded-[var(--r2)] shimmer" />
+      <div className="flex-1 space-y-2 py-1">
+        <div className="h-3 w-1/3 rounded shimmer" />
+        <div className="h-4 w-2/3 rounded shimmer" />
+        <div className="h-3 w-1/2 rounded shimmer" />
+        <div className="h-5 w-3/4 rounded shimmer mt-2" />
+      </div>
+    </div>
+  );
+}
+
+function LeadCard({ lead, index = 0 }: { lead: Lead; index?: number }) {
   const color = TIER_COLOR[lead.tier] || "var(--blue)";
   return (
-    <Link
-      href={`/homeiq/leads/${encodeURIComponent(lead.id)}`}
-      className="relative flex gap-3 rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] p-3 hover:border-[var(--b3)] transition-colors"
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, delay: Math.min(index, 8) * 0.03 }}
+      whileHover={{ y: -3 }}
     >
-      <QuickSave listingId={lead.id} />
-      <div className="relative shrink-0 w-28 h-24 rounded-[var(--r2)] overflow-hidden bg-[var(--s2)]">
-        {lead.image ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={lead.image}
-            alt={lead.title}
-            className="w-full h-full object-cover"
-            loading="lazy"
-          />
-        ) : (
-          <div className="w-full h-full grid place-items-center text-[var(--t4)] text-[10px]">
-            No photo
-          </div>
-        )}
-        <span
-          className="absolute top-1 left-1 text-[11px] font-black px-1.5 py-0.5 rounded text-white"
-          style={{ background: color }}
-        >
-          {lead.score}
-        </span>
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
+      <Link
+        href={`/homeiq/leads/${encodeURIComponent(lead.id)}`}
+        className="group relative flex gap-3 rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] p-3 transition-shadow hover:shadow-[var(--shadow)] hover:border-[var(--home-bd)]"
+      >
+        <QuickSave listingId={lead.id} />
+        <div className="relative shrink-0 w-28 h-24 rounded-[var(--r2)] overflow-hidden bg-[var(--s2)]">
+          {lead.image ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={lead.image}
+              alt={lead.title}
+              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+              loading="lazy"
+            />
+          ) : (
+            <div className="w-full h-full grid place-items-center text-[var(--t4)] text-[10px]">
+              No photo
+            </div>
+          )}
           <span
-            className="text-[10px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full"
-            style={{ background: `${color}22`, color }}
+            className="absolute top-1 left-1 text-[11px] font-black px-1.5 py-0.5 rounded text-white"
+            style={{ background: color }}
           >
-            {lead.tier}
-          </span>
-          <span className="text-[11px] text-[var(--t4)] capitalize">
-            {(lead.property_type || "").replace("_", " ")}
-          </span>
-          {lead.source && (
-            <span className="text-[10px] font-semibold text-[var(--t4)] px-1.5 py-0.5 rounded-full bg-[var(--s2)] border border-[var(--b1)]">
-              {sourceLabel(lead.source)}
-            </span>
-          )}
-          {(lead.stack || 0) >= 2 && (
-            <span
-              className="text-[10px] font-black px-1.5 py-0.5 rounded-full"
-              style={{ color: "#fff", background: "var(--red)" }}
-              title="Appears on multiple distress lists — high motivation"
-            >
-              📚 {lead.stack} lists
-            </span>
-          )}
-          {/* Distress magnitudes (amount owed, foreclosure, below-market) — the PropStream-grade detail. */}
-          {(lead.distress?.sheriffSale || lead.distress?.foreclosure) && (
-            <span
-              className="text-[10px] font-black px-1.5 py-0.5 rounded-full"
-              style={{ color: "#fff", background: "var(--red)" }}
-            >
-              ⚖️ Foreclosure
-            </span>
-          )}
-          {lead.distress?.totalDue ? (
-            <span
-              className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[var(--s2)]"
-              style={{
-                color: "var(--amber)",
-                border: "1px solid var(--amber)",
-              }}
-              title="Property-tax delinquency"
-            >
-              Owes ${Math.round(lead.distress.totalDue / 1000)}k
-              {lead.distress.yearsOwed ? ` · ${lead.distress.yearsOwed}y` : ""}
-            </span>
-          ) : null}
-          {lead.distress?.belowMarket && (
-            <span
-              className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[var(--s2)]"
-              style={{
-                color: "var(--green)",
-                border: "1px solid var(--green)",
-              }}
-            >
-              ↓ Below market
-            </span>
-          )}
-          {lead.distress?.violations ? (
-            <span
-              className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[var(--s2)]"
-              style={{
-                color: "var(--amber)",
-                border: "1px solid var(--amber)",
-              }}
-            >
-              {lead.distress.violations} violations
-            </span>
-          ) : null}
-          {lead.status && (
-            <span
-              className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
-              style={{
-                color: statusColor(lead.status),
-                background: `${statusColor(lead.status)}1a`,
-              }}
-            >
-              {lead.status}
-            </span>
-          )}
-        </div>
-        <div className="mt-0.5">
-          <span className="text-[9px] font-bold uppercase tracking-widest text-[var(--t4)] mr-1.5">
-            {housingPriceTerms(lead.source, !!lead.auction_end).priceLabel}
-          </span>
-          <span className="font-black text-[var(--t1)]">
-            {lead.price ? `$${lead.price.toLocaleString()}` : "—"}
-          </span>
-          <span className="font-medium text-sm text-[var(--t3)]">
-            {lead.city
-              ? ` · ${lead.city}, ${lead.state || ""}`
-              : lead.state
-                ? ` · ${lead.state}`
-                : ""}
+            {lead.score}
           </span>
         </div>
-        <h3 className="text-sm text-[var(--t2)] truncate">{lead.title}</h3>
-        <div className="flex items-center gap-2 mt-1 flex-wrap">
-          {(() => {
-            const c = readHomeCondition({
-              property_type: lead.property_type,
-              status: lead.status,
-              title: lead.title,
-            });
-            if (!c) return null;
-            return (
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span
+              className="text-[10px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full"
+              style={{ background: `${color}22`, color }}
+            >
+              {lead.tier}
+            </span>
+            <span className="text-[11px] text-[var(--t4)] capitalize">
+              {(lead.property_type || "").replace("_", " ")}
+            </span>
+            {lead.source && (
+              <span className="text-[10px] font-semibold text-[var(--t4)] px-1.5 py-0.5 rounded-full bg-[var(--s2)] border border-[var(--b1)]">
+                {sourceLabel(lead.source)}
+              </span>
+            )}
+            {(lead.stack || 0) >= 2 && (
+              <span
+                className="text-[10px] font-black px-1.5 py-0.5 rounded-full"
+                style={{ color: "#fff", background: "var(--red)" }}
+                title="Appears on multiple distress lists — high motivation"
+              >
+                📚 {lead.stack} lists
+              </span>
+            )}
+            {/* Distress magnitudes (amount owed, foreclosure, below-market) — the PropStream-grade detail. */}
+            {(lead.distress?.sheriffSale || lead.distress?.foreclosure) && (
+              <span
+                className="text-[10px] font-black px-1.5 py-0.5 rounded-full"
+                style={{ color: "#fff", background: "var(--red)" }}
+              >
+                ⚖️ Foreclosure
+              </span>
+            )}
+            {lead.distress?.totalDue ? (
+              <span
+                className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[var(--s2)]"
+                style={{
+                  color: "var(--amber)",
+                  border: "1px solid var(--amber)",
+                }}
+                title="Property-tax delinquency"
+              >
+                Owes ${Math.round(lead.distress.totalDue / 1000)}k
+                {lead.distress.yearsOwed
+                  ? ` · ${lead.distress.yearsOwed}y`
+                  : ""}
+              </span>
+            ) : null}
+            {lead.distress?.belowMarket && (
+              <span
+                className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[var(--s2)]"
+                style={{
+                  color: "var(--green)",
+                  border: "1px solid var(--green)",
+                }}
+              >
+                ↓ Below market
+              </span>
+            )}
+            {lead.distress?.violations ? (
+              <span
+                className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[var(--s2)]"
+                style={{
+                  color: "var(--amber)",
+                  border: "1px solid var(--amber)",
+                }}
+              >
+                {lead.distress.violations} violations
+              </span>
+            ) : null}
+            {lead.status && (
               <span
                 className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
                 style={{
-                  background: `${HOME_CONDITION_TIER_COLOR[c.tier]}1f`,
-                  color: HOME_CONDITION_TIER_COLOR[c.tier],
+                  color: statusColor(lead.status),
+                  background: `${statusColor(lead.status)}1a`,
                 }}
               >
-                {c.label}
-              </span>
-            );
-          })()}
-          {(lead.signals || []).slice(0, 1).map((s, i) => (
-            <span
-              key={i}
-              className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--s2)] text-[var(--t3)] border border-[var(--b1)]"
-            >
-              {s}
-            </span>
-          ))}
-        </div>
-
-        {/* Dual-lens deal strip — the two ways to make money, glanceable on every card. FLIP (70%-rule
-            max offer + verdict) and HOLD (cap rate + monthly cashflow). Each lights up only when computable. */}
-        {(lead.mao != null || lead.capRate != null) && (
-          <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
-            {lead.mao != null && (
-              <span
-                className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-[var(--s2)] border"
-                style={{
-                  borderColor: VERDICT_COLOR[lead.verdict || ""] || "var(--b1)",
-                  color: VERDICT_COLOR[lead.verdict || ""] || ACCENT,
-                }}
-                title="Flip — 70%-rule max allowable offer + verdict"
-              >
-                🔨 {shortMoney(lead.mao)}
-                <span className="opacity-70 capitalize">{lead.verdict}</span>
-                {lead.equity != null &&
-                  lead.equity > 0 &&
-                  (lead.verdict === "strong" || lead.verdict === "fair") && (
-                    <span className="opacity-90">
-                      · {shortMoney(lead.equity)} equity
-                    </span>
-                  )}
-              </span>
-            )}
-            {lead.capRate != null && (
-              <span
-                className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-[var(--s2)] border"
-                style={{
-                  borderColor:
-                    CASHFLOW_COLOR[lead.cashflowRating || ""] || "var(--b1)",
-                  color: CASHFLOW_COLOR[lead.cashflowRating || ""] || ACCENT,
-                }}
-                title="Hold — rental cap rate + monthly cashflow (50% rule, all-in basis)"
-              >
-                🏦 {lead.capRate}% cap
-                {lead.cashflowMo != null && (
-                  <span className="opacity-90">
-                    · {shortMoney(lead.cashflowMo)}/mo
-                  </span>
-                )}
+                {lead.status}
               </span>
             )}
           </div>
-        )}
-      </div>
-    </Link>
+          <div className="mt-0.5">
+            <span className="text-[9px] font-bold uppercase tracking-widest text-[var(--t4)] mr-1.5">
+              {housingPriceTerms(lead.source, !!lead.auction_end).priceLabel}
+            </span>
+            <span className="font-black text-[var(--t1)]">
+              {lead.price ? `$${lead.price.toLocaleString()}` : "—"}
+            </span>
+            <span className="font-medium text-sm text-[var(--t3)]">
+              {lead.city
+                ? ` · ${lead.city}, ${lead.state || ""}`
+                : lead.state
+                  ? ` · ${lead.state}`
+                  : ""}
+            </span>
+          </div>
+          <h3 className="text-sm text-[var(--t2)] truncate">{lead.title}</h3>
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
+            {(() => {
+              const c = readHomeCondition({
+                property_type: lead.property_type,
+                status: lead.status,
+                title: lead.title,
+              });
+              if (!c) return null;
+              return (
+                <span
+                  className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                  style={{
+                    background: `${HOME_CONDITION_TIER_COLOR[c.tier]}1f`,
+                    color: HOME_CONDITION_TIER_COLOR[c.tier],
+                  }}
+                >
+                  {c.label}
+                </span>
+              );
+            })()}
+            {(lead.signals || []).slice(0, 1).map((s, i) => (
+              <span
+                key={i}
+                className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--s2)] text-[var(--t3)] border border-[var(--b1)]"
+              >
+                {s}
+              </span>
+            ))}
+          </div>
+
+          {/* Dual-lens deal strip — the two ways to make money, glanceable on every card. FLIP (70%-rule
+            max offer + verdict) and HOLD (cap rate + monthly cashflow). Each lights up only when computable. */}
+          {(lead.mao != null || lead.capRate != null) && (
+            <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+              {lead.mao != null && (
+                <span
+                  className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-[var(--s2)] border"
+                  style={{
+                    borderColor:
+                      VERDICT_COLOR[lead.verdict || ""] || "var(--b1)",
+                    color: VERDICT_COLOR[lead.verdict || ""] || ACCENT,
+                  }}
+                  title="Flip — 70%-rule max allowable offer + verdict"
+                >
+                  🔨 {shortMoney(lead.mao)}
+                  <span className="opacity-70 capitalize">{lead.verdict}</span>
+                  {lead.equity != null &&
+                    lead.equity > 0 &&
+                    (lead.verdict === "strong" || lead.verdict === "fair") && (
+                      <span className="opacity-90">
+                        · {shortMoney(lead.equity)} equity
+                      </span>
+                    )}
+                </span>
+              )}
+              {lead.capRate != null && (
+                <span
+                  className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-[var(--s2)] border"
+                  style={{
+                    borderColor:
+                      CASHFLOW_COLOR[lead.cashflowRating || ""] || "var(--b1)",
+                    color: CASHFLOW_COLOR[lead.cashflowRating || ""] || ACCENT,
+                  }}
+                  title="Hold — rental cap rate + monthly cashflow (50% rule, all-in basis)"
+                >
+                  🏦 {lead.capRate}% cap
+                  {lead.cashflowMo != null && (
+                    <span className="opacity-90">
+                      · {shortMoney(lead.cashflowMo)}/mo
+                    </span>
+                  )}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      </Link>
+    </motion.div>
   );
 }

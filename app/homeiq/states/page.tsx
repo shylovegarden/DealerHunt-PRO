@@ -10,7 +10,7 @@ import { US_STATES as STATES, nearestState } from "@/lib/housing/us-states";
 // state" uses the browser's location → nearest state centroid (free, no API) so a user in Missouri lands
 // on MO instantly, and can pick any other state. This is the map of the whole market.
 
-const ACCENT = "#2dd4bf";
+const ACCENT = "var(--home)";
 const fetcher = (u: string) => fetch(u).then((r) => r.json());
 
 export default function StatesPage() {
@@ -59,7 +59,7 @@ export default function StatesPage() {
           <span className="font-black text-lg">HomeIQ</span>
           <span
             className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full"
-            style={{ background: `${ACCENT}22`, color: ACCENT }}
+            style={{ background: "var(--home-lo)", color: ACCENT }}
           >
             Markets
           </span>

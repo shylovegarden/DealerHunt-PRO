@@ -9,7 +9,7 @@ import { stateName, nearestState } from "@/lib/housing/us-states";
 // HomeIQ command center — the live, location-aware home. Real totals, the hottest markets, and featured
 // hot leads, with one-tap "find leads near me". Same engine as DealerHunt Pro, pointed at houses, all free.
 
-const ACCENT = "#2dd4bf";
+const ACCENT = "var(--home)";
 const fetcher = (u: string) => fetch(u).then((r) => r.json());
 const TIER_COLOR: Record<string, string> = {
   hot: "var(--red)",
@@ -79,7 +79,7 @@ export default function HomeIQHome() {
           <span className="font-black text-lg">HomeIQ</span>
           <span
             className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full"
-            style={{ background: `${ACCENT}22`, color: ACCENT }}
+            style={{ background: "var(--home-lo)", color: ACCENT }}
           >
             Beta
           </span>
@@ -132,7 +132,10 @@ export default function HomeIQHome() {
             onClick={detect}
             disabled={locating}
             className="inline-flex items-center gap-2 px-6 py-3 rounded-full font-bold text-black text-sm disabled:opacity-60"
-            style={{ background: ACCENT, boxShadow: `0 8px 30px ${ACCENT}55` }}
+            style={{
+              background: "var(--grad-home)",
+              boxShadow: "0 8px 30px var(--home-bd)",
+            }}
           >
             📍 {locating ? "Locating…" : "Find leads near me"}
           </button>
@@ -175,7 +178,7 @@ export default function HomeIQHome() {
                 </span>
                 <span
                   className="text-xs font-black px-1.5 py-0.5 rounded-full"
-                  style={{ background: `${ACCENT}22`, color: ACCENT }}
+                  style={{ background: "var(--home-lo)", color: ACCENT }}
                 >
                   {count}
                 </span>
