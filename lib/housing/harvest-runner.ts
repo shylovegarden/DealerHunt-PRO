@@ -26,6 +26,7 @@ import { harvestReso } from "./sources/reso";
 import { scrapeFsbo } from "./sources/fsbo";
 import { scrapeHubzu } from "./sources/hubzu";
 import { scrapeBid4Assets } from "./sources/bid4assets";
+import { scrapeUsdaResales } from "./sources/usda-resales";
 import { upsertProperties } from "./store";
 
 export interface HarvestResult {
@@ -61,6 +62,7 @@ export async function runHousingHarvest(): Promise<HarvestResult> {
     fsbo,
     hubzu,
     b4a,
+    usda,
   ] = await Promise.all([
     harvestGovDealsProperties("GD", 5).catch(() => []),
     harvestGovDealsProperties("AD", 3).catch(() => []),
@@ -84,6 +86,7 @@ export async function runHousingHarvest(): Promise<HarvestResult> {
     scrapeFsbo().catch(() => []), // FSBO.com national owner listings (open JSON API, no auth)
     scrapeHubzu().catch(() => []), // Hubzu.com REO/foreclosure auctions (open JSON API, XSSI-prefixed)
     scrapeBid4Assets().catch(() => []), // Bid4Assets.com tax/REO auctions (open JSON API with CSRF token)
+    scrapeUsdaResales().catch(() => []), // USDA RD/FSA surplus resales (FIPS state crawling, no auth)
   ]);
 
   const properties = [
@@ -109,6 +112,7 @@ export async function runHousingHarvest(): Promise<HarvestResult> {
     ...fsbo,
     ...hubzu,
     ...b4a,
+    ...usda,
   ];
   const written = await upsertProperties(properties);
 
@@ -140,6 +144,7 @@ export async function runHousingHarvest(): Promise<HarvestResult> {
       fsbo: fsbo.length,
       hubzu: hubzu.length,
       bid4assets: b4a.length,
+      usda_resales: usda.length,
     },
   };
 }
