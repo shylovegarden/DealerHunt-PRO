@@ -74,3 +74,64 @@ No authorization tokens are required, but the API expects specific custom header
 ### Next Steps for Claude
 
 Claude can build `lib/scrapers/sources/homepath.ts` by bounding box chunking or state/city iterating. It's a clean JSON API.
+
+## Query Parameters (Discovered)
+
+### 1. Geographic Bounding Box (Required for geography)
+
+- **Parameter**: `bounds`
+- **Format**: `minLatitude,minLongitude,maxLatitude,maxLongitude` (comma-separated floats)
+- **Example**: `bounds=32.613216,-97.000482,33.023792,-96.46371`
+
+### 2. Price Range
+
+- **Parameters**: `minPrice`, `maxPrice`
+- **Format**: Integer values (USD)
+- **Example**: `minPrice=200000&maxPrice=500000`
+
+### 3. Property Characteristics
+
+- **Beds/Baths**: `beds`, `baths` (Integer values)
+- **Square Footage**: `minSqft`, `maxSqft` (Integer values)
+- **Year Built**: `minYb`, `maxYb` (Integer values)
+
+### 4. Sorting
+
+- **Parameter**: `sortBy`
+- **Values**:
+  - `PRICE_HIGH_TO_LOW`
+  - `PRICE_LOW_TO_HIGH`
+  - `BEDROOMS`
+  - `BATHROOMS`
+  - `SQFT`
+
+### 5. Property Types (`propertyTypes`)
+
+Comma-separated string of integer IDs:
+
+- `0`: Plots & Land
+- `1`: Single Family
+- `2`: Condo
+- `3,4,5`: Two to Four Units
+- `6`: Manufactured Housing
+- `7`: Co-Op
+
+### 6. Listing Types (`listingTypes`)
+
+Comma-separated string of integer IDs:
+
+- `5`: HomePath Listings
+- `6`: First Look Program
+- `7`: Auction
+- `8`: Tenant Occupied
+
+### 7. Property Status (`retailStatus`)
+
+Comma-separated string of integer IDs:
+
+- `20`: Active
+- `22`: Just Listed
+- `23`: Under Contract
+- `24`: Back on Market
+- `26`: Price Reduced
+- **Example**: `retailStatus=20,23` (Active and Under Contract)
