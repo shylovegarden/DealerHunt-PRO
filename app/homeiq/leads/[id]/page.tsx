@@ -294,6 +294,9 @@ export default function LeadDetailPage({
             )}
           </Card>
 
+          {/* AI deal brief — grounded plain-English verdict, on demand */}
+          <AIBrief id={lead.id} />
+
           {/* Rental cashflow — the buy-and-hold lens */}
           {cf && (
             <Card title="Rental cashflow (buy & hold)">
@@ -482,6 +485,100 @@ function Card({
         {title}
       </h2>
       {children}
+    </div>
+  );
+}
+
+// Minimal markdown → JSX (bold + bullets + paragraphs) so the AI brief renders cleanly with no dependency.
+function renderBrief(md: string): React.ReactNode {
+  const boldify = (s: string) =>
+    s.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
+      part.startsWith("**") && part.endsWith("**") ? (
+        <strong key={i} className="text-[var(--t1)] font-black">
+          {part.slice(2, -2)}
+        </strong>
+      ) : (
+        <span key={i}>{part}</span>
+      ),
+    );
+  return md
+    .split(/\n+/)
+    .filter((l) => l.trim())
+    .map((line, i) => {
+      const t = line.trim();
+      if (/^[-*•]\s+/.test(t))
+        return (
+          <li key={i} className="ml-4 list-disc text-[var(--t2)]">
+            {boldify(t.replace(/^[-*•]\s+/, ""))}
+          </li>
+        );
+      return (
+        <p key={i} className="text-[var(--t2)] leading-relaxed">
+          {boldify(t)}
+        </p>
+      );
+    });
+}
+
+// AI deal brief — lazy-loads on click so we only spend tokens when the user actually wants it. Hides
+// itself when no model is configured (free core stays intact).
+function AIBrief({ id }: { id: string }) {
+  const [state, setState] = useState<
+    "idle" | "loading" | "done" | "hidden" | "error"
+  >("idle");
+  const [brief, setBrief] = useState<string>("");
+
+  if (state === "hidden") return null;
+
+  async function go() {
+    setState("loading");
+    try {
+      const r = await fetch(
+        `/api/homeiq/leads/${encodeURIComponent(id)}/brief`,
+      ).then((x) => x.json());
+      if (r.available && r.brief) {
+        setBrief(r.brief);
+        setState("done");
+      } else {
+        setState("hidden"); // no model key → don't show a dead feature
+      }
+    } catch {
+      setState("error");
+    }
+  }
+
+  return (
+    <div className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-[11px] font-black uppercase tracking-widest text-[var(--t4)]">
+          🧠 AI Deal Brief
+        </h2>
+        {state === "done" && (
+          <span className="text-[10px] text-[var(--t4)]">
+            grounded in the numbers above
+          </span>
+        )}
+      </div>
+      {state === "idle" && (
+        <button
+          onClick={go}
+          className="w-full py-2.5 rounded-[var(--r2)] text-sm font-bold text-black"
+          style={{ background: ACCENT }}
+        >
+          Generate AI deal brief
+        </button>
+      )}
+      {state === "loading" && (
+        <p className="text-sm text-[var(--t4)] py-2">Analyzing the deal…</p>
+      )}
+      {state === "error" && (
+        <button onClick={go} className="text-sm text-[var(--t3)] underline">
+          Something went wrong — retry
+        </button>
+      )}
+      {state === "done" && (
+        <div className="space-y-2 text-sm">{renderBrief(brief)}</div>
+      )}
     </div>
   );
 }
