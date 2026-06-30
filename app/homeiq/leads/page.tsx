@@ -358,8 +358,13 @@ function LeadsInner() {
   }, [leads.length]);
 
   const shown = leads.slice(0, visible);
-  const visibleIds = new Set(shown.map((l) => l.id));
-  const mapPoints = points.filter((p: any) => visibleIds.has(p.id));
+  // Map plots the FULL filtered set (not just the scrolled-in window) so it's a real search surface: filter
+  // the list → every matching lead appears on the map, anywhere in scope. Clustering handles the volume;
+  // cap at 3000 markers for perf.
+  const filteredIds = new Set(leads.map((l) => l.id));
+  const mapPoints = points
+    .filter((p: any) => filteredIds.has(p.id))
+    .slice(0, 3000);
   const nearbyCount = scopeState
     ? Object.keys(byState)
         .filter((s) => nearbyStates(scopeState, 6).has(s))
