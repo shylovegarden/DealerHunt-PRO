@@ -377,27 +377,8 @@ export default function LeadDetailPage({
 
           {/* Similar leads nearby */}
           <SimilarLeads state={lead.state} excludeId={lead.id} zip={lead.zip} />
-
-          {/* Actions */}
-          <div className="flex flex-wrap gap-3">
-            <SaveButton listingId={lead.id} />
-            {lead.url && (
-              <a
-                href={lead.url}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-black text-sm"
-                style={{ background: ACCENT }}
-              >
-                View original listing ↗
-              </a>
-            )}
-            {lead.auction_end && (
-              <span className="inline-flex items-center px-4 py-2.5 rounded-full text-sm font-semibold text-[var(--t2)] bg-[var(--s2)] border border-[var(--b1)]">
-                Ends {new Date(lead.auction_end).toLocaleDateString()}
-              </span>
-            )}
-          </div>
+          {/* spacer so the sticky bar never covers the last card */}
+          <div className="h-16" />
         </div>
 
         {/* Right: map */}
@@ -408,6 +389,29 @@ export default function LeadDetailPage({
             <div className="w-full h-full grid place-items-center rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] text-[var(--t4)] text-sm">
               No precise location yet
             </div>
+          )}
+        </div>
+      </div>
+
+      {/* Sticky action bar — always-reachable Save + View, mirrors the cars detail page. */}
+      <div className="fixed left-0 right-0 bottom-0 z-40 border-t border-[var(--b1)] bg-[var(--s0)]/95 backdrop-blur">
+        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-end gap-2 flex-wrap">
+          {lead.auction_end && (
+            <span className="mr-auto text-sm font-semibold text-[var(--t3)]">
+              Ends {new Date(lead.auction_end).toLocaleDateString()}
+            </span>
+          )}
+          <SaveButton listingId={lead.id} />
+          {lead.url && (
+            <a
+              href={lead.url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-black text-sm"
+              style={{ background: ACCENT }}
+            >
+              View listing ↗
+            </a>
           )}
         </div>
       </div>
