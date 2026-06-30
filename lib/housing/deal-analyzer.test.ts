@@ -76,6 +76,17 @@ describe("analyzeHousingDeal — 70% rule", () => {
     expect(a.arv).toBe(200000);
   });
 
+  it("never calls a negative-equity overpay 'tight' (a gut job that loses money is a pass)", () => {
+    // ARV 200k, gut repairs (1500 sqft × $90 = 135k), ask 150k → equity = 200-150-135 = −85k. Old code
+    // called this 'tight' (ask ≤ 0.75·ARV) and hid the loss; it must be 'pass'.
+    const a = analyzeHousingDeal(
+      { ...base, title: "gut shell, full rehab", sqft: 1500, price: 150000 },
+      { arv: 200000, rehabLevel: "gut" },
+    );
+    expect(a.equitySpread).toBeLessThan(0);
+    expect(a.verdict).toBe("pass");
+  });
+
   it("an explicit ARV overrides and is high-confidence", () => {
     const a = analyzeHousingDeal(
       { ...base, sqft: 1000, title: "fixer" },

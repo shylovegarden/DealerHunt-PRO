@@ -549,12 +549,35 @@ function FlipWaterfall({
   const ask = Math.max(0, price || 0);
   const rep = Math.max(0, repairs || 0);
   const spread = equity ?? arv - ask - rep;
-  const pct = (n: number) => `${Math.max(0, Math.min(100, (n / arv) * 100))}%`;
   const overpay = spread < 0;
+  // Scale by the bar's true total: ARV when there's equity, the all-in basis (ask+repairs) when overpaying
+  // — so the red overpay segment can't overflow the ARV-width bar and silently vanish (it used to, which
+  // made a money-loser look like a full healthy bar).
+  const total = Math.max(arv, ask + rep, 1);
+  const w = (n: number) => `${Math.max(0, (n / total) * 100)}%`;
+  // Three honest segments that always sum to ≤100%.
+  const segs = overpay
+    ? [
+        { width: w(ask), bg: "var(--blue)", t: `Ask ${money(ask)}` },
+        {
+          width: w(Math.max(0, arv - ask)),
+          bg: "var(--amber)",
+          t: `Repairs ${money(rep)}`,
+        },
+        {
+          width: w(ask + rep - arv),
+          bg: "var(--red)",
+          t: `Overpay ${money(ask + rep - arv)}`,
+        },
+      ]
+    : [
+        { width: w(ask), bg: "var(--blue)", t: `Ask ${money(ask)}` },
+        { width: w(rep), bg: "var(--amber)", t: `Repairs ${money(rep)}` },
+        { width: w(spread), bg: "var(--green)", t: `Equity ${money(spread)}` },
+      ];
   const maoPct =
-    mao != null ? Math.max(0, Math.min(100, (mao / arv) * 100)) : null;
-  const fmt = (n?: number | null) =>
-    n != null ? `$${Math.round(n).toLocaleString()}` : "—";
+    mao != null ? Math.max(0, Math.min(100, (mao / total) * 100)) : null;
+  const fmt = money;
   return (
     <div>
       <div className="relative h-7 w-full rounded-md overflow-hidden bg-[var(--s2)] border border-[var(--b1)]">
@@ -564,24 +587,14 @@ function FlipWaterfall({
           animate={{ width: "100%" }}
           transition={{ duration: 0.7, ease: "easeOut" }}
         >
-          <div
-            style={{ width: pct(ask), background: "var(--blue)" }}
-            className="h-full"
-            title={`Ask ${fmt(ask)}`}
-          />
-          <div
-            style={{ width: pct(rep), background: "var(--amber)" }}
-            className="h-full"
-            title={`Repairs ${fmt(rep)}`}
-          />
-          <div
-            style={{
-              width: pct(Math.abs(spread)),
-              background: overpay ? "var(--red)" : "var(--green)",
-            }}
-            className="h-full"
-            title={`${overpay ? "Overpay" : "Equity"} ${fmt(Math.abs(spread))}`}
-          />
+          {segs.map((s, i) => (
+            <div
+              key={i}
+              style={{ width: s.width, background: s.bg }}
+              className="h-full"
+              title={s.t}
+            />
+          ))}
         </motion.div>
         {maoPct != null && (
           <div

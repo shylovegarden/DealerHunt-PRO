@@ -219,7 +219,10 @@ export function analyzeHousingDeal(
     equitySpread = Math.round(arv - askPrice - repairEstimate);
     if (askPrice <= mao * 0.85) verdict = "strong";
     else if (askPrice <= mao) verdict = "fair";
-    else if (askPrice <= arv * 0.75) verdict = "tight";
+    // "tight" = above the 70%-rule offer but still has REAL equity (ask + repairs < ARV). Gating on
+    // equitySpread>=0 (not a flat 0.75·ARV) stops a gut job with huge repairs from being called "tight"
+    // when it's actually a loss — e.g. ARV 200k, repairs 120k, ask 150k → spread −70k must be "pass".
+    else if (askPrice <= arv * 0.75 && equitySpread > 0) verdict = "tight";
     else verdict = "pass";
     // 0-margin-for-error: a coarse STATEWIDE-median ARV is not a verified flip. Never present low-confidence
     // ARV as "strong"/"fair" — cap at "tight" so it ranks on distress, not a fabricated equity number.
