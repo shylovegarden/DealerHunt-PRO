@@ -223,7 +223,17 @@ export function scoreHousingLead(p: Property): LeadScore {
   // 7) EQUITY — the math signal. An ask well below the Max Allowable Offer is a real flip even with no
   // distress words (the sqft-rich HUD/Redfin homes that would otherwise score 0).
   const deal = analyzeHousingDeal(p);
-  if (deal.mao != null && deal.mao > 0 && p.price != null && p.price > 0) {
+  // Equity bonus only on COMP/COUNTY-grade ARV — a coarse statewide-median ARV can't earn "strong equity"
+  // (that's what put $1,000 Detroit land-bank shells on top with a fabricated ~$300k spread).
+  const arvTrusted =
+    deal.arvConfidence === "high" || deal.arvConfidence === "medium";
+  if (
+    arvTrusted &&
+    deal.mao != null &&
+    deal.mao > 0 &&
+    p.price != null &&
+    p.price > 0
+  ) {
     const room = (deal.mao - p.price) / deal.mao;
     if (room >= 0.3)
       add(
