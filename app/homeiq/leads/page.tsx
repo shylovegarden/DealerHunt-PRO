@@ -167,6 +167,7 @@ const SOURCE_LABELS: Record<string, string> = {
   hud_reo: "HUD REO",
   foreclosure: "Foreclosure",
   dangerous_building: "Dangerous building",
+  vacant_building: "Vacant building",
   zillow: "Zillow",
   realtor: "Realtor.com",
   homes: "Homes.com",

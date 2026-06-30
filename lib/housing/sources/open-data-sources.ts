@@ -254,6 +254,46 @@ const numStr = (v: unknown) => {
 // ── MORE OPEN CITY/COUNTY FEEDS (foreclosure + code violations) — verified live, no-auth ─────
 export const CITY_FEED_SOURCES: OpenDataSource[] = [
   {
+    // Los Angeles — Building & Safety vacant-building abatement cases. An open code case on a VACANT
+    // building = a carrying-cost-bleeding, often-absentee owner under city pressure (a PropStream-grade
+    // distress lead). Residential only (drop commercial/warehouse/hotel); current cases only. No geo/owner
+    // in the feed → geocoded by address on upsert. building_size is lot dims, NOT sqft → no ARV.
+    source: "vacant_building",
+    api: "socrata",
+    url: "https://data.lacity.org/resource/q3ak-s5hy.json",
+    state: "CA",
+    city: "Los Angeles",
+    where:
+      "(approved_use IN('SFD','DUPLEX','APT','MIXED USE') OR approved_use IS NULL) AND abate_effective > '2023-01-01'",
+    limit: 5000,
+    map: (a): Property | null => {
+      const address = s(a.address);
+      if (!address) return null;
+      const use = (a.approved_use || "").toUpperCase();
+      const type: Property["property_type"] = /DUPLEX|APT/.test(use)
+        ? "multi_family"
+        : /SFD/.test(use)
+          ? "single_family"
+          : undefined;
+      return {
+        source: "vacant_building",
+        // Key by address so repeat cases on one building collapse to a single lead.
+        source_listing_id: `la-vac-${address.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+        title: `Vacant building · ${address}`,
+        property_type: type,
+        address,
+        city: "Los Angeles",
+        state: "CA",
+        seller_type: "owner",
+        signals: {
+          vacant: true,
+          status: "Vacant — city code abatement",
+          case: s(a.case_num),
+        },
+      };
+    },
+  },
+  {
     // Bexar County, TX (San Antonio) — mortgage foreclosure filings (Layer 0). Point geometry.
     source: "foreclosure",
     api: "arcgis",

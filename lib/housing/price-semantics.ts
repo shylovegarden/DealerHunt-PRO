@@ -39,7 +39,7 @@ export function housingPriceTerms(
     return { priceLabel: "REO — bank-owned", kind: "list", isAuction: false };
   if (s === "foreclosure")
     return { priceLabel: "Foreclosure", kind: "list", isAuction: false };
-  if (s === "dangerous_building")
+  if (s === "dangerous_building" || s === "vacant_building")
     return { priceLabel: "Off-market", kind: "list", isAuction: false };
   if (
     s === "tax_delinquent" ||
