@@ -3,6 +3,8 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { createServerComponentClient } from "@/lib/supabase";
 import { STATE_COORDS } from "@/lib/geo";
+import { fetchAllRows } from "@/lib/db/paginate";
+import { hashJitter } from "@/lib/db/stable-id";
 
 // GET /api/deals/map?verdict=go&limit= — active deals as map points. Precise geocoded coords when we
 // have them, else a STATE CENTROID fallback (with deterministic jitter so a state's deals spread out
@@ -10,11 +12,7 @@ import { STATE_COORDS } from "@/lib/geo";
 const money = (v: any) => `$${Math.round(Number(v) || 0).toLocaleString()}`;
 
 // Stable per-id offset in [-0.4, 0.4]° so centroid points don't collapse onto one marker.
-function jitter(id: string, salt: number): number {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
-  return ((Math.abs(h + salt * 7919) % 1000) / 1000 - 0.5) * 0.8;
-}
+const jitter = (id: string, salt: number) => hashJitter(id, salt, 0.4);
 
 // Marker color encodes the verdict: GO = green ("private"), HOLD = amber ("auction"), else blue.
 function typeForVerdict(v: string): "private" | "auction" | "dealer" {
@@ -32,25 +30,34 @@ export async function GET(req: NextRequest) {
   );
 
   const supabase = createServerComponentClient();
-  let q = supabase
-    .from("deals")
-    .select(
-      "id, year, make, model, ask_price, true_net_profit, deal_verdict, lat, lng, location_city, location_state",
-    )
-    .eq("active", true)
-    // A point needs EITHER precise coords OR a state we can fall back to a centroid for.
-    .or("lat.not.is.null,location_state.not.is.null")
-    .gt("ask_price", 0)
-    .order("profit_score", { ascending: false, nullsFirst: false })
-    .limit(limit);
-  if (verdict && verdict !== "all") q = q.eq("deal_verdict", verdict);
-
-  const { data, error } = await q;
-  if (error)
+  // Page past the PostgREST 1000-row cap so the map reflects ALL located inventory up to `limit`
+  // (a single .limit() silently dropped everything past 1000).
+  let data: any[];
+  try {
+    data = await fetchAllRows<any>(
+      (from, to) => {
+        let q = supabase
+          .from("deals")
+          .select(
+            "id, year, make, model, ask_price, true_net_profit, deal_verdict, lat, lng, location_city, location_state",
+          )
+          .eq("active", true)
+          // A point needs EITHER precise coords OR a state we can fall back to a centroid for.
+          .or("lat.not.is.null,location_state.not.is.null")
+          .gt("ask_price", 0)
+          .order("profit_score", { ascending: false, nullsFirst: false })
+          .range(from, to);
+        if (verdict && verdict !== "all") q = q.eq("deal_verdict", verdict);
+        return q;
+      },
+      { max: limit },
+    );
+  } catch (error) {
     return NextResponse.json(
-      { error: error.message, points: [] },
+      { error: (error as Error).message, points: [] },
       { status: 500 },
     );
+  }
 
   const points = (data || [])
     .map((d: any) => {

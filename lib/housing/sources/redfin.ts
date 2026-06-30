@@ -11,15 +11,14 @@
 
 import { smartFetch } from "../../scrapers/smart-fetch";
 import { genericExtractProperties } from "../extract-property";
+import { stableId } from "../../db/stable-id";
 import type { Property } from "../types";
 
 // Stable id from the listing's own URL (or address) so upserts dedupe across runs.
 function listingId(p: Property): string | null {
   const basis = p.source_url || `${p.address || ""}|${p.zip || p.city || ""}`;
   if (!basis.trim()) return null;
-  let h = 0;
-  for (let i = 0; i < basis.length; i++) h = (h * 31 + basis.charCodeAt(i)) | 0;
-  return `redfin-${(h >>> 0).toString(36)}`;
+  return stableId(basis, "redfin");
 }
 
 /** Parse a Redfin page's embedded schema.org listings into HomeIQ Properties. */
