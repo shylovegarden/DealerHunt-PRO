@@ -8,7 +8,7 @@
 import { harvestGovDealsProperties } from "./sources/govdeals-property";
 import { scrapeHudHomes } from "./sources/hud-homes";
 import { scrapeGsaRealEstate } from "./sources/gsa-realestate";
-import { scrapeRedfin } from "./sources/redfin";
+import { harvestRedfinGis } from "./sources/redfin-gis";
 import { scrapePublicSurplusProperties } from "./sources/publicsurplus-property";
 import { scrapeMunicibidProperties } from "./sources/municibid-property";
 import { scrapeDetroitLandBank } from "./sources/detroit-landbank";
@@ -54,7 +54,7 @@ export async function runHousingHarvest(): Promise<HarvestResult> {
     harvestGovDealsProperties("AD", 3).catch(() => []),
     scrapeHudHomes().catch(() => []),
     scrapeGsaRealEstate().catch(() => []),
-    scrapeRedfin().catch(() => []), // fleet-only (PerimeterX); [] elsewhere
+    harvestRedfinGis().catch(() => []), // verified open MLS door: gis-csv bbox, no anti-bot
     scrapePublicSurplusProperties().catch(() => []),
     scrapeMunicibidProperties().catch(() => []),
     scrapeDetroitLandBank().catch(() => []),

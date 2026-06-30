@@ -34,10 +34,16 @@ describe("housingPriceTerms", () => {
   });
 
   it("falls back to Asking for ordinary listings", () => {
-    expect(housingPriceTerms("redfin")).toMatchObject({
+    expect(housingPriceTerms("zillow")).toMatchObject({
       priceLabel: "Asking",
       kind: "asking",
     });
+  });
+
+  it("labels MLS-sourced listings (RESO + Redfin) as List price, sold comps as Sold price", () => {
+    expect(housingPriceTerms("mls").priceLabel).toBe("List price");
+    expect(housingPriceTerms("redfin").priceLabel).toBe("List price");
+    expect(housingPriceTerms("redfin_sold").priceLabel).toBe("Sold price");
   });
 
   it("uses an auction deadline as a fallback signal", () => {
