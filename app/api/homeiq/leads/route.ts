@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { harvestGovDealsProperties } from "@/lib/housing/sources/govdeals-property";
 import { scoreHousingLead } from "@/lib/housing/lead-score";
 import { analyzeHousingDeal } from "@/lib/housing/deal-analyzer";
+import { rentCashflow } from "@/lib/housing/rent";
 import {
   queryProperties,
   countByState,
@@ -83,6 +84,10 @@ interface Lead {
   arv?: number | null;
   verdict?: string;
   equity?: number | null;
+  // Buy-and-hold math (rent → cap rate) — present only when the ZIP has rent data.
+  capRate?: number | null;
+  cashflowMo?: number | null;
+  cashflowRating?: string;
 }
 
 // Distill the raw `signals` blob into a compact, UI-renderable distress object. The connectors harvest
@@ -106,7 +111,8 @@ function distressFrom(p: Property): Record<string, unknown> | undefined {
   return Object.keys(d).length ? d : undefined;
 }
 
-// Attach the 70%-rule flip math to a lead, from its property fields.
+// Attach the two money lenses to a lead: the 70%-rule FLIP math and the rental HOLD math (cap rate /
+// cashflow on the all-in basis = ask + estimated repairs). Each lights up only when its inputs exist.
 function withAnalysis<T extends Lead>(lead: T, p: Property): T {
   const a = analyzeHousingDeal(p);
   if (a.mao != null) {
@@ -114,6 +120,17 @@ function withAnalysis<T extends Lead>(lead: T, p: Property): T {
     lead.arv = a.arv;
     lead.verdict = a.verdict;
     lead.equity = a.equitySpread;
+  }
+  const cf = rentCashflow(p.price, p.zip, {
+    basis:
+      p.price && a.repairEstimate != null
+        ? p.price + a.repairEstimate
+        : undefined,
+  });
+  if (cf) {
+    lead.capRate = cf.capRatePct;
+    lead.cashflowMo = cf.monthlyCashflow;
+    lead.cashflowRating = cf.rating;
   }
   return lead;
 }

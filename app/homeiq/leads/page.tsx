@@ -40,6 +40,21 @@ const VERDICT_COLOR: Record<string, string> = {
   tight: "var(--amber)",
   pass: "var(--red)",
 };
+const CASHFLOW_COLOR: Record<string, string> = {
+  strong: "var(--green)",
+  decent: ACCENT,
+  thin: "var(--amber)",
+  negative: "var(--red)",
+};
+// Compact money for dense cards: $90k, $1.2M.
+const shortMoney = (n?: number | null) =>
+  n == null
+    ? "—"
+    : Math.abs(n) >= 1_000_000
+      ? `$${(n / 1_000_000).toFixed(1)}M`
+      : Math.abs(n) >= 1000
+        ? `$${Math.round(n / 1000)}k`
+        : `$${Math.round(n)}`;
 
 const TIERS = [
   { key: "", label: "All" },
@@ -133,6 +148,9 @@ interface Lead {
   arv?: number | null;
   equity?: number | null;
   verdict?: string;
+  capRate?: number | null;
+  cashflowMo?: number | null;
+  cashflowRating?: string;
 }
 
 export default function HomeIQLeadsPage() {
@@ -667,36 +685,60 @@ function LeadCard({ lead }: { lead: Lead }) {
               </span>
             );
           })()}
-          {lead.mao != null && (
+          {(lead.signals || []).slice(0, 1).map((s, i) => (
             <span
-              className="text-[11px] font-bold"
-              style={{ color: VERDICT_COLOR[lead.verdict || ""] || ACCENT }}
+              key={i}
+              className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--s2)] text-[var(--t3)] border border-[var(--b1)]"
             >
-              Max offer ${lead.mao.toLocaleString()} · {lead.verdict}
+              {s}
             </span>
-          )}
-          {lead.equity != null &&
-            lead.equity > 0 &&
-            (lead.verdict === "strong" || lead.verdict === "fair") && (
+          ))}
+        </div>
+
+        {/* Dual-lens deal strip — the two ways to make money, glanceable on every card. FLIP (70%-rule
+            max offer + verdict) and HOLD (cap rate + monthly cashflow). Each lights up only when computable. */}
+        {(lead.mao != null || lead.capRate != null) && (
+          <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+            {lead.mao != null && (
               <span
-                className="text-[11px] font-bold"
-                style={{ color: "var(--green)" }}
-                title="Estimated gross equity = county-anchored ARV − price − repairs (a verified flip)"
+                className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-[var(--s2)] border"
+                style={{
+                  borderColor: VERDICT_COLOR[lead.verdict || ""] || "var(--b1)",
+                  color: VERDICT_COLOR[lead.verdict || ""] || ACCENT,
+                }}
+                title="Flip — 70%-rule max allowable offer + verdict"
               >
-                ~${Math.round(lead.equity).toLocaleString()} equity
+                🔨 {shortMoney(lead.mao)}
+                <span className="opacity-70 capitalize">{lead.verdict}</span>
+                {lead.equity != null &&
+                  lead.equity > 0 &&
+                  (lead.verdict === "strong" || lead.verdict === "fair") && (
+                    <span className="opacity-90">
+                      · {shortMoney(lead.equity)} equity
+                    </span>
+                  )}
               </span>
             )}
-          {(lead.signals || [])
-            .slice(0, lead.mao != null ? 1 : 2)
-            .map((s, i) => (
+            {lead.capRate != null && (
               <span
-                key={i}
-                className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--s2)] text-[var(--t3)] border border-[var(--b1)]"
+                className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-[var(--s2)] border"
+                style={{
+                  borderColor:
+                    CASHFLOW_COLOR[lead.cashflowRating || ""] || "var(--b1)",
+                  color: CASHFLOW_COLOR[lead.cashflowRating || ""] || ACCENT,
+                }}
+                title="Hold — rental cap rate + monthly cashflow (50% rule, all-in basis)"
               >
-                {s}
+                🏦 {lead.capRate}% cap
+                {lead.cashflowMo != null && (
+                  <span className="opacity-90">
+                    · {shortMoney(lead.cashflowMo)}/mo
+                  </span>
+                )}
               </span>
-            ))}
-        </div>
+            )}
+          </div>
+        )}
       </div>
     </Link>
   );
