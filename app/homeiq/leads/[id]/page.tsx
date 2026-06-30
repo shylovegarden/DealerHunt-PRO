@@ -102,7 +102,10 @@ export default function LeadDetailPage({
             <div className="flex items-center gap-2 mb-2">
               <span
                 className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full"
-                style={{ background: `${tierColor}22`, color: tierColor }}
+                style={{
+                  background: `color-mix(in srgb, ${tierColor} 16%, transparent)`,
+                  color: tierColor,
+                }}
               >
                 {lead.tier}
               </span>

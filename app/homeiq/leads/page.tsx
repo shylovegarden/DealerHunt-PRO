@@ -743,7 +743,10 @@ function LeadCard({ lead, index = 0 }: { lead: Lead; index?: number }) {
           <div className="flex items-center gap-2">
             <span
               className="text-[10px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full"
-              style={{ background: `${color}22`, color }}
+              style={{
+                background: `color-mix(in srgb, ${color} 14%, transparent)`,
+                color,
+              }}
             >
               {lead.tier}
             </span>
