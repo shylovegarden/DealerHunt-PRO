@@ -179,6 +179,12 @@ export function scoreHousingLead(p: Property): LeadScore {
   }
   if (sig.sheriff_sale)
     add(28, "Sheriff/tax sale scheduled — hard deadline", "owner_distress");
+  if (sig.foreclosure)
+    add(
+      26,
+      "Foreclosure filing — pre-foreclosure, motivated",
+      "owner_distress",
+    );
   if (sig.out_of_state_owner)
     add(14, "Out-of-state owner — absentee, less attached", "owner_distress");
   else if (sig.absentee) add(8, "Absentee owner", "owner_distress");

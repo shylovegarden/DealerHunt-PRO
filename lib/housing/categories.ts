@@ -42,7 +42,8 @@ export const LEAD_CATEGORIES: LeadCategory[] = [
   {
     key: "preforeclosure",
     label: "Pre-foreclosure",
-    match: (l) => sig(l, /sheriff|foreclosure|tax sale/i),
+    match: (l) =>
+      l.source === "foreclosure" || sig(l, /sheriff|foreclosure|tax sale/i),
   },
   {
     key: "vacant",
