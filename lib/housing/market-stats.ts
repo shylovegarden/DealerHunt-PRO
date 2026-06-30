@@ -9,6 +9,9 @@ export interface MarketLead {
   tier: string;
   equity?: number | null;
   verdict?: string;
+  sqft?: number | null;
+  capRate?: number | null;
+  cashflowRating?: string;
 }
 
 export interface PriceBin {
@@ -75,7 +78,30 @@ export interface MarketSummary {
   byVerdict: Record<string, number>;
   flippable: number;
   medianPrice: number;
+  // price-vs-sqft cloud (sampled) for the scatter; median equity by property type for the waterfall.
+  scatter: { x: number; y: number }[];
+  equityByType: { label: string; value: number }[];
+  // rental yield split (cap-rate rating buckets) — a hold-investor lens cars don't have.
+  byCashflow: Record<string, number>;
 }
+
+// Evenly sample down to `cap` points so the scatter stays light without biasing toward any region.
+function sample<T>(xs: T[], cap: number): T[] {
+  if (xs.length <= cap) return xs;
+  const step = xs.length / cap;
+  const out: T[] = [];
+  for (let i = 0; i < xs.length; i += step) out.push(xs[Math.floor(i)]);
+  return out;
+}
+
+const TYPE_LABEL: Record<string, string> = {
+  single_family: "Single-family",
+  multi_family: "Multi-family",
+  condo: "Condo",
+  land: "Land",
+  townhouse: "Townhouse",
+  mobile: "Mobile",
+};
 
 // One pass over the market into every facet the dashboard renders. Pure — given the same leads it always
 // returns the same summary, so it can be memoized in the page and asserted in tests.
@@ -85,6 +111,9 @@ export function summarizeMarket(leads: MarketLead[]): MarketSummary {
   const byTier: Record<string, number> = { hot: 0, warm: 0, standard: 0 };
   const byStateHot: Record<string, number> = {};
   const byVerdict: Record<string, number> = {};
+  const byCashflow: Record<string, number> = {};
+  const equityByTypeRaw: Record<string, number[]> = {};
+  const scatterAll: { x: number; y: number }[] = [];
   let flippable = 0;
   for (const l of leads) {
     byTier[l.tier] = (byTier[l.tier] || 0) + 1;
@@ -93,7 +122,21 @@ export function summarizeMarket(leads: MarketLead[]): MarketSummary {
     if (l.verdict && l.verdict !== "unknown")
       byVerdict[l.verdict] = (byVerdict[l.verdict] || 0) + 1;
     if (typeof l.equity === "number" && l.equity > 0) flippable++;
+    if (l.cashflowRating)
+      byCashflow[l.cashflowRating] = (byCashflow[l.cashflowRating] || 0) + 1;
+    // Equity by property type (only real, computed equity).
+    if (typeof l.equity === "number" && l.property_type)
+      (equityByTypeRaw[l.property_type] ??= []).push(l.equity);
+    // price-vs-sqft scatter input (real sqft + price only).
+    if (l.sqft && l.sqft > 100 && l.price && l.price > 0)
+      scatterAll.push({ x: l.sqft, y: l.price });
   }
+
+  // Median equity per type, types with ≥4 computed values, biggest magnitude first.
+  const equityByType = Object.entries(equityByTypeRaw)
+    .filter(([, vs]) => vs.length >= 4)
+    .map(([t, vs]) => ({ label: TYPE_LABEL[t] || t, value: median(vs) }))
+    .sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
 
   return {
     priced,
@@ -106,5 +149,8 @@ export function summarizeMarket(leads: MarketLead[]): MarketSummary {
     byVerdict,
     flippable,
     medianPrice: median(priced),
+    scatter: sample(scatterAll, 300),
+    equityByType,
+    byCashflow,
   };
 }

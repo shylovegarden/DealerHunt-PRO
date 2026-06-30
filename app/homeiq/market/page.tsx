@@ -11,6 +11,8 @@ import {
   BarList,
   Donut,
   SegmentBar,
+  Scatter,
+  Waterfall,
 } from "@/components/home/HousingCharts";
 import { HousingHeatmap } from "@/components/home/HousingHeatmap";
 import { summarizeMarket, type MarketLead } from "@/lib/housing/market-stats";
@@ -140,6 +142,24 @@ export default function MarketIntelligence() {
     color: v.color,
   })).filter((v) => v.value > 0);
 
+  // Rental-yield buckets (the hold lens). Order strong→negative; deep-link into the leads view.
+  const CASHFLOW = [
+    { key: "strong", label: "Strong (≥8%)", color: "var(--green)" },
+    { key: "decent", label: "Decent (≥6%)", color: ACCENT },
+    { key: "thin", label: "Thin (≥4%)", color: "var(--amber)" },
+    { key: "negative", label: "Negative", color: "var(--red)" },
+  ];
+  const cashflowItems = CASHFLOW.map((c) => ({
+    label: c.label,
+    value: f.byCashflow[c.key] || 0,
+    color: c.color,
+  })).filter((c) => c.value > 0);
+
+  const equityItems = f.equityByType.map((e) => ({
+    label: e.label,
+    value: e.value,
+  }));
+
   return (
     <div className="bg-transparent text-[var(--t1)]">
       <section className="max-w-6xl mx-auto px-4 sm:px-6 pt-8">
@@ -193,11 +213,61 @@ export default function MarketIntelligence() {
           <div className="flex flex-col gap-4">
             <HousingHeatmap byState={f.byState} byStateHot={f.byStateHot} />
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {/* Underpricing finder — price vs size with the $/sqft trend; green dots = below the curve. */}
+              <ChartCard
+                title="Price vs size"
+                hint={`${f.scatter.length.toLocaleString()} with sqft`}
+                className="md:col-span-2"
+              >
+                <Scatter points={f.scatter} xLabel="sqft" yLabel="price" />
+              </ChartCard>
+
+              <ChartCard title="Lead quality">
+                <SegmentBar segments={tierSegs} />
+              </ChartCard>
+
               <ChartCard
                 title="Price distribution"
                 hint={`${f.priced.length.toLocaleString()} priced`}
               >
                 <Histogram bins={f.bins} />
+              </ChartCard>
+
+              {/* Where the equity is — median gross equity by property type (some types lose money). */}
+              <ChartCard
+                title="Median equity by type"
+                hint="ARV − ask − repairs"
+              >
+                {equityItems.length ? (
+                  <Waterfall items={equityItems} valueFmt={fmtMoney} />
+                ) : (
+                  <div className="h-full grid place-items-center text-xs text-[var(--t5)] text-center px-4">
+                    Needs square-footage to compute equity.
+                  </div>
+                )}
+              </ChartCard>
+
+              <ChartCard
+                title="Flip opportunity"
+                hint="70% rule, where ARV is known"
+              >
+                {verdictItems.length ? (
+                  <BarList items={verdictItems} />
+                ) : (
+                  <div className="h-full grid place-items-center text-xs text-[var(--t5)] text-center px-4">
+                    No flip math yet — needs square-footage to compute ARV.
+                  </div>
+                )}
+              </ChartCard>
+
+              <ChartCard title="Rental yield" hint="cap rate, buy & hold">
+                {cashflowItems.length ? (
+                  <BarList items={cashflowItems} />
+                ) : (
+                  <div className="h-full grid place-items-center text-xs text-[var(--t5)] text-center px-4">
+                    Rent data lights up where we have ZORI coverage.
+                  </div>
+                )}
               </ChartCard>
 
               <ChartCard title="Inventory by source">
@@ -214,23 +284,6 @@ export default function MarketIntelligence() {
 
               <ChartCard title="Top markets" hint="by listings">
                 <BarList items={stateItems} barColor="var(--blue)" />
-              </ChartCard>
-
-              <ChartCard title="Lead quality">
-                <SegmentBar segments={tierSegs} />
-              </ChartCard>
-
-              <ChartCard
-                title="Flip opportunity"
-                hint="70% rule, where ARV is known"
-              >
-                {verdictItems.length ? (
-                  <BarList items={verdictItems} />
-                ) : (
-                  <div className="h-full grid place-items-center text-xs text-[var(--t5)] text-center px-4">
-                    No flip math yet — needs square-footage to compute ARV.
-                  </div>
-                )}
               </ChartCard>
             </div>
           </div>
