@@ -24,6 +24,7 @@ import { fetchOpenDataLeads } from "./sources/open-data-sources";
 import { harvestPortals } from "./sources/portals";
 import { harvestReso } from "./sources/reso";
 import { scrapeFsbo } from "./sources/fsbo";
+import { scrapeHubzu } from "./sources/hubzu";
 import { upsertProperties } from "./store";
 
 export interface HarvestResult {
@@ -57,6 +58,7 @@ export async function runHousingHarvest(): Promise<HarvestResult> {
     portals,
     mls,
     fsbo,
+    hubzu,
   ] = await Promise.all([
     harvestGovDealsProperties("GD", 5).catch(() => []),
     harvestGovDealsProperties("AD", 3).catch(() => []),
@@ -78,6 +80,7 @@ export async function runHousingHarvest(): Promise<HarvestResult> {
     harvestPortals().catch(() => []), // Zillow/Realtor/… (fleet-gated, config-driven)
     harvestReso().catch(() => []), // MLS via RESO Web API (legit; [] until a member feed is wired)
     scrapeFsbo().catch(() => []), // FSBO.com national owner listings (open JSON API, no auth)
+    scrapeHubzu().catch(() => []), // Hubzu.com REO/foreclosure auctions (open JSON API, XSSI-prefixed)
   ]);
 
   const properties = [
@@ -101,6 +104,7 @@ export async function runHousingHarvest(): Promise<HarvestResult> {
     ...portals,
     ...mls,
     ...fsbo,
+    ...hubzu,
   ];
   const written = await upsertProperties(properties);
 
@@ -130,6 +134,7 @@ export async function runHousingHarvest(): Promise<HarvestResult> {
       portals: portals.length,
       mls: mls.length,
       fsbo: fsbo.length,
+      hubzu: hubzu.length,
     },
   };
 }
