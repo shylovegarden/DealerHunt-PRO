@@ -66,6 +66,15 @@ export async function upsertProperties(
   let rows = properties.filter((p) => p.source_listing_id).map(toRow);
   if (!rows.length) return 0;
 
+  // Dedup by the conflict key — a single upsert can't touch the same (source, source_listing_id) twice
+  // ("ON CONFLICT DO UPDATE command cannot affect row a second time"), which was silently zeroing whole
+  // harvests. Last occurrence wins.
+  {
+    const seen = new Map<string, (typeof rows)[number]>();
+    for (const r of rows) seen.set(`${r.source}|${r.source_listing_id}`, r);
+    rows = Array.from(seen.values());
+  }
+
   // Geocode each property's location (free Nominatim/Zippopotam, cached in the SHARED geocode_cache) so
   // the HomeIQ map plots precise pins instead of a state centroid. Best-effort: failures leave lat/lng
   // null (the API falls back to a jittered centroid). Same pattern as the cars pipeline.
@@ -97,34 +106,42 @@ export async function upsertProperties(
     console.warn("[upsertProperties] geocoding skipped:", (e as Error).message);
   }
 
-  for (let heal = 0; heal < 6; heal++) {
-    const { error } = await sb
-      .from("properties")
-      .upsert(rows, { onConflict: "source,source_listing_id" });
-    if (!error) return rows.length;
-
-    // Table absent → signal unavailable so the API harvests live instead.
-    if (
-      /relation .*properties.* does not exist|could not find the table/i.test(
-        error.message,
+  // Upsert in CHUNKS — a 60k-row single request exceeds payload limits. Each chunk self-heals an unknown
+  // column (the cars-pipeline trick) and a missing table short-circuits the whole run.
+  const CHUNK = 500;
+  let written = 0;
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    let batch = rows.slice(i, i + CHUNK);
+    for (let heal = 0; heal < 6; heal++) {
+      const { error } = await sb
+        .from("properties")
+        .upsert(batch, { onConflict: "source,source_listing_id" });
+      if (!error) {
+        written += batch.length;
+        break;
+      }
+      // Table absent → signal unavailable so the API harvests live instead.
+      if (
+        /relation .*properties.* does not exist|could not find the table/i.test(
+          error.message,
+        )
       )
-    )
-      return -1;
-
-    // Strip an unknown column and retry the batch (same trick the cars pipeline uses).
-    const m = error.message.match(/column "?([a-z_]+)"?/i);
-    if (m && rows[0] && m[1] in rows[0]) {
-      const bad = m[1];
-      rows = rows.map((r) => {
-        const { [bad]: _drop, ...rest } = r as Record<string, unknown>;
-        return rest;
-      });
-      continue;
+        return -1;
+      // Strip an unknown column and retry this batch.
+      const m = error.message.match(/column "?([a-z_]+)"?/i);
+      if (m && batch[0] && m[1] in batch[0]) {
+        const bad = m[1];
+        batch = batch.map((r) => {
+          const { [bad]: _drop, ...rest } = r as Record<string, unknown>;
+          return rest;
+        });
+        continue;
+      }
+      console.warn("[upsertProperties] batch failed:", error.message);
+      break;
     }
-    console.warn("[upsertProperties] failed:", error.message);
-    return 0;
   }
-  return 0;
+  return written;
 }
 
 export interface PropertyQuery {

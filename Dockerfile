@@ -44,9 +44,11 @@ RUN chown nextjs:nodejs .next
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# We also need to copy the original source for the worker process since it uses ts-node
-# A better approach in prod is to compile it, but ts-node is fine for MVP.
+# The worker (docker-compose `worker` service → `npm run worker` = tsx workers/index.ts) runs from source,
+# so the runner image must include lib/ AND workers/ (this was missing — the worker had no entrypoint to
+# run, so housing ingestion never fired). node_modules is the full set (incl. tsx) copied from deps.
 COPY --from=builder --chown=nextjs:nodejs /app/lib ./lib
+COPY --from=builder --chown=nextjs:nodejs /app/workers ./workers
 COPY --from=builder --chown=nextjs:nodejs /app/tsconfig.json ./
 COPY --from=builder --chown=nextjs:nodejs /app/package.json ./
 COPY --from=deps /app/node_modules ./node_modules

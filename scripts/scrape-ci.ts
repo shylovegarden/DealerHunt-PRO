@@ -436,6 +436,20 @@ async function main() {
     `Total: ${totalDeals} deals from ${succeeded}/${results.length} sources in ${durationS}s`,
   );
 
+  // HOUSING (HomeIQ) harvest — same cycle ingests every free housing source into `properties`. Runs here
+  // (before the browser teardown, so fleet-gated sources can reuse the warm Chrome) and is fully isolated:
+  // a housing failure never fails the cars cycle. This is what makes the nationwide off-market leads live.
+  try {
+    const { runHousingHarvest } = await import("../lib/housing/harvest-runner");
+    const h = await runHousingHarvest();
+    console.log(
+      `🏠 HomeIQ harvest: ${h.harvested} found, ${h.written} written —`,
+      JSON.stringify(h.sources),
+    );
+  } catch (e) {
+    console.warn("HomeIQ harvest skipped:", (e as Error).message);
+  }
+
   // Tear down any warm smartFetch browsers (stealth/headed) so Chrome doesn't linger past exit.
   const { closeSmartFetch } = await import("../lib/scrapers/smart-fetch");
   await closeSmartFetch().catch(() => {});
