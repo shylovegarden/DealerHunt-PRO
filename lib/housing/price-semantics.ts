@@ -32,6 +32,8 @@ export function housingPriceTerms(
     return { priceLabel: "Assessed value", kind: "list", isAuction: false };
   if (s === "hud_reo")
     return { priceLabel: "REO — bank-owned", kind: "list", isAuction: false };
+  if (s === "foreclosure")
+    return { priceLabel: "Foreclosure", kind: "list", isAuction: false };
   if (s === "dangerous_building")
     return { priceLabel: "Off-market", kind: "list", isAuction: false };
   if (

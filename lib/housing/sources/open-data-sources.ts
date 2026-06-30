@@ -15,6 +15,11 @@ const n = (v: unknown) => {
   const x = Number(v);
   return Number.isFinite(x) && x > 0 ? x : undefined;
 };
+// Parse a lat/lng (longitudes are negative, so the >0 `n()` guard would wrongly drop them).
+const coord = (v: unknown, fallback?: number) => {
+  const x = Number(v);
+  return Number.isFinite(x) && x !== 0 ? x : fallback;
+};
 // Join owner mailing-address components into a direct-mail-ready string (public record).
 const mailing = (...parts: unknown[]) =>
   parts
@@ -246,6 +251,156 @@ const numStr = (v: unknown) => {
   return Number.isFinite(x) && x > 0 ? x : undefined;
 };
 
+// ── MORE OPEN CITY/COUNTY FEEDS (foreclosure + code violations) — verified live, no-auth ─────
+export const CITY_FEED_SOURCES: OpenDataSource[] = [
+  {
+    // Bexar County, TX (San Antonio) — mortgage foreclosure filings (Layer 0). Point geometry.
+    source: "foreclosure",
+    api: "arcgis",
+    url: "https://maps.bexar.org/arcgis/rest/services/CC/ForeclosuresProd/MapServer/0",
+    state: "TX",
+    city: "San Antonio",
+    where: "YEAR >= 2025",
+    limit: 5000,
+    map: (a, g): Property | null => {
+      const address = s(a.ADDRESS);
+      if (!address) return null;
+      return {
+        source: "foreclosure",
+        source_listing_id: `bexar-${a.DOC_NUMBER || a.OBJECTID}`,
+        title: `Foreclosure · ${address}`,
+        address,
+        city: s(a.CITY) || "San Antonio",
+        state: "TX",
+        zip: s(a.ZIP),
+        lat: g.lat,
+        lng: g.lng,
+        seller_type: "owner",
+        signals: { foreclosure: true, status: "Foreclosure filed" },
+      };
+    },
+  },
+  {
+    // Prince George's County, MD (DC metro) — Notice of Foreclosure Sale registrations (weekly).
+    source: "foreclosure",
+    api: "socrata",
+    url: "https://data.princegeorgescountymd.gov/resource/cni6-nr5g.json",
+    state: "MD",
+    city: "Prince George's County",
+    where: "submitteddate > '2025-01-01T00:00:00'",
+    limit: 5000,
+    map: (a, g): Property | null => {
+      const address = s(a.street_address);
+      if (!address) return null;
+      const vacant = String(a.addressoccupied ?? "")
+        .toLowerCase()
+        .startsWith("no");
+      return {
+        source: "foreclosure",
+        source_listing_id: `pgmd-${a.propertyid || a.taxaccountnumber}`,
+        title: `Foreclosure · ${address}`,
+        address,
+        city: s(a.city) || "Prince George's County",
+        state: "MD",
+        zip: s(a.zip_code),
+        lat: g.lat,
+        lng: g.lng,
+        seller_type: "owner",
+        signals: { foreclosure: true, vacant, status: "Foreclosure filed" },
+      };
+    },
+  },
+  {
+    // Cincinnati, OH — OPEN code-enforcement violations.
+    source: "code_violation",
+    api: "socrata",
+    url: "https://data.cincinnati-oh.gov/resource/cncm-znd6.json",
+    state: "OH",
+    city: "Cincinnati",
+    where: "status_class = 'OPEN'",
+    limit: 5000,
+    map: (a, g): Property | null => {
+      const address = s(a.full_address);
+      if (!address) return null;
+      return {
+        source: "code_violation",
+        source_listing_id: `cincy-${a.number_key}`,
+        title: `Code violation · ${address}`,
+        address,
+        city: "Cincinnati",
+        state: "OH",
+        lat: coord(a.latitude, g.lat),
+        lng: coord(a.longitude, g.lng),
+        seller_type: "owner",
+        signals: {
+          code_violation: true,
+          status: s(a.comp_type_desc) || "Open code violation",
+        },
+      };
+    },
+  },
+  {
+    // Montgomery County, MD — active housing code violations.
+    source: "code_violation",
+    api: "socrata",
+    url: "https://data.montgomerycountymd.gov/resource/8bbt-jrr6.json",
+    state: "MD",
+    city: "Montgomery County",
+    where: "date_filed > '2024-01-01T00:00:00'",
+    limit: 5000,
+    map: (a, g): Property | null => {
+      const address = s(a.street_address);
+      if (!address) return null;
+      return {
+        source: "code_violation",
+        source_listing_id: `montco-${a.case_number}-${a.violation_id || ""}`,
+        title: `Code violation · ${address}`,
+        address,
+        city: s(a.city) || "Montgomery County",
+        state: "MD",
+        zip: s(a.zip_code),
+        lat: coord(a.latitude, g.lat),
+        lng: coord(a.longitude, g.lng),
+        seller_type: "owner",
+        signals: {
+          code_violation: true,
+          status: s(a.condition) || "Housing code violation",
+        },
+      };
+    },
+  },
+  {
+    // Buffalo, NY — ACTIVE code violations.
+    source: "code_violation",
+    api: "socrata",
+    url: "https://data.buffalony.gov/resource/ivrf-k9vm.json",
+    state: "NY",
+    city: "Buffalo",
+    where: "status = 'ACTIVE'",
+    limit: 5000,
+    map: (a, g): Property | null => {
+      const address = s(a.address);
+      if (!address) return null;
+      return {
+        source: "code_violation",
+        source_listing_id: `buffalo-${a.uniquekey || a.case_number}`,
+        title: `Code violation · ${address}`,
+        address,
+        city: "Buffalo",
+        state: "NY",
+        zip: s(a.zip),
+        lat: coord(a.latitude, g.lat),
+        lng: coord(a.longitude, g.lng),
+        seller_type: "owner",
+        signals: {
+          code_violation: true,
+          status: s(a.description) || "Active code violation",
+        },
+      };
+    },
+  },
+];
+
 // ── NATIONAL (statewide parcel layers with owner data → absentee, money-grade) ──────────────
 export const NATIONAL_SOURCES: OpenDataSource[] = [
   {
@@ -386,6 +541,7 @@ export const NATIONAL_SOURCES: OpenDataSource[] = [
 export const OPEN_DATA_SOURCES: OpenDataSource[] = [
   ...MISSOURI_SOURCES,
   ...NATIONAL_SOURCES,
+  ...CITY_FEED_SOURCES,
 ];
 
 /** Harvest all configured open-data off-market leads (Missouri-first; whole-US as configs are added). */
