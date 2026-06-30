@@ -25,6 +25,16 @@ describe("leadCategories", () => {
     expect(leadCategories({ source: "land_bank" })).toContain("land_bank");
   });
 
+  it("flags a zombie (foreclosure source + vacant signal)", () => {
+    const cats = leadCategories({
+      source: "foreclosure",
+      signals: ["Vacant / unsafe — carrying cost"],
+    });
+    expect(cats).toEqual(
+      expect.arrayContaining(["preforeclosure", "vacant", "zombie"]),
+    );
+  });
+
   it("catches pre-foreclosure from a sheriff-sale signal", () => {
     expect(
       leadCategories({

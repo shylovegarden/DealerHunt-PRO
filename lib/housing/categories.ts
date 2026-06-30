@@ -58,6 +58,19 @@ export const LEAD_CATEGORIES: LeadCategory[] = [
       l.source === "absentee_owner" || sig(l, /absentee|out-of-state/i),
   },
   {
+    key: "out_of_state",
+    label: "Out-of-state owner",
+    match: (l) => sig(l, /out-of-state/i),
+  },
+  {
+    // Zombie = a foreclosure filing on a vacant property — abandoned mid-foreclosure, the softest sellers.
+    key: "zombie",
+    label: "Zombie (foreclosure + vacant)",
+    match: (l) =>
+      (l.source === "foreclosure" || sig(l, /foreclosure|sheriff/i)) &&
+      sig(l, /vacant|condemn/i),
+  },
+  {
     key: "code_violation",
     label: "Code violations",
     match: (l) => l.source === "code_violation" || sig(l, /code violation/i),
