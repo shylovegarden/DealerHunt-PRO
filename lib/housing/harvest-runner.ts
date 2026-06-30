@@ -23,6 +23,7 @@ import { fetchPhillyCodeViolations } from "./sources/code-violations";
 import { fetchOpenDataLeads } from "./sources/open-data-sources";
 import { harvestPortals } from "./sources/portals";
 import { harvestReso } from "./sources/reso";
+import { scrapeFsbo } from "./sources/fsbo";
 import { upsertProperties } from "./store";
 
 export interface HarvestResult {
@@ -55,6 +56,7 @@ export async function runHousingHarvest(): Promise<HarvestResult> {
     od,
     portals,
     mls,
+    fsbo,
   ] = await Promise.all([
     harvestGovDealsProperties("GD", 5).catch(() => []),
     harvestGovDealsProperties("AD", 3).catch(() => []),
@@ -75,6 +77,7 @@ export async function runHousingHarvest(): Promise<HarvestResult> {
     fetchOpenDataLeads().catch(() => []), // generic open-data registry (nationwide off-market)
     harvestPortals().catch(() => []), // Zillow/Realtor/… (fleet-gated, config-driven)
     harvestReso().catch(() => []), // MLS via RESO Web API (legit; [] until a member feed is wired)
+    scrapeFsbo().catch(() => []), // FSBO.com national owner listings (open JSON API, no auth)
   ]);
 
   const properties = [
@@ -97,6 +100,7 @@ export async function runHousingHarvest(): Promise<HarvestResult> {
     ...od,
     ...portals,
     ...mls,
+    ...fsbo,
   ];
   const written = await upsertProperties(properties);
 
@@ -125,6 +129,7 @@ export async function runHousingHarvest(): Promise<HarvestResult> {
       open_data: od.length,
       portals: portals.length,
       mls: mls.length,
+      fsbo: fsbo.length,
     },
   };
 }
