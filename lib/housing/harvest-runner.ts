@@ -9,6 +9,7 @@ import { harvestGovDealsProperties } from "./sources/govdeals-property";
 import { scrapeHudHomes } from "./sources/hud-homes";
 import { scrapeGsaRealEstate } from "./sources/gsa-realestate";
 import { harvestRedfinGis } from "./sources/redfin-gis";
+import { harvestHomePath } from "./sources/homepath";
 import { scrapePublicSurplusProperties } from "./sources/publicsurplus-property";
 import { scrapeMunicibidProperties } from "./sources/municibid-property";
 import { scrapeDetroitLandBank } from "./sources/detroit-landbank";
@@ -21,7 +22,7 @@ import { fetchOpenDataLeads } from "./sources/open-data-sources";
 import { harvestPortals } from "./sources/portals";
 import { harvestReso } from "./sources/reso";
 import { enrichRedfinProperties } from "./sources/redfin-enrich";
-import { upsertProperties } from "./store";
+import { upsertProperties, reconcileStaleProperties } from "./store";
 
 export interface HarvestResult {
   ok: boolean;
@@ -39,6 +40,7 @@ export async function runHousingHarvest(): Promise<HarvestResult> {
     hud,
     gsare,
     redfin,
+    homepath,
     psre,
     mbre,
     dlb,
@@ -56,6 +58,7 @@ export async function runHousingHarvest(): Promise<HarvestResult> {
     scrapeHudHomes().catch(() => []),
     scrapeGsaRealEstate().catch(() => []),
     harvestRedfinGis().catch(() => []), // verified open MLS door: gis-csv bbox, no anti-bot
+    harvestHomePath().catch(() => []), // Fannie Mae REO — open JSON, nationwide bank-owned
     scrapePublicSurplusProperties().catch(() => []),
     scrapeMunicibidProperties().catch(() => []),
     scrapeDetroitLandBank().catch(() => []),
@@ -75,6 +78,7 @@ export async function runHousingHarvest(): Promise<HarvestResult> {
     ...hud,
     ...gsare,
     ...redfin,
+    ...homepath,
     ...psre,
     ...mbre,
     ...dlb,
@@ -99,6 +103,10 @@ export async function runHousingHarvest(): Promise<HarvestResult> {
 
   const written = await upsertProperties(properties);
 
+  // Freshness: retire listings not re-seen in 21 days (sold/delisted) so counts stay truthful. Only after a
+  // healthy harvest (written > 0) — never prune on an empty/failed run that could wrongly retire everything.
+  if (written > 0) await reconcileStaleProperties(21).catch(() => 0);
+
   return {
     ok: true,
     harvested: properties.length,
@@ -110,6 +118,7 @@ export async function runHousingHarvest(): Promise<HarvestResult> {
       hud: hud.length,
       gsa_realestate: gsare.length,
       redfin: redfin.length,
+      fannie_homepath: homepath.length,
       publicsurplus: psre.length,
       municibid: mbre.length,
       detroit_landbank: dlb.length,

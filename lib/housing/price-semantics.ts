@@ -35,7 +35,7 @@ export function housingPriceTerms(
   // Sold comps (Redfin gis past-sales) — the number is a CLOSED sale price, valuation anchor not a deal.
   if (s === "redfin_sold")
     return { priceLabel: "Sold price", kind: "list", isAuction: false };
-  if (s === "hud_reo")
+  if (s === "hud_reo" || s === "fannie_homepath")
     return { priceLabel: "REO — bank-owned", kind: "list", isAuction: false };
   if (s === "foreclosure")
     return { priceLabel: "Foreclosure", kind: "list", isAuction: false };

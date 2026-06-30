@@ -163,6 +163,7 @@ const SOURCE_LABELS: Record<string, string> = {
   code_violation: "Code violations",
   absentee_owner: "Absentee owner",
   mls: "MLS",
+  fannie_homepath: "Fannie REO",
   hud_reo: "HUD REO",
   foreclosure: "Foreclosure",
   dangerous_building: "Dangerous building",

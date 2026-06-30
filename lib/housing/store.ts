@@ -51,8 +51,41 @@ function toRow(p: Property): Record<string, unknown> {
     lead_tier: lead.tier,
     signals: { ...(p.signals || {}), reasons: lead.signals },
     active: true,
+    // last_seen_at advances on EVERY harvest so the prune can tell live from delisted; scraped_at keeps the
+    // first-content timestamp where available. (Self-heals if the column predates the freshness migration.)
+    last_seen_at: new Date().toISOString(),
     scraped_at: p.scraped_at || new Date().toISOString(),
   };
+}
+
+/**
+ * Reconcile freshness: mark anything not re-seen in `staleDays` inactive (the read paths filter active=true,
+ * so it vanishes from counts + leads). Mirrors the cars 30-day prune. Best-effort + isolated — a missing
+ * `last_seen_at` column (pre-migration) or any error just no-ops, never breaking the harvest.
+ */
+export async function reconcileStaleProperties(
+  staleDays = 21,
+): Promise<number> {
+  try {
+    const sb = service();
+    const cutoff = new Date(Date.now() - staleDays * 86_400_000).toISOString();
+    const { data, error } = await sb
+      .from("properties")
+      .update({ active: false, updated_at: new Date().toISOString() })
+      .eq("active", true)
+      .lt("last_seen_at", cutoff)
+      .select("id");
+    if (error) {
+      console.warn("[reconcileStale] skipped:", error.message);
+      return 0;
+    }
+    const n = data?.length || 0;
+    if (n) console.log(`[reconcileStale] marked ${n} stale listings inactive`);
+    return n;
+  } catch (e) {
+    console.warn("[reconcileStale] skipped:", (e as Error).message);
+    return 0;
+  }
 }
 
 /**
