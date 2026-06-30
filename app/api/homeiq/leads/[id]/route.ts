@@ -57,6 +57,10 @@ export async function GET(
       images: row.images || [],
       seller: row.seller,
       seller_type: row.seller_type,
+      // Public-record owner contact (county assessor / tax roll) → enables direct mail. Phone/email is
+      // NOT scraped — that needs a licensed, compliant skip-trace provider (surfaced as an opt-in).
+      owner: (row.signals as any)?.owner,
+      ownerMailing: (row.signals as any)?.owner_mailing,
       auction_end: row.auction_end,
       bid_count: row.bid_count,
       score: row.lead_score ?? score.score,
