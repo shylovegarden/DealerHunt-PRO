@@ -398,6 +398,18 @@ function LeadsInner() {
           </span>
         )}
         <div className="flex items-center gap-4">
+          <AlertButton
+            criteria={{
+              name:
+                [scopeState, type, source].filter(Boolean).join(" ") ||
+                "All deals",
+              state: scopeState || undefined,
+              property_type: type || undefined,
+              source: source || undefined,
+              tier: tier || undefined,
+              max_price: maxPrice || undefined,
+            }}
+          />
           <button
             onClick={() => exportLeadsCsv(leads)}
             disabled={!leads.length}
@@ -613,6 +625,52 @@ function QuickSave({ listingId }: { listingId: string }) {
       }
     >
       {state === "saved" ? "✓" : state === "saving" ? "…" : "♡"}
+    </button>
+  );
+}
+
+// Turn the current search into an instant-alert: the app emails you when a NEW hot/warm match appears.
+function AlertButton({ criteria }: { criteria: Record<string, unknown> }) {
+  const [state, setState] = useState<"idle" | "saving" | "done" | "auth">(
+    "idle",
+  );
+  async function save() {
+    setState("saving");
+    try {
+      const r = await fetch("/api/homeiq/saved-searches", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(criteria),
+      });
+      if (r.status === 401) return setState("auth");
+      setState(r.ok ? "done" : "idle");
+    } catch {
+      setState("idle");
+    }
+  }
+  if (state === "done")
+    return (
+      <span className="text-sm font-semibold text-[var(--green)]">
+        🔔 Alert on ✓
+      </span>
+    );
+  if (state === "auth")
+    return (
+      <Link
+        href="/login"
+        className="text-sm font-semibold text-[var(--t3)] hover:text-[var(--t1)]"
+      >
+        Sign in to set alerts
+      </Link>
+    );
+  return (
+    <button
+      onClick={save}
+      disabled={state === "saving"}
+      className="text-sm font-semibold text-[var(--t3)] hover:text-[var(--t1)] disabled:opacity-40"
+      title="Get emailed when a NEW hot/warm deal matches this search"
+    >
+      🔔 {state === "saving" ? "Saving…" : "Alert me"}
     </button>
   );
 }

@@ -142,6 +142,20 @@ export async function upsertProperties(
       break;
     }
   }
+
+  // Instant deal alerts: match the just-harvested properties against saved searches and notify on NEW
+  // hot/warm matches. Best-effort + isolated (lazy-imported so it never weighs on the hot read path).
+  if (written > 0) {
+    try {
+      const { matchHousingSearches } = await import("./match-searches");
+      await matchHousingSearches(properties);
+    } catch (e) {
+      console.warn(
+        "[upsertProperties] alert match skipped:",
+        (e as Error).message,
+      );
+    }
+  }
   return written;
 }
 
