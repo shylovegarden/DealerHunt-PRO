@@ -10,6 +10,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Property } from "./types";
 import { scoreHousingLead } from "./lead-score";
 import { resolvePlaces, placeKey } from "@/lib/geo/geocode";
+import { fetchAllRows } from "@/lib/db/paginate";
 
 function service(): SupabaseClient {
   return createClient(
@@ -146,6 +147,7 @@ export async function upsertProperties(
 
 export interface PropertyQuery {
   state?: string;
+  states?: string[]; // scope to several states (the "nearby" view) via a server-side IN filter
   tier?: string;
   source?: string;
   minScore?: number;
@@ -165,15 +167,17 @@ export async function queryProperties(
   q: PropertyQuery = {},
 ): Promise<StoredProperty[] | null> {
   const sb = service();
-  const want = Math.min(2000, q.limit ?? 200);
+  const want = Math.min(3000, q.limit ?? 200);
   // PostgREST caps a single response at 1000 rows, so page with .range() until we have `want` (or the
   // table is exhausted). Without this the lower-scored tail — e.g. land-bank lots beyond row 1000 — is
   // unreachable, so a source/state filter over the result would silently miss rows.
   const PAGE = 1000;
+  const states = q.states?.map((s) => s.toUpperCase()).filter(Boolean);
   const out: StoredProperty[] = [];
   for (let offset = 0; offset < want; offset += PAGE) {
     let query = sb.from("properties").select("*").eq("active", true);
-    if (q.state) query = query.eq("state", q.state.toUpperCase());
+    if (states?.length) query = query.in("state", states);
+    else if (q.state) query = query.eq("state", q.state.toUpperCase());
     if (q.tier) query = query.eq("lead_tier", q.tier);
     if (q.source) query = query.eq("source", q.source);
     if (q.minScore != null) query = query.gte("lead_score", q.minScore);
@@ -192,6 +196,25 @@ export async function queryProperties(
     if (rows.length < PAGE) break; // last page
   }
   return out;
+}
+
+/**
+ * Accurate per-state lead counts across the WHOLE table (one small column, paged past the 1000-cap) — so
+ * the scope selector reflects all 54k, not just whatever made a top-N slice. Cache the result upstream.
+ */
+export async function countByState(): Promise<Record<string, number>> {
+  const sb = service();
+  const rows = await fetchAllRows<{ state: string | null }>(
+    (from, to) =>
+      sb.from("properties").select("state").eq("active", true).range(from, to),
+    { max: 200_000 },
+  ).catch(() => [] as { state: string | null }[]);
+  const counts: Record<string, number> = {};
+  for (const r of rows) {
+    const s = (r.state || "").toUpperCase();
+    if (s) counts[s] = (counts[s] || 0) + 1;
+  }
+  return counts;
 }
 
 /** Fetch one property by its source_listing_id (for the lead-detail page). Null if absent/unavailable. */

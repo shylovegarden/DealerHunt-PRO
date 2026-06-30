@@ -158,10 +158,18 @@ function LeadsInner() {
   const [q, setQ] = useState("");
   const [visible, setVisible] = useState(PAGE);
 
-  // Fetch the whole market once; scope + widen + scroll are all instant client-side.
-  const { data, isLoading } = useSWR(`/api/homeiq/leads?limit=2000`, fetcher, {
+  // SERVER-SIDE SCOPE: fetch the current scope from the full 54k (your state / nearby / national top),
+  // then filter/sort/search instantly client-side WITHIN that slice. Re-fetches when the scope changes.
+  const fetchUrl = useMemo(() => {
+    if (!scopeState || scopeMode === "national") return "/api/homeiq/leads";
+    if (scopeMode === "nearby")
+      return `/api/homeiq/leads?states=${Array.from(nearbyStates(scopeState, 6)).join(",")}`;
+    return `/api/homeiq/leads?state=${scopeState}`;
+  }, [scopeState, scopeMode]);
+  const { data, isLoading } = useSWR(fetchUrl, fetcher, {
     revalidateOnFocus: false,
     dedupingInterval: 120_000,
+    keepPreviousData: true,
   });
   const all: Lead[] = data?.leads ?? [];
   const points = data?.points ?? [];
@@ -188,9 +196,7 @@ function LeadsInner() {
   }, [scopeState, scopeMode]);
 
   const leads = useMemo(() => {
-    let r = all;
-    if (scopeSet)
-      r = r.filter((l) => scopeSet.has((l.state || "").toUpperCase()));
+    let r = all; // already scoped server-side (state/nearby/national) — just refine within the slice
     if (tier) r = r.filter((l) => l.tier === tier);
     if (type) r = r.filter((l) => l.property_type === type);
     if (source) r = r.filter((l) => l.source === source);

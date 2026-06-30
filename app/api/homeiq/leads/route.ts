@@ -7,6 +7,7 @@ import { scoreHousingLead } from "@/lib/housing/lead-score";
 import { analyzeHousingDeal } from "@/lib/housing/deal-analyzer";
 import {
   queryProperties,
+  countByState,
   upsertProperties,
   type StoredProperty,
 } from "@/lib/housing/store";
@@ -218,24 +219,42 @@ async function liveHarvest(): Promise<Lead[]> {
   return leads;
 }
 
+// Full-market per-state counts, cached (5 min) — drives an accurate scope selector regardless of which
+// scoped slice we return, without re-scanning 54k rows every request.
+let STATE_COUNTS: { at: number; data: Record<string, number> } | null = null;
+async function cachedCountByState(): Promise<Record<string, number>> {
+  if (STATE_COUNTS && Date.now() - STATE_COUNTS.at < 5 * 60_000)
+    return STATE_COUNTS.data;
+  const data = await countByState().catch(() => ({}));
+  STATE_COUNTS = { at: Date.now(), data };
+  return data;
+}
+
 export async function GET(req: NextRequest) {
   const sp = new URL(req.url).searchParams;
   const state = (sp.get("state") || "").toUpperCase();
+  const statesParam = (sp.get("states") || "")
+    .split(",")
+    .map((s) => s.trim().toUpperCase())
+    .filter(Boolean);
+  // Scope = explicit states list (nearby) > single state > null (national top-N).
+  const scopeStates = statesParam.length ? statesParam : state ? [state] : null;
   const tier = sp.get("tier") || "";
   const source = sp.get("source") || "";
-  const limit = Math.min(
-    2000,
-    Math.max(1, parseInt(sp.get("limit") || "2000", 10) || 2000),
-  );
 
   let all: Lead[];
   try {
-    // Pull the whole market (cap 2000) so the dashboard can scope/filter client-side and every
-    // source — including lower-scored land-bank lots — is reachable, not buried under a 500 cap.
-    const stored = await queryProperties({ limit: 2000 });
+    // SERVER-SIDE SCOPE: a state / nearby view is queried from the FULL table (its own top-3000), not a
+    // slice of the global top-2000 — so all 54k are reachable by location. National = global top-2000.
+    const stored = await queryProperties(
+      scopeStates ? { states: scopeStates, limit: 3000 } : { limit: 2000 },
+    );
     all =
-      stored && stored.length ? stored.map(fromStored) : await liveHarvest();
-    // Order by the LIVE score (re-scored on read) so hottest-first matches the live tiers.
+      stored && stored.length
+        ? stored.map(fromStored)
+        : scopeStates
+          ? [] // empty scope = no leads there yet (don't fall back to the cars-ish live harvest)
+          : await liveHarvest();
     all.sort((a, b) => b.score - a.score);
     applyStacking(all); // cross-source list-stacking → each lead's `stack` count
   } catch (e) {
@@ -245,21 +264,19 @@ export async function GET(req: NextRequest) {
     );
   }
 
+  // Accurate full-market state counts for the selector; tier/source tallies from the in-scope slice.
+  const byState = await cachedCountByState();
   const byTier = { hot: 0, warm: 0, standard: 0 } as Record<string, number>;
-  const byState: Record<string, number> = {};
   const bySource: Record<string, number> = {};
   for (const l of all) {
     byTier[l.tier] = (byTier[l.tier] || 0) + 1;
-    if (l.state) byState[l.state] = (byState[l.state] || 0) + 1;
     if (l.source) bySource[l.source] = (bySource[l.source] || 0) + 1;
   }
 
+  // Already scoped server-side; tier/source remain optional server filters for direct API callers.
   let filtered = all;
-  if (state)
-    filtered = filtered.filter((l) => (l.state || "").toUpperCase() === state);
   if (tier) filtered = filtered.filter((l) => l.tier === tier);
   if (source) filtered = filtered.filter((l) => l.source === source);
-  filtered = filtered.slice(0, limit);
 
   const points = filtered
     .map((l) => {
