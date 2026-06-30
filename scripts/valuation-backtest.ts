@@ -128,6 +128,15 @@ async function main() {
   console.log(
     `  NOTE: Copart has no odometer; unknown-mileage lots now assume age wear (not pristine).`,
   );
+
+  const mapeVal = mean(abs) * 100;
+  if (mapeVal > 15) {
+    console.error(
+      `\n❌ Error: MAPE is ${mapeVal.toFixed(1)}%, which exceeds the 15% regression threshold!`,
+    );
+    process.exit(1);
+  }
+
   process.exit(0);
 }
 
