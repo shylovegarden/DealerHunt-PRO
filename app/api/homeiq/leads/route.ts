@@ -12,7 +12,38 @@ import {
 } from "@/lib/housing/store";
 import { STATE_COORDS } from "@/lib/geo";
 import { housingPriceTerms } from "@/lib/housing/price-semantics";
+import { normalizeAddress } from "@/lib/housing/address-normalize";
+import { leadCategories } from "@/lib/housing/categories";
 import type { Property } from "@/lib/housing/types";
+
+// Distress lists that count toward a "stack" (flip/high-equity are deal-quality, not distress lists).
+const STACK_CATS = new Set([
+  "tax_delinquent",
+  "preforeclosure",
+  "vacant",
+  "absentee",
+  "out_of_state",
+  "code_violation",
+  "reo",
+  "land_bank",
+]);
+
+// Cross-source list-stacking: group leads by normalized address, count distinct distress lists per
+// property, and stamp each lead's `stack`. A property on tax-delinquent + vacant + absentee = stack 3.
+function applyStacking(all: Lead[]): void {
+  const byAddr = new Map<string, Set<string>>();
+  for (const l of all) {
+    const key = normalizeAddress(l.address, l.city, l.state, l.zip);
+    if (!key) continue;
+    let set = byAddr.get(key);
+    if (!set) byAddr.set(key, (set = new Set()));
+    for (const c of leadCategories(l)) if (STACK_CATS.has(c)) set.add(c);
+  }
+  for (const l of all) {
+    const key = normalizeAddress(l.address, l.city, l.state, l.zip);
+    l.stack = key ? byAddr.get(key)?.size || 0 : 0;
+  }
+}
 
 // GET /api/homeiq/leads?state=IL&tier=hot — scored real-estate leads, hottest-first, with map points.
 // DB-FIRST: reads the `properties` table (instant). If the store is empty/unavailable, it live-harvests
@@ -27,10 +58,13 @@ interface Lead {
   source?: string;
   status?: string; // listing status for land-bank stock (Move-In Ready / Needs Renovation / Vacant Land…)
   property_type?: string;
+  address?: string;
   city?: string;
   state?: string;
   zip?: string;
   image?: string;
+  // Cross-source list-stacking: # of distinct distress lists this property sits on (1 = single list).
+  stack?: number;
   beds?: number;
   baths?: number;
   sqft?: number;
@@ -98,6 +132,7 @@ function fromStored(r: StoredProperty): Lead {
       source: r.source,
       status: landBankStatus(r),
       property_type: r.property_type,
+      address: r.address,
       city: r.city,
       state: r.state,
       zip: r.zip,
@@ -128,6 +163,7 @@ function fromLive(p: Property): Lead {
       source: p.source,
       status: landBankStatus(p),
       property_type: p.property_type,
+      address: p.address,
       city: p.city,
       state: p.state,
       zip: p.zip,
@@ -176,6 +212,7 @@ export async function GET(req: NextRequest) {
       stored && stored.length ? stored.map(fromStored) : await liveHarvest();
     // Order by the LIVE score (re-scored on read) so hottest-first matches the live tiers.
     all.sort((a, b) => b.score - a.score);
+    applyStacking(all); // cross-source list-stacking → each lead's `stack` count
   } catch (e) {
     return NextResponse.json(
       { error: (e as Error).message, leads: [], points: [] },
@@ -227,6 +264,7 @@ export async function GET(req: NextRequest) {
         baths: l.baths,
         sqft: l.sqft,
         verdict: l.verdict ?? undefined,
+        stack: l.stack,
         url: `/homeiq/leads/${encodeURIComponent(l.id)}`,
       };
     })
