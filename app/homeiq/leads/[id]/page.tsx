@@ -143,6 +143,42 @@ export default function LeadDetailPage({
                 ? ` · ${lead.bid_count} bids`
                 : ""}
             </p>
+            {/* Quick-facts strip — the physical specs, hoisted to the top (were buried at the bottom). */}
+            {(lead.beds != null ||
+              lead.baths != null ||
+              lead.sqft != null ||
+              lead.year_built != null ||
+              lead.listing?.pricePerSqft ||
+              lead.listing?.daysOnMarket != null) && (
+              <div className="mt-2 flex items-center gap-2 flex-wrap text-sm font-semibold text-[var(--t2)]">
+                {lead.beds != null && <span>{lead.beds} bd</span>}
+                {lead.baths != null && <span>· {lead.baths} ba</span>}
+                {lead.sqft != null && (
+                  <span>· {lead.sqft.toLocaleString()} sqft</span>
+                )}
+                {lead.listing?.pricePerSqft && (
+                  <span className="text-[var(--t4)]">
+                    · ${lead.listing.pricePerSqft}/sqft
+                  </span>
+                )}
+                {lead.year_built != null && (
+                  <span className="text-[var(--t4)]">
+                    · built {lead.year_built}
+                  </span>
+                )}
+                {lead.lot_size_acres != null && (
+                  <span className="text-[var(--t4)]">
+                    · {lead.lot_size_acres} ac lot
+                  </span>
+                )}
+                {lead.listing?.daysOnMarket != null &&
+                  lead.listing.daysOnMarket >= 30 && (
+                    <span style={{ color: "var(--amber)" }}>
+                      · {lead.listing.daysOnMarket}d on market
+                    </span>
+                  )}
+              </div>
+            )}
           </div>
 
           {(lead.images?.length || lead.image) && (
@@ -173,6 +209,41 @@ export default function LeadDetailPage({
               </div>
             </div>
           </Card>
+
+          {/* Listing identity — MLS#/brokerage/agent + REO occupancy (collected but never shown before). */}
+          {lead.listing && (
+            <Card title="Listing details">
+              <div className="flex flex-wrap gap-2 text-sm">
+                {lead.listing.mls && (
+                  <Fact label="MLS #" value={String(lead.listing.mls)} />
+                )}
+                {lead.listing.brokerage && (
+                  <Fact
+                    label="Brokerage"
+                    value={String(lead.listing.brokerage)}
+                  />
+                )}
+                {lead.listing.agent && (
+                  <Fact label="Agent" value={String(lead.listing.agent)} />
+                )}
+                {lead.listing.occupancy && (
+                  <Fact
+                    label="Occupancy"
+                    value={String(lead.listing.occupancy)}
+                  />
+                )}
+                {lead.listing.tenantOccupied && (
+                  <Fact label="Tenant" value="Occupied" />
+                )}
+              </div>
+              {lead.listing.firstLook && (
+                <p className="mt-2 text-[11px] text-[var(--amber)] font-semibold">
+                  ⏳ First Look — owner-occupants/nonprofits only right now;
+                  investors must wait for the window to close.
+                </p>
+              )}
+            </Card>
+          )}
 
           {/* Owner & contact — public-record owner + mailing address (direct-mail ready). Phone/email is
               NOT scraped; it requires a licensed, compliant skip-trace provider (TCPA/DNC rules apply). */}
@@ -261,6 +332,7 @@ export default function LeadDetailPage({
                 {lead.distress.vacant && (
                   <Fact label="Occupancy" value="Vacant" />
                 )}
+                {lead.distress.reo && <Fact label="REO" value="Bank-owned" />}
               </div>
             </Card>
           )}
@@ -333,7 +405,11 @@ export default function LeadDetailPage({
                   label="Cap rate"
                   value={`${cf.capRatePct}%`}
                   accent={CASHFLOW_COLOR[cf.rating] || ACCENT}
-                  sub={cf.rating}
+                  sub={
+                    cf.grossYieldPct != null
+                      ? `${cf.grossYieldPct}% gross yield`
+                      : cf.rating
+                  }
                 />
                 <Metric
                   label="Cashflow"

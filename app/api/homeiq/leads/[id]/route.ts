@@ -47,7 +47,7 @@ export async function GET(
             ].find(
               (c) => typeof c === "string" && c.trim() && c.trim().length <= 40,
             )
-          : undefined,
+          : (row.signals as any)?.status, // MLS/HUD/REO status (Active/Pending/Pre-Market…) was dropped
       property_type: row.property_type,
       address: row.address,
       city: row.city,
@@ -69,6 +69,28 @@ export async function GET(
       // NOT scraped — that needs a licensed, compliant skip-trace provider (surfaced as an opt-in).
       owner: (row.signals as any)?.owner,
       ownerMailing: (row.signals as any)?.owner_mailing,
+      // Listing identity (MLS-grade) + glance metrics — collected by Redfin/MLS/REO sources, never shown.
+      listing: (() => {
+        const s = (row.signals as any) || {};
+        const ppsf =
+          s.price_per_sqft ??
+          (row.sqft && row.price
+            ? Math.round(row.price / row.sqft)
+            : undefined);
+        const l: Record<string, unknown> = {};
+        if (s.mls_number) l.mls = String(s.mls_number);
+        if (s.brokerage) l.brokerage = String(s.brokerage);
+        if (s.agent) l.agent = String(s.agent);
+        if (typeof s.days_on_market === "number")
+          l.daysOnMarket = s.days_on_market;
+        if (ppsf) l.pricePerSqft = Math.round(Number(ppsf));
+        // REO occupancy (HUD/Fannie) — materially affects whether/when you can bid.
+        if (s.occupancy) l.occupancy = String(s.occupancy);
+        if (s.tenant_occupied) l.tenantOccupied = true;
+        if (s.first_look) l.firstLook = true;
+        if (s.reo) l.reo = true;
+        return Object.keys(l).length ? l : undefined;
+      })(),
       distress: (() => {
         const s = (row.signals as any) || {};
         const d: Record<string, unknown> = {};
