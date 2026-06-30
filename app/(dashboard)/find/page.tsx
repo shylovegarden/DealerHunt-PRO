@@ -54,6 +54,13 @@ export default function ArbitrageDashboardPage() {
   const [activeTab, setActiveTab] = useState<"national" | "local">("national");
   const { dealerId, loading: dealerLoading } = useDealerId();
 
+  // Real geocoded deal points for the network map (so it isn't an empty "No mapped locations" box).
+  const { data: mapData } = useSWR("/api/deals/map?verdict=go", fetcher, {
+    revalidateOnFocus: false,
+    dedupingInterval: 60_000,
+  });
+  const mapPoints: any[] = mapData?.points ?? [];
+
   // Use SWR for data fetching with automatic revalidation
   const { data, error, isLoading } = useSWR<ArbitrageDashboard>(
     dealerId && !dealerLoading
@@ -169,7 +176,7 @@ export default function ArbitrageDashboardPage() {
             <h2 className="text-[11px] font-black text-[var(--t4)] uppercase tracking-widest mb-3 px-1">
               Auction & Dealer Network
             </h2>
-            <DealerMap />
+            <DealerMap points={mapPoints} />
           </div>
 
           {/* SMART DEAL GROUPS */}

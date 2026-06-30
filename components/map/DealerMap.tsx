@@ -65,6 +65,13 @@ const TIER_HEX: Record<string, string> = {
   warm: "#f59e0b",
   standard: "#2dd4bf",
 };
+// Cars carry a marker `type` (verdict) instead of a tier — color their price pills to match.
+const TYPE_HEX: Record<string, string> = {
+  private: "#22c55e", // GO
+  auction: "#f59e0b", // HOLD / auction
+  dealer: "#2563eb",
+  hub: "#ef4444",
+};
 const esc = (v: unknown) =>
   String(v ?? "").replace(
     /[&<>"]/g,
@@ -77,9 +84,9 @@ const fmtPrice = (n: number) =>
       ? `$${Math.round(n / 1000)}k`
       : `$${n}`;
 
-// Zillow-style price/score pill marker (housing), colored by lead tier.
+// Zillow-style price/score pill marker — colored by lead tier (homes) or marker type/verdict (cars).
 function pillIcon(p: MapPoint): L.DivIcon {
-  const color = TIER_HEX[p.tier ?? ""] || "#2563eb";
+  const color = TIER_HEX[p.tier ?? ""] || TYPE_HEX[p.type ?? ""] || "#2563eb";
   const text =
     p.price && p.price > 0
       ? fmtPrice(p.price)
@@ -174,6 +181,10 @@ export default function DealerMap({ points = [] }: DealerMapProps) {
       !Number.isNaN(p.lat) &&
       !Number.isNaN(p.lng),
   );
+  // Pills (price/score/image) are self-labeling, so the dot "Network" legend only applies to dot markers.
+  const hasPills = validPoints.some(
+    (p) => (p.price != null && p.price > 0) || p.image || p.score != null,
+  );
 
   return (
     <div className="w-full h-full min-h-[400px] md:min-h-[500px] rounded-[var(--r4)] overflow-hidden border border-[var(--b1)] shadow-inner z-0 relative">
@@ -210,8 +221,8 @@ export default function DealerMap({ points = [] }: DealerMapProps) {
         </div>
       )}
 
-      {/* Legend */}
-      {validPoints.length > 0 && (
+      {/* Legend — only for dot markers (cars network view); pill markers are self-labeling. */}
+      {validPoints.length > 0 && !hasPills && (
         <div className="absolute bottom-4 left-4 bg-[var(--s1)] border border-[var(--b1)] p-3 rounded-xl shadow-lg z-[1000] flex flex-col gap-2">
           <h4 className="text-[10px] font-black uppercase tracking-widest text-[var(--t4)] mb-1">
             Network

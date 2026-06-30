@@ -42,7 +42,6 @@ const nextConfig = {
     return [
       { source: '/deals', destination: '/find', permanent: false },
       { source: '/scanner', destination: '/scan', permanent: false },
-      { source: '/map', destination: '/find', permanent: false },
       { source: '/syndicate', destination: '/list', permanent: false },
       { source: '/watchlist', destination: '/fleet', permanent: false },
     ]
