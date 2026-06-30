@@ -8,6 +8,8 @@ import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { ImageGallery } from "@/components/shared/ImageGallery";
 import { housingPriceTerms } from "@/lib/housing/price-semantics";
+import { ValuationBasis } from "@/components/home/ValuationBasis";
+import { OfferSolver } from "@/components/home/OfferSolver";
 
 const DealerMap = dynamic(() => import("@/components/map/DealerMap"), {
   ssr: false,
@@ -340,7 +342,14 @@ export default function LeadDetailPage({
           {/* Deal analysis — the 70% rule */}
           <Card title="Flip analysis (70% rule)">
             {a.mao != null ? (
-              <div className="space-y-3">
+              <div className="space-y-4">
+                {/* The decision, up top — verdict + how much to trust it. */}
+                <DecisionHeader
+                  verdict={a.verdict}
+                  confidence={a.arvConfidence}
+                  mao={a.mao}
+                  ask={lead.price}
+                />
                 <FlipWaterfall
                   price={lead.price}
                   repairs={a.repairEstimate}
@@ -348,31 +357,17 @@ export default function LeadDetailPage({
                   mao={a.mao}
                   equity={a.equitySpread}
                 />
-                <div className="grid grid-cols-3 gap-3">
-                  <Metric
-                    label="ARV (est.)"
-                    value={money(a.arv)}
-                    sub={a.arvConfidence}
+                {/* How we got every number — real comps vs labeled assumption. */}
+                <ValuationBasis analysis={a} sqft={lead.sqft} />
+                {/* Tune the assumption yourself — repairs/margin recompute the offer live. */}
+                {lead.sqft && a.arv != null && (
+                  <OfferSolver
+                    arv={a.arv}
+                    sqft={lead.sqft}
+                    askPrice={lead.price || 0}
+                    arvConfidence={a.arvConfidence}
+                    defaultRehab={a.rehabLevel}
                   />
-                  <Metric
-                    label="Repairs (est.)"
-                    value={money(a.repairEstimate)}
-                    sub={a.rehabLevel}
-                  />
-                  <Metric
-                    label="Max offer"
-                    value={money(a.mao)}
-                    accent={VERDICT_COLOR[a.verdict] || ACCENT}
-                    sub={a.verdict}
-                  />
-                </div>
-                {a.equitySpread != null && (
-                  <p className="text-sm text-[var(--t3)]">
-                    Gross equity potential:{" "}
-                    <span className="font-black text-[var(--t1)]">
-                      {money(a.equitySpread)}
-                    </span>
-                  </p>
                 )}
               </div>
             ) : (
@@ -621,6 +616,85 @@ function Card({
       </h2>
       {children}
     </motion.div>
+  );
+}
+
+// The verdict, made the headline — GO/FAIR/TIGHT/PASS with a confidence chip so the user reads "how good"
+// AND "how sure" at a glance, instead of hunting for a tiny sub-label. The confidence chip is the honest
+// guardrail: a coarse-ARV deal can never show as a confident "strong".
+function DecisionHeader({
+  verdict,
+  confidence,
+  mao,
+  ask,
+}: {
+  verdict: string;
+  confidence: string;
+  mao?: number | null;
+  ask?: number | null;
+}) {
+  const color = VERDICT_COLOR[verdict] || ACCENT;
+  const headline: Record<string, string> = {
+    strong: "Strong buy",
+    fair: "Fair deal",
+    tight: "Tight — thin margin",
+    pass: "Pass",
+    unknown: "Not enough data",
+  };
+  const confMeta: Record<string, { label: string; color: string }> = {
+    high: { label: "High confidence", color: "var(--green)" },
+    medium: { label: "Medium confidence", color: ACCENT },
+    low: { label: "Estimate only", color: "var(--amber)" },
+    none: { label: "Not computable", color: "var(--t4)" },
+  };
+  const cm = confMeta[confidence] || confMeta.none;
+  const delta = mao != null && ask != null ? mao - ask : null;
+  return (
+    <div
+      className="rounded-[var(--r3)] p-3.5"
+      style={{
+        background: `color-mix(in srgb, ${color} 10%, var(--s0))`,
+        border: `1px solid color-mix(in srgb, ${color} 35%, transparent)`,
+      }}
+    >
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <span className="text-2xl font-black" style={{ color }}>
+          {headline[verdict] || "—"}
+        </span>
+        <span
+          className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider px-2 py-1 rounded-full"
+          style={{
+            background: `color-mix(in srgb, ${cm.color} 16%, transparent)`,
+            color: cm.color,
+          }}
+        >
+          <span
+            className="inline-block w-1.5 h-1.5 rounded-full"
+            style={{ background: cm.color }}
+          />
+          {cm.label}
+        </span>
+      </div>
+      {delta != null && (
+        <p className="mt-1 text-[13px] text-[var(--t3)]">
+          Max offer{" "}
+          <span className="font-black text-[var(--t1)]">{money(mao)}</span> ·
+          asking{" "}
+          <span className="font-bold text-[var(--t2)]">{money(ask)}</span>
+          {delta >= 0 ? (
+            <span className="text-[var(--green)] font-bold">
+              {" "}
+              · {money(delta)} under max
+            </span>
+          ) : (
+            <span className="text-[var(--red)] font-bold">
+              {" "}
+              · {money(-delta)} over max
+            </span>
+          )}
+        </p>
+      )}
+    </div>
   );
 }
 

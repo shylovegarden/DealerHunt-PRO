@@ -32,8 +32,15 @@ export const PPSF_UPDATED: string =
 // median sold $/sqft — only fresher). Set once per harvest (worker) and per request (cached). Pure reads
 // at call time; the map is a module-level ref so analyzeHousingDeal stays synchronous.
 let LIVE_BY_ZIP: Record<string, PpsfByType> = {};
-export function setLiveZipPsf(byZip: Record<string, PpsfByType>): void {
+// Per-ZIP count of the real closed comps behind each live median — the honesty signal we surface to users
+// ("ARV backed by 7 sold comps in this ZIP"). Parallel to LIVE_BY_ZIP; set together each refresh.
+let LIVE_COMPS_BY_ZIP: Record<string, number> = {};
+export function setLiveZipPsf(
+  byZip: Record<string, PpsfByType>,
+  comps?: Record<string, number>,
+): void {
   LIVE_BY_ZIP = byZip || {};
+  LIVE_COMPS_BY_ZIP = comps || {};
 }
 export function liveZipCount(): number {
   return Object.keys(LIVE_BY_ZIP).length;
@@ -61,23 +68,37 @@ function pick(byType?: PpsfByType, propertyType?: string): number | null {
  * a COUNTY median is comp-grade, a STATE median is a coarse regional guess (a Detroit land-bank shell and a
  * Birmingham metro condo share one statewide number) so ARV built on it must NOT be presented as a flip.
  */
+export interface PsfDetail {
+  psf: number;
+  level: "zip" | "county" | "state";
+  /** "live" = our own fresh harvested sold comps; "snapshot" = committed Redfin Data Center medians. */
+  source: "live" | "snapshot";
+  /** Real closed-comp count behind the median — only known for the live tier. */
+  comps?: number;
+}
 export function marketPsfDetailed(
   stateCode?: string,
   propertyType?: string,
   zip?: string | null,
-): { psf: number; level: "zip" | "county" | "state" } | null {
+): PsfDetail | null {
   const st = (stateCode || "").toUpperCase();
   const z = zip ? String(zip).trim().slice(0, 5) : null;
 
   // LIVE ZIP first — our own fresh harvested sold $/sqft (when present) beats the periodic snapshot.
   if (z) {
     const lv = pick(LIVE_BY_ZIP[z], propertyType);
-    if (lv != null) return { psf: lv, level: "zip" };
+    if (lv != null)
+      return {
+        psf: lv,
+        level: "zip",
+        source: "live",
+        comps: LIVE_COMPS_BY_ZIP[z],
+      };
   }
   // Static ZIP snapshot next (tightest committed comp — works even when we don't know the state).
   if (z) {
     const v = pick(BY_ZIP[z], propertyType);
-    if (v != null) return { psf: v, level: "zip" };
+    if (v != null) return { psf: v, level: "zip", source: "snapshot" };
   }
   if (!st) return null;
 
@@ -86,13 +107,13 @@ export function marketPsfDetailed(
     const county = ZIP_COUNTY[z];
     if (county) {
       const v = pick(BY_COUNTY[`${normCounty(county)}|${st}`], propertyType);
-      if (v != null) return { psf: v, level: "county" };
+      if (v != null) return { psf: v, level: "county", source: "snapshot" };
     }
   }
 
   // State-level fallback (coarse).
   const sv = pick(BY_STATE[st], propertyType);
-  return sv != null ? { psf: sv, level: "state" } : null;
+  return sv != null ? { psf: sv, level: "state", source: "snapshot" } : null;
 }
 
 /** Median sale $/sqft for a property (county → state → null). See marketPsfDetailed for granularity. */

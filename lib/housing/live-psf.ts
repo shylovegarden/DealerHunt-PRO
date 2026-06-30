@@ -168,12 +168,13 @@ export async function loadLivePsf(): Promise<Map<string, MarketTemp>> {
   if (CACHE && Date.now() - CACHE.at < TTL) return CACHE.temp;
   const temp = new Map<string, MarketTemp>();
   const byZip: Record<string, Record<string, number>> = {};
+  const comps: Record<string, number> = {};
   try {
     const sb = service();
     const { data, error } = await sb
       .from("zip_live_psf")
       .select(
-        "zip, psf_all, psf_single_family, psf_multi_family, psf_condo, active_count, median_dom, list_psf",
+        "zip, psf_all, psf_single_family, psf_multi_family, psf_condo, sold_comps, active_count, median_dom, list_psf",
       );
     if (!error && data) {
       for (const r of data as any[]) {
@@ -183,6 +184,7 @@ export async function loadLivePsf(): Promise<Map<string, MarketTemp>> {
           if (r.psf_multi_family) m.multi_family = r.psf_multi_family;
           if (r.psf_condo) m.condo = r.psf_condo;
           byZip[r.zip] = m;
+          if (r.sold_comps) comps[r.zip] = Number(r.sold_comps);
         }
         temp.set(r.zip, {
           activeCount: r.active_count ?? undefined,
@@ -194,7 +196,7 @@ export async function loadLivePsf(): Promise<Map<string, MarketTemp>> {
   } catch (e) {
     console.warn("[live-psf] load skipped:", (e as Error).message);
   }
-  setLiveZipPsf(byZip);
+  setLiveZipPsf(byZip, comps);
   CACHE = { at: Date.now(), temp };
   return temp;
 }

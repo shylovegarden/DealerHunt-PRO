@@ -74,4 +74,16 @@ describe("marketPsf", () => {
     setLiveZipPsf({}); // reset so other tests see the static snapshot
     expect(marketPsfDetailed("GA", "all", "30303")!.psf).toBe(before);
   });
+
+  it("tags the source as live + carries the real comp count when injected", () => {
+    setLiveZipPsf({ "30303": { all: 250 } }, { "30303": 9 });
+    const d = marketPsfDetailed("GA", "all", "30303")!;
+    expect(d.source).toBe("live");
+    expect(d.comps).toBe(9);
+    setLiveZipPsf({}); // reset
+    // The committed snapshot is "snapshot"-sourced with no comp count.
+    const s = marketPsfDetailed("GA", "all", "30303")!;
+    expect(s.source).toBe("snapshot");
+    expect(s.comps).toBeUndefined();
+  });
 });

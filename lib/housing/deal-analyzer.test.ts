@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { analyzeHousingDeal, inferRehabLevel } from "./deal-analyzer";
+import {
+  analyzeHousingDeal,
+  inferRehabLevel,
+  flipVerdict,
+} from "./deal-analyzer";
 import { marketPsf } from "./arv-psf";
 import type { Property } from "./types";
 
@@ -125,5 +129,37 @@ describe("analyzeHousingDeal — 70% rule", () => {
       title: "Vacant lot",
     });
     expect(a.repairEstimate).toBe(0);
+  });
+
+  it("exposes the basis behind every dollar (psf, source, repair psf) for disclosure", () => {
+    const a = analyzeHousingDeal(
+      { ...base, sqft: 1500, state: "IL", title: "fixer" },
+      { psf: 180 },
+    );
+    expect(a.arvPsf).toBe(180);
+    expect(a.repairPsf).toBe(60); // heavy = $60/sqft
+    expect(a.arvSource).toBe("snapshot"); // injected psf is treated as committed-grade
+  });
+
+  it("regional fallback is sourced 'regional' (no comps) so the UI can label it an estimate", () => {
+    const a = analyzeHousingDeal({ ...base, sqft: 1000, state: "ZZ" });
+    expect(a.arvSource).toBe("regional");
+    expect(a.arvComps).toBeNull();
+    expect(a.arvConfidence).toBe("low");
+  });
+});
+
+describe("flipVerdict", () => {
+  it("caps a low-confidence ARV at 'tight' — never a confident strong/fair", () => {
+    // ask well under MAO would be "strong", but a coarse ARV can't earn it.
+    expect(flipVerdict(50_000, 300_000, 100_000, 150_000, "low")).toBe("tight");
+    expect(flipVerdict(50_000, 300_000, 100_000, 150_000, "high")).toBe(
+      "strong",
+    );
+  });
+
+  it("a money-losing gut job is a pass, not 'tight'", () => {
+    // ARV 200k, ask 150k, equity −85k → pass even though ask ≤ 0.75·ARV.
+    expect(flipVerdict(150_000, 200_000, 5_000, -85_000, "high")).toBe("pass");
   });
 });
