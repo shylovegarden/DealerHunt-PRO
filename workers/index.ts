@@ -93,6 +93,14 @@ async function scheduleJobs() {
         attempts: 1,
       },
     );
+    // HOUSING PRICING — every 6h, harvest recent SOLD comps and write per-ZIP median sold $/sqft so ARV
+    // learns from our own live data (the static snapshot becomes the floor, not the ceiling). Sold $/sqft
+    // is stable, so 6h is plenty; runs separate from the 30-min lead harvest.
+    await maintenanceQueue.add(
+      "housing-pricing",
+      {},
+      { repeat: { pattern: "40 */6 * * *" }, attempts: 1 },
+    );
     console.log("[Queue] Maintenance jobs scheduled");
   } catch (err) {
     console.error("[Queue] Failed to schedule jobs. Is Redis running?", err);
@@ -158,6 +166,14 @@ const worker = new Worker(
           ? results.reduce((s: number, r: any) => s + (r?.dealsFound || 0), 0)
           : 0;
         console.log(`[Worker] Cars harvest: ${found} deals across sources`);
+        return;
+      }
+      case "housing-pricing": {
+        const { refreshSoldPsf } = await import("../lib/housing/live-psf");
+        const { closeSmartFetch } = await import("../lib/scrapers/smart-fetch");
+        const n = await refreshSoldPsf();
+        await closeSmartFetch().catch(() => {});
+        console.log(`[Worker] Housing pricing: ${n} ZIP sold-$/sqft medians`);
         return;
       }
       default:

@@ -25,6 +25,20 @@ const ZIP_COUNTY: Record<string, string> =
 export const PPSF_UPDATED: string =
   (statePpsf as { updated?: string }).updated || "";
 
+// ── LIVE tier (injectable) ──────────────────────────────────────────────────
+// Fresh median SOLD $/sqft per ZIP, computed from OUR live harvest (lib/housing/live-psf.ts) and injected
+// here so the static JSON snapshots stay the floor, not the ceiling. This is how pricing LEARNS from the
+// harvest: when the live map has a ZIP, it wins over the periodic snapshot (it's the same kind of data —
+// median sold $/sqft — only fresher). Set once per harvest (worker) and per request (cached). Pure reads
+// at call time; the map is a module-level ref so analyzeHousingDeal stays synchronous.
+let LIVE_BY_ZIP: Record<string, PpsfByType> = {};
+export function setLiveZipPsf(byZip: Record<string, PpsfByType>): void {
+  LIVE_BY_ZIP = byZip || {};
+}
+export function liveZipCount(): number {
+  return Object.keys(LIVE_BY_ZIP).length;
+}
+
 // Normalize a county name to match the county-ppsf keys ("Cook County" → "cook county").
 function normCounty(name: string): string {
   return name
@@ -55,7 +69,12 @@ export function marketPsfDetailed(
   const st = (stateCode || "").toUpperCase();
   const z = zip ? String(zip).trim().slice(0, 5) : null;
 
-  // ZIP-level first (tightest comp — works even when we don't know the state).
+  // LIVE ZIP first — our own fresh harvested sold $/sqft (when present) beats the periodic snapshot.
+  if (z) {
+    const lv = pick(LIVE_BY_ZIP[z], propertyType);
+    if (lv != null) return { psf: lv, level: "zip" };
+  }
+  // Static ZIP snapshot next (tightest committed comp — works even when we don't know the state).
   if (z) {
     const v = pick(BY_ZIP[z], propertyType);
     if (v != null) return { psf: v, level: "zip" };

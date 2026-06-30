@@ -6,6 +6,7 @@ import { harvestGovDealsProperties } from "@/lib/housing/sources/govdeals-proper
 import { scoreHousingLead } from "@/lib/housing/lead-score";
 import { analyzeHousingDeal } from "@/lib/housing/deal-analyzer";
 import { rentCashflow } from "@/lib/housing/rent";
+import { loadLivePsf } from "@/lib/housing/live-psf";
 import {
   queryProperties,
   countByState,
@@ -279,6 +280,8 @@ async function cachedCountByState(): Promise<Record<string, number>> {
 }
 
 export async function GET(req: NextRequest) {
+  // Inject our live sold $/sqft into arv-psf so every served lead's ARV/score uses the freshest comps.
+  await loadLivePsf().catch(() => {});
   const sp = new URL(req.url).searchParams;
   const state = (sp.get("state") || "").toUpperCase();
   const statesParam = (sp.get("states") || "")

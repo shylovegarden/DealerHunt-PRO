@@ -421,6 +421,50 @@ export default function LeadDetailPage({
             </Card>
           )}
 
+          {/* Market temperature — live from our own harvest of this ZIP (context, not ARV). */}
+          {lead.market &&
+            (lead.market.activeCount ||
+              lead.market.medianDom != null ||
+              lead.market.listPsf) && (
+              <Card title={`Market temperature · ${lead.zip || ""}`}>
+                <div className="grid grid-cols-3 gap-3">
+                  {lead.market.activeCount != null && (
+                    <Metric
+                      label="Active listings"
+                      value={String(lead.market.activeCount)}
+                    />
+                  )}
+                  {lead.market.medianDom != null && (
+                    <Metric
+                      label="Median days on mkt"
+                      value={`${lead.market.medianDom}d`}
+                      accent={
+                        lead.market.medianDom >= 60 ? "var(--green)" : undefined
+                      }
+                      sub={
+                        lead.market.medianDom >= 60
+                          ? "slow — buyer's market"
+                          : lead.market.medianDom <= 21
+                            ? "hot — moves fast"
+                            : undefined
+                      }
+                    />
+                  )}
+                  {lead.market.listPsf != null && (
+                    <Metric
+                      label="Asking $/sqft"
+                      value={`$${lead.market.listPsf}`}
+                      sub="median (asking)"
+                    />
+                  )}
+                </div>
+                <p className="mt-2 text-[11px] text-[var(--t4)]">
+                  Live from our harvest of this ZIP. Asking $/sqft is context —
+                  ARV uses sold comps.
+                </p>
+              </Card>
+            )}
+
           {/* Facts */}
           {(lead.beds ||
             lead.baths ||

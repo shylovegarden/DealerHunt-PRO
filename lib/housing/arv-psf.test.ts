@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { marketPsf, marketPsfDetailed, PPSF_UPDATED } from "./arv-psf";
+import {
+  marketPsf,
+  marketPsfDetailed,
+  setLiveZipPsf,
+  PPSF_UPDATED,
+} from "./arv-psf";
 
 // Runs against the committed real Redfin snapshot (lib/housing/data/state-ppsf.json). Assertions are
 // shape/relationship-based (not exact dollar values) so a monthly refresh doesn't break them.
@@ -58,5 +63,15 @@ describe("marketPsf", () => {
   it("ZIP tier resolves even without a state code (zip is globally unique)", () => {
     const d = marketPsfDetailed(undefined, "all", "30303");
     expect(d?.level).toBe("zip");
+  });
+
+  it("LIVE injected sold $/sqft overrides the static snapshot for that ZIP", () => {
+    const before = marketPsfDetailed("GA", "all", "30303")!.psf;
+    setLiveZipPsf({ "30303": { all: before + 777 } });
+    const after = marketPsfDetailed("GA", "all", "30303")!;
+    expect(after.psf).toBe(before + 777);
+    expect(after.level).toBe("zip");
+    setLiveZipPsf({}); // reset so other tests see the static snapshot
+    expect(marketPsfDetailed("GA", "all", "30303")!.psf).toBe(before);
   });
 });

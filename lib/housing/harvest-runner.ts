@@ -23,6 +23,7 @@ import { harvestPortals } from "./sources/portals";
 import { harvestReso } from "./sources/reso";
 import { enrichRedfinProperties } from "./sources/redfin-enrich";
 import { upsertProperties, reconcileStaleProperties } from "./store";
+import { loadLivePsf, refreshMarketTemp } from "./live-psf";
 
 export interface HarvestResult {
   ok: boolean;
@@ -34,6 +35,9 @@ export interface HarvestResult {
 
 /** Run the full housing harvest: all free sources in parallel, then upsert. Safe to call anywhere. */
 export async function runHousingHarvest(): Promise<HarvestResult> {
+  // Inject our own live SOLD $/sqft into arv-psf BEFORE scoring, so every lead's ARV/equity uses the
+  // freshest comps we've harvested (falls back to the static snapshot per-ZIP where we have none yet).
+  await loadLivePsf().catch(() => {});
   const [
     gd,
     ad,
@@ -102,6 +106,10 @@ export async function runHousingHarvest(): Promise<HarvestResult> {
   }
 
   const written = await upsertProperties(properties);
+
+  // Refresh the market-temperature half of the live index (active count / DOM / asking $/sqft) from the
+  // listings we just pulled — no extra fetch, feeds the user-facing "market temp" (never ARV).
+  if (written > 0) await refreshMarketTemp(properties).catch(() => 0);
 
   // Freshness: retire listings not re-seen in 21 days (sold/delisted) so counts stay truthful. Only after a
   // healthy harvest (written > 0) — never prune on an empty/failed run that could wrongly retire everything.

@@ -5,6 +5,7 @@ import { getProperty } from "@/lib/housing/store";
 import { scoreHousingLead } from "@/lib/housing/lead-score";
 import { analyzeHousingDeal } from "@/lib/housing/deal-analyzer";
 import { rentCashflow } from "@/lib/housing/rent";
+import { loadLivePsf } from "@/lib/housing/live-psf";
 import type { Property } from "@/lib/housing/types";
 
 // GET /api/homeiq/leads/[id] — one property's full HomeIQ analysis: lead score (with reasons), the
@@ -15,12 +16,15 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
+  // Inject live sold $/sqft so this lead's ARV uses our freshest comps; grab the ZIP's market temperature.
+  const temp = await loadLivePsf().catch(() => null);
   const row = await getProperty(id);
   if (!row) {
     return NextResponse.json({ error: "Lead not found" }, { status: 404 });
   }
 
   const p = row as Property;
+  const market = (p.zip && temp?.get(String(p.zip).slice(0, 5))) || undefined;
   // Prefer the stored score; recompute reasons + the deal analysis transparently.
   const score = scoreHousingLead(p);
   const analysis = analyzeHousingDeal(p);
@@ -115,6 +119,7 @@ export async function GET(
       signals: score.signals,
       analysis,
       cashflow,
+      market, // live ZIP temperature: { activeCount, medianDom, listPsf } — context, not ARV
     },
   });
 }
