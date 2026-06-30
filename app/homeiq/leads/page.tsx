@@ -107,9 +107,11 @@ interface Lead {
   source?: string;
   status?: string;
   property_type?: string;
+  address?: string;
   city?: string;
   state?: string;
   image?: string;
+  stack?: number;
   auction_end?: string;
   bid_count?: number;
   score: number;
@@ -181,7 +183,9 @@ function LeadsInner() {
     if (tier) r = r.filter((l) => l.tier === tier);
     if (type) r = r.filter((l) => l.property_type === type);
     if (source) r = r.filter((l) => l.source === source);
-    if (category) r = r.filter((l) => leadCategories(l).includes(category));
+    if (category === "stacked") r = r.filter((l) => (l.stack || 0) >= 2);
+    else if (category)
+      r = r.filter((l) => leadCategories(l).includes(category));
     if (maxPrice) r = r.filter((l) => (l.price || 0) <= maxPrice);
     if (q.trim()) {
       const t = q.trim().toLowerCase();
@@ -349,6 +353,27 @@ function LeadsInner() {
         >
           All leads
         </button>
+        {(() => {
+          const stacked = all.filter((l) => (l.stack || 0) >= 2).length;
+          if (stacked === 0) return null;
+          return (
+            <button
+              onClick={() =>
+                setCategory(category === "stacked" ? "" : "stacked")
+              }
+              className="px-3 py-1.5 rounded-full text-xs font-black transition-colors"
+              style={{
+                background: category === "stacked" ? "var(--red)" : "var(--s2)",
+                color: category === "stacked" ? "#fff" : "var(--red)",
+                border: "1px solid var(--red)",
+              }}
+              title="On 2+ distress lists — the most motivated sellers"
+            >
+              📚 Stacked{" "}
+              <span style={{ opacity: 0.7 }}>{stacked.toLocaleString()}</span>
+            </button>
+          );
+        })()}
         {LEAD_CATEGORIES.map((c) => {
           const count = all.filter((l) =>
             leadCategories(l).includes(c.key),
@@ -521,6 +546,15 @@ function LeadCard({ lead }: { lead: Lead }) {
           {lead.source && (
             <span className="text-[10px] font-semibold text-[var(--t4)] px-1.5 py-0.5 rounded-full bg-[var(--s2)] border border-[var(--b1)]">
               {sourceLabel(lead.source)}
+            </span>
+          )}
+          {(lead.stack || 0) >= 2 && (
+            <span
+              className="text-[10px] font-black px-1.5 py-0.5 rounded-full"
+              style={{ color: "#fff", background: "var(--red)" }}
+              title="Appears on multiple distress lists — high motivation"
+            >
+              📚 {lead.stack} lists
             </span>
           )}
           {lead.status && (
