@@ -45,14 +45,26 @@ describe("analyzeHousingDeal — 70% rule", () => {
     expect(a.verdict).toBe("strong");
   });
 
-  it("prefers the real Redfin median sale $/sqft, by property type (medium confidence)", () => {
-    // base.property_type is single_family, so the analyzer should use IL's single-family $/sqft.
+  it("uses the real Redfin median sale $/sqft — STATEWIDE = low confidence (no zip→county)", () => {
+    // No zip → statewide median: real data but coarse, so confidence is LOW (can't be a verified flip).
     const psf = marketPsf("IL", "single_family");
     expect(psf).toBeGreaterThan(0); // snapshot ships with all 50 states + DC
     const a = analyzeHousingDeal({ ...base, sqft: 1500, state: "IL" });
     expect(a.arvBasis).toBe("market_psf");
-    expect(a.arvConfidence).toBe("medium");
+    expect(a.arvConfidence).toBe("low");
     expect(a.arv).toBe(1500 * (psf as number));
+  });
+
+  it("a zip→county median is comp-grade (medium confidence)", () => {
+    // 60601 → Cook County, IL has county $/sqft → medium confidence.
+    const a = analyzeHousingDeal({
+      ...base,
+      sqft: 1500,
+      state: "IL",
+      zip: "60601",
+    });
+    expect(a.arvBasis).toBe("market_psf");
+    expect(a.arvConfidence).toBe("medium");
   });
 
   it("falls back to the coarse regional reference for an unmapped region (low confidence)", () => {

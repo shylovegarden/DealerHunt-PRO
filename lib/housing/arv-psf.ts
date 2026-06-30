@@ -39,15 +39,16 @@ function pick(byType?: PpsfByType, propertyType?: string): number | null {
 }
 
 /**
- * Median sale $/sqft for a property, most-precise-first: county (zip→county) → state → null. Prefers the
- * property-type figure (condo vs single-family diverge sharply), falling back to the all-residential
- * aggregate at each level.
+ * Median sale $/sqft WITH its granularity, most-precise-first: county (zip→county) → state → null. The
+ * `level` tells callers how much to trust it — a COUNTY median is comp-grade; a STATE median is a coarse
+ * regional guess (a Detroit land-bank shell and a Birmingham metro condo share one statewide number), so
+ * ARV built on it must NOT be presented as a verified flip.
  */
-export function marketPsf(
+export function marketPsfDetailed(
   stateCode?: string,
   propertyType?: string,
   zip?: string | null,
-): number | null {
+): { psf: number; level: "county" | "state" } | null {
   const st = (stateCode || "").toUpperCase();
   if (!st) return null;
 
@@ -56,10 +57,20 @@ export function marketPsf(
     const county = ZIP_COUNTY[String(zip).trim().slice(0, 5)];
     if (county) {
       const v = pick(BY_COUNTY[`${normCounty(county)}|${st}`], propertyType);
-      if (v != null) return v;
+      if (v != null) return { psf: v, level: "county" };
     }
   }
 
-  // State-level fallback.
-  return pick(BY_STATE[st], propertyType);
+  // State-level fallback (coarse).
+  const sv = pick(BY_STATE[st], propertyType);
+  return sv != null ? { psf: sv, level: "state" } : null;
+}
+
+/** Median sale $/sqft for a property (county → state → null). See marketPsfDetailed for granularity. */
+export function marketPsf(
+  stateCode?: string,
+  propertyType?: string,
+  zip?: string | null,
+): number | null {
+  return marketPsfDetailed(stateCode, propertyType, zip)?.psf ?? null;
 }

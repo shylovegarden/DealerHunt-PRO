@@ -72,7 +72,8 @@ describe("equity signal (the math, not just distress words)", () => {
       ...base,
       title: "3 bed home",
       property_type: "single_family",
-      state: "OH",
+      state: "IL",
+      zip: "60601", // comp-grade county ARV so the equity math is trusted
       sqft: 2000,
       price: 45000,
     });
@@ -80,9 +81,10 @@ describe("equity signal (the math, not just distress words)", () => {
       ...base,
       title: "3 bed home",
       property_type: "single_family",
-      state: "OH",
+      state: "IL",
+      zip: "60601",
       sqft: 2000,
-      price: 300000, // ~ARV → no equity
+      price: 480000, // ~ARV (2000 × ~$254 county) → no equity
     });
     expect(underpriced.score).toBeGreaterThan(atArv.score);
     expect(underpriced.signals.join(" ")).toMatch(/below max offer|equity/i);
@@ -192,16 +194,29 @@ describe("money gate (verified verdict overrides distress vibes)", () => {
     expect(r.tier).not.toBe("hot");
   });
 
-  it("adds a verified-flip signal for a real strong-equity deal", () => {
+  it("adds a verified-flip signal for a real strong-equity deal (comp-grade county ARV)", () => {
     const r = scoreHousingLead({
       ...base,
       title: "3 bed home",
       property_type: "single_family",
-      state: "OH",
+      state: "IL",
+      zip: "60601", // → Cook County median = comp-grade (medium confidence) → a real verdict
       sqft: 2000,
       price: 40000,
     });
     expect(r.signals.join(" ")).toMatch(/Verified flip/i);
+  });
+
+  it("does NOT call a statewide-only ARV a verified flip (0-margin guard)", () => {
+    const r = scoreHousingLead({
+      ...base,
+      title: "3 bed home",
+      property_type: "single_family",
+      state: "OH", // no zip → statewide median → low confidence → no verified-flip claim
+      sqft: 2000,
+      price: 40000,
+    });
+    expect(r.signals.join(" ")).not.toMatch(/Verified flip/i);
   });
 });
 

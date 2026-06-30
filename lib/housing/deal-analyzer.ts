@@ -13,7 +13,7 @@
 // comps) flow in. Pure + tested.
 
 import type { Property } from "./types";
-import { marketPsf } from "./arv-psf";
+import { marketPsfDetailed } from "./arv-psf";
 
 export type RehabLevel = "light" | "medium" | "heavy" | "gut";
 
@@ -102,13 +102,25 @@ export interface HousingAnalysis {
   notes: string[];
 }
 
-/** Infer the rehab level from the listing language (distressed gov stock skews heavy). */
+/** Infer the rehab level from the listing language + distress signals (distressed shells skew gut/heavy). */
 export function inferRehabLevel(p: Property): RehabLevel {
   const t = `${p.title || ""} ${p.description || ""}`;
-  if (GUT_RE.test(t)) return "gut";
+  const sig = (p.signals as any) || {};
+  // Condemned / dangerous / vacant-abandoned structures are gut jobs regardless of listing wording.
+  if (GUT_RE.test(t) || sig.dangerous) return "gut";
   if (LIGHT_RE.test(t)) return "light";
   if (HEAVY_RE.test(t)) return "heavy";
-  return "medium"; // unknown gov fixer — assume meaningful work
+  // Distressed off-market shells (land bank, vacant, REO, foreclosure) and gov/bank disposal need real work.
+  if (
+    sig.land_bank ||
+    sig.vacant ||
+    sig.reo ||
+    sig.foreclosure ||
+    p.seller_type === "gov" ||
+    p.seller_type === "bank"
+  )
+    return "heavy";
+  return "medium"; // unknown fixer — assume meaningful work
 }
 
 /**
@@ -150,16 +162,20 @@ export function analyzeHousingDeal(
     notes.push("ARV provided");
   } else if (p.property_type !== "land" && p.sqft && p.sqft > 100) {
     const stateCode = (p.state || "").toUpperCase();
-    const sold =
+    const detail =
       opts.psf && opts.psf > 0
-        ? opts.psf
-        : marketPsf(stateCode, p.property_type, p.zip);
-    if (sold != null && sold > 0) {
-      arv = Math.round(p.sqft * sold);
+        ? { psf: opts.psf, level: "county" as const } // injected = treat as comp-grade
+        : marketPsfDetailed(stateCode, p.property_type, p.zip);
+    if (detail != null && detail.psf > 0) {
+      arv = Math.round(p.sqft * detail.psf);
       arvBasis = "market_psf";
-      arvConfidence = "medium";
+      // County median = comp-grade (medium). STATE median is a coarse regional guess (low) — a derelict
+      // land-bank shell and a metro home share one statewide number, so don't over-trust it.
+      arvConfidence = detail.level === "county" ? "medium" : "low";
       notes.push(
-        `ARV ≈ ${p.sqft.toLocaleString()} sqft × $${sold}/sqft (Redfin median sale $/sqft, ${stateCode || "US"} — regional, confirm with comps)`,
+        detail.level === "county"
+          ? `ARV ≈ ${p.sqft.toLocaleString()} sqft × $${detail.psf}/sqft (county median sale $/sqft — confirm with comps)`
+          : `ARV ≈ ${p.sqft.toLocaleString()} sqft × $${detail.psf}/sqft (${stateCode || "US"} STATEWIDE median — coarse, needs local comps)`,
       );
     } else {
       const psf = STATE_PSF[stateCode] || NATIONAL_PSF;
@@ -174,6 +190,18 @@ export function analyzeHousingDeal(
     notes.push("ARV needs square footage or comps");
   }
 
+  // Distressed SHELLS (land bank / condemned / vacant-abandoned) sit in the worst micro-markets that even a
+  // county median over-states, and they're gut jobs — without REAL comps, never trust the $/sqft ARV enough
+  // to call it a flip. (This is what put $1,000 Detroit land-bank shells on top with a fabricated spread.)
+  const sig = (p.signals as any) || {};
+  if (arvBasis !== "comps" && (sig.land_bank || sig.dangerous || sig.vacant)) {
+    arvConfidence = "low";
+    if (arv != null)
+      notes.push(
+        "Distressed shell — $/sqft ARV unreliable here; verify with local comps",
+      );
+  }
+
   // 70% rule.
   let mao: number | null = null;
   let equitySpread: number | null = null;
@@ -185,6 +213,10 @@ export function analyzeHousingDeal(
     else if (askPrice <= mao) verdict = "fair";
     else if (askPrice <= arv * 0.75) verdict = "tight";
     else verdict = "pass";
+    // 0-margin-for-error: a coarse STATEWIDE-median ARV is not a verified flip. Never present low-confidence
+    // ARV as "strong"/"fair" — cap at "tight" so it ranks on distress, not a fabricated equity number.
+    if (arvConfidence === "low" && (verdict === "strong" || verdict === "fair"))
+      verdict = "tight";
   }
 
   return {
