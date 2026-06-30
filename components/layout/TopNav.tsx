@@ -35,6 +35,7 @@ import {
   Banknote,
 } from "lucide-react";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
+import { AccountMenu } from "@/components/home/AccountMenu";
 
 // Clean primary nav — only real, dealer-relevant routes. Dead/ops/dev pages were pruned.
 const PRIMARY = [
@@ -327,6 +328,8 @@ export function TopNav() {
         <IconBtn href="/settings" title="Settings">
           <Settings style={{ width: 17, height: 17 }} />
         </IconBtn>
+        {/* Switch vertical + logout (inline so it doesn't float over the nav). */}
+        <AccountMenu floating={false} />
       </div>
     </header>
   );

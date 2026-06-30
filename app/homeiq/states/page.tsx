@@ -48,39 +48,7 @@ export default function StatesPage() {
   };
 
   return (
-    <main className="min-h-screen bg-transparent text-[var(--t1)]">
-      <header className="max-w-6xl mx-auto px-4 sm:px-6 pt-6 flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-2.5">
-          <span
-            className="w-8 h-8 rounded-[10px] grid place-items-center text-black font-black"
-            style={{ background: ACCENT }}
-          >
-            H
-          </span>
-          <span className="font-black text-lg">HomeIQ</span>
-          <span
-            className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full"
-            style={{ background: "var(--home-lo)", color: ACCENT }}
-          >
-            Markets
-          </span>
-        </div>
-        <div className="flex items-center gap-3">
-          <Link
-            href="/homeiq/leads"
-            className="text-sm font-semibold text-[var(--t3)] hover:text-[var(--t1)]"
-          >
-            All leads →
-          </Link>
-          <Link
-            href="/welcome"
-            className="text-sm font-semibold text-[var(--t3)] hover:text-[var(--t1)]"
-          >
-            ← Switch
-          </Link>
-        </div>
-      </header>
-
+    <div className="bg-transparent text-[var(--t1)]">
       <section className="max-w-6xl mx-auto px-4 sm:px-6 pt-8">
         <h1 className="text-[clamp(28px,5vw,52px)] font-black leading-tight">
           The whole market, by state
@@ -138,6 +106,6 @@ export default function StatesPage() {
           );
         })}
       </section>
-    </main>
+    </div>
   );
 }

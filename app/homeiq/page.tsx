@@ -68,32 +68,8 @@ export default function HomeIQHome() {
   };
 
   return (
-    <main className="min-h-screen bg-transparent text-[var(--t1)]">
-      <header className="max-w-6xl mx-auto px-4 sm:px-6 pt-6 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <span
-            className="w-8 h-8 rounded-[10px] grid place-items-center text-black font-black"
-            style={{ background: ACCENT }}
-          >
-            H
-          </span>
-          <span className="font-black text-lg">HomeIQ</span>
-          <span
-            className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full"
-            style={{ background: "var(--home-lo)", color: ACCENT }}
-          >
-            Beta
-          </span>
-        </div>
-        <Link
-          href="/welcome"
-          className="text-sm font-semibold text-[var(--t3)] hover:text-[var(--t1)]"
-        >
-          ← Switch hunt
-        </Link>
-      </header>
-
-      <section className="max-w-6xl mx-auto px-4 sm:px-6 pt-12">
+    <div className="bg-transparent text-[var(--t1)]">
+      <section className="max-w-6xl mx-auto px-4 sm:px-6 pt-8">
         <span
           className="text-[11px] font-black uppercase tracking-[0.3em]"
           style={{ color: ACCENT }}
@@ -256,7 +232,7 @@ export default function HomeIQHome() {
           </div>
         </section>
       )}
-    </main>
+    </div>
   );
 }
 

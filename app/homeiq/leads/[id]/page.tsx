@@ -596,34 +596,9 @@ function SaveButton({ listingId }: { listingId: string }) {
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <main className="min-h-screen bg-transparent text-[var(--t1)]">
-      <header className="max-w-6xl mx-auto px-4 sm:px-6 pt-6 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <span
-            className="w-8 h-8 rounded-[10px] grid place-items-center text-black font-black"
-            style={{ background: ACCENT }}
-          >
-            H
-          </span>
-          <span className="font-black text-lg">HomeIQ</span>
-        </div>
-        <div className="flex items-center gap-4">
-          <Link
-            href="/homeiq/saved"
-            className="text-sm font-semibold text-[var(--t3)] hover:text-[var(--t1)]"
-          >
-            Pipeline
-          </Link>
-          <Link
-            href="/homeiq/leads"
-            className="text-sm font-semibold text-[var(--t3)] hover:text-[var(--t1)]"
-          >
-            ← All leads
-          </Link>
-        </div>
-      </header>
+    <div className="bg-transparent text-[var(--t1)]">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-5">{children}</div>
-    </main>
+    </div>
   );
 }
 

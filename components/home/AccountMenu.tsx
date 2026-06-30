@@ -4,9 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { createClientComponentClient } from "@/lib/supabase";
 
-// The missing chrome: a small floating account menu present on every app surface — switch between the two
-// verticals (Houses ↔ Cars), jump back to the hub selector, and LOG OUT. There was none of this before.
-export function AccountMenu() {
+// The missing chrome: an account menu present on every app surface — switch between the two verticals
+// (Houses ↔ Cars), jump back to the hub selector, and LOG OUT. `floating` (default) pins it top-right;
+// pass floating={false} to drop it inline into a nav bar's right side.
+export function AccountMenu({ floating = true }: { floating?: boolean }) {
   const router = useRouter();
   const pathname = usePathname() || "";
   const [open, setOpen] = useState(false);
@@ -35,7 +36,10 @@ export function AccountMenu() {
     "w-full text-left px-3 py-2 text-sm font-semibold text-[var(--t2)] hover:bg-[var(--s2)] rounded-[var(--r2)] flex items-center gap-2";
 
   return (
-    <div ref={ref} className="fixed top-3 right-3 z-[60]">
+    <div
+      ref={ref}
+      className={floating ? "fixed top-3 right-3 z-[60]" : "relative"}
+    >
       <button
         onClick={() => setOpen((o) => !o)}
         aria-label="Account menu"

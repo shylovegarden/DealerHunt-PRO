@@ -1,16 +1,17 @@
 import { Toaster } from "sonner";
-import { AccountMenu } from "@/components/home/AccountMenu";
+import { HousingTopNav } from "@/components/home/HousingTopNav";
+import { HousingBottomNav } from "@/components/home/HousingBottomNav";
 
-// Shared HomeIQ chrome: a subtle ambient background (so the app isn't flat charcoal), the account menu
-// (vertical switcher + logout), and the toast host. Pages keep their own headers.
+// Shared HomeIQ chrome — now a real app shell (matching the cars dashboard): a persistent top nav + mobile
+// bottom nav, an ambient teal-aurora background, and the toast host. Pages no longer hand-roll headers.
 export default function HomeIQLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   return (
-    <>
-      {/* Ambient background — a faint teal aurora + vignette behind everything, fixed so it doesn't scroll. */}
+    <div className="min-h-screen text-[var(--t1)]">
+      {/* Ambient background — faint teal aurora + the base surface, fixed so it doesn't scroll. */}
       <div
         aria-hidden
         className="fixed inset-0 -z-10 pointer-events-none"
@@ -21,8 +22,9 @@ export default function HomeIQLayout({
             "var(--s1)",
         }}
       />
-      <AccountMenu />
-      {children}
+      <HousingTopNav />
+      <main className="pb-20 md:pb-6">{children}</main>
+      <HousingBottomNav />
       <Toaster
         position="bottom-center"
         theme="dark"
@@ -34,6 +36,6 @@ export default function HomeIQLayout({
           },
         }}
       />
-    </>
+    </div>
   );
 }

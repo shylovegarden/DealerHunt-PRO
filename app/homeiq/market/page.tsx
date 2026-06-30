@@ -141,33 +141,7 @@ export default function MarketIntelligence() {
   })).filter((v) => v.value > 0);
 
   return (
-    <main className="min-h-screen bg-transparent text-[var(--t1)]">
-      <header className="max-w-6xl mx-auto px-4 sm:px-6 pt-6 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <Link href="/homeiq" className="flex items-center gap-2.5">
-            <span
-              className="w-8 h-8 rounded-[10px] grid place-items-center text-black font-black"
-              style={{ background: ACCENT }}
-            >
-              H
-            </span>
-            <span className="font-black text-lg">HomeIQ</span>
-          </Link>
-          <span
-            className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full"
-            style={{ background: `${ACCENT}22`, color: ACCENT }}
-          >
-            Market
-          </span>
-        </div>
-        <Link
-          href="/homeiq/leads"
-          className="text-sm font-semibold text-[var(--t3)] hover:text-[var(--t1)]"
-        >
-          Browse leads →
-        </Link>
-      </header>
-
+    <div className="bg-transparent text-[var(--t1)]">
       <section className="max-w-6xl mx-auto px-4 sm:px-6 pt-8">
         <h1 className="text-[clamp(26px,4vw,40px)] font-black leading-tight">
           Market intelligence
@@ -262,7 +236,7 @@ export default function MarketIntelligence() {
           </div>
         )}
       </section>
-    </main>
+    </div>
   );
 }
 

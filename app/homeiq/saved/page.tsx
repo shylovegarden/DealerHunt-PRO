@@ -94,31 +94,7 @@ export default function SavedPipelinePage() {
   };
 
   return (
-    <main className="min-h-screen bg-transparent text-[var(--t1)]">
-      <header className="max-w-7xl mx-auto px-4 sm:px-6 pt-6 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <span
-            className="w-8 h-8 rounded-[10px] grid place-items-center text-black font-black"
-            style={{ background: ACCENT }}
-          >
-            H
-          </span>
-          <span className="font-black text-lg">HomeIQ</span>
-          <span
-            className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full"
-            style={{ background: "var(--home-lo)", color: ACCENT }}
-          >
-            Pipeline
-          </span>
-        </div>
-        <Link
-          href="/homeiq/leads"
-          className="text-sm font-semibold text-[var(--t3)] hover:text-[var(--t1)]"
-        >
-          ← Leads
-        </Link>
-      </header>
-
+    <div className="bg-transparent text-[var(--t1)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
         {isLoading && (
           <p className="text-[var(--t4)] text-sm py-10 text-center">
@@ -184,7 +160,7 @@ export default function SavedPipelinePage() {
           </div>
         )}
       </div>
-    </main>
+    </div>
   );
 }
 
