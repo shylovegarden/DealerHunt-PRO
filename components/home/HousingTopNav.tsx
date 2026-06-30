@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
   Home,
   List,
@@ -27,7 +27,6 @@ const PRIMARY = [
 
 export function HousingTopNav() {
   const pathname = usePathname() || "";
-  const router = useRouter();
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -35,6 +34,13 @@ export function HousingTopNav() {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  // Open the ⌘K palette by synthesizing the shortcut the palette already listens for — keeps the palette
+  // the single owner of its open state (no shared context needed).
+  const openPalette = () =>
+    window.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "k", metaKey: true }),
+    );
 
   const isActive = (href: string) =>
     pathname === href ||
@@ -105,9 +111,21 @@ export function HousingTopNav() {
 
       {/* Right actions */}
       <div className="flex items-center gap-2 shrink-0">
+        {/* Desktop ⌘K launcher — opens the command palette (search a city/ZIP or jump anywhere). */}
         <button
-          onClick={() => router.push("/homeiq/leads")}
-          title="Search leads"
+          onClick={openPalette}
+          title="Search & jump (⌘K)"
+          className="hidden md:flex items-center gap-2 h-9 pl-3 pr-2 rounded-xl text-[var(--t4)] hover:text-[var(--t2)] bg-[var(--s0)] border border-[var(--b1)] shadow-[var(--shadow2)] transition-colors"
+        >
+          <Search style={{ width: 15, height: 15 }} />
+          <span className="text-[12px] font-semibold">Search</span>
+          <kbd className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[var(--s2)] border border-[var(--b1)] text-[var(--t4)]">
+            ⌘K
+          </kbd>
+        </button>
+        <button
+          onClick={openPalette}
+          title="Search & jump (⌘K)"
           className="h-9 w-9 grid place-items-center rounded-xl text-[var(--t3)] hover:text-[var(--t1)] bg-[var(--s0)] shadow-[var(--shadow2)] md:hidden"
         >
           <Search style={{ width: 17, height: 17 }} />

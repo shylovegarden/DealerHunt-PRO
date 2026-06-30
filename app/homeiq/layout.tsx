@@ -1,6 +1,7 @@
 import { Toaster } from "sonner";
 import { HousingTopNav } from "@/components/home/HousingTopNav";
 import { HousingBottomNav } from "@/components/home/HousingBottomNav";
+import { HousingCommandPalette } from "@/components/home/HousingCommandPalette";
 
 // Shared HomeIQ chrome — now a real app shell (matching the cars dashboard): a persistent top nav + mobile
 // bottom nav, an ambient teal-aurora background, and the toast host. Pages no longer hand-roll headers.
@@ -25,6 +26,7 @@ export default function HomeIQLayout({
       <HousingTopNav />
       <main className="pb-20 md:pb-6">{children}</main>
       <HousingBottomNav />
+      <HousingCommandPalette />
       <Toaster
         position="bottom-center"
         theme="dark"
