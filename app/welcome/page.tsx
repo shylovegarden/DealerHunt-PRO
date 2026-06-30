@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import useSWR from "swr";
@@ -54,24 +54,39 @@ export default function WelcomePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focus]);
 
-  // The diagonal seam runs top-right → bottom-left. Each panel is the full viewport, clipped to its half;
-  // on focus the seam slides to give the focused side more room (cars push the seam left, houses right).
-  const seamTop = focus === "car" ? 80 : focus === "house" ? 36 : 58; // % across the TOP edge
-  const seamBot = focus === "car" ? 60 : focus === "house" ? 16 : 38; // % across the BOTTOM edge
-
+  // The diagonal seam runs top-right → bottom-left. On focus the seam slides to give the focused side more
+  // room. CRITICAL: hit-detection uses the FIXED REST seam (mouse position vs the resting diagonal), NOT the
+  // animated clip — otherwise the expanding panel slides the seam under the cursor and flips the hover back,
+  // which is the flicker/"moves opposite" glitch. The clip-path is purely visual; the mouse logic is stable.
+  const REST_TOP = 58,
+    REST_BOT = 38; // resting seam %, top & bottom edge
+  const seamTop = focus === "car" ? 82 : focus === "house" ? 34 : REST_TOP;
+  const seamBot = focus === "car" ? 62 : focus === "house" ? 14 : REST_BOT;
   const housePanel = `polygon(0 0, ${seamTop}% 0, ${seamBot}% 100%, 0 100%)`;
   const carPanel = `polygon(${seamTop}% 0, 100% 0, 100% 100%, ${seamBot}% 100%)`;
 
+  const ref = useRef<HTMLDivElement>(null);
+  // Which side is the cursor on, by the RESTING diagonal? Stable regardless of the animation.
+  function sideAt(clientX: number, clientY: number): "house" | "car" {
+    const r = ref.current?.getBoundingClientRect();
+    if (!r) return "house";
+    const xPct = ((clientX - r.left) / r.width) * 100;
+    const yPct = ((clientY - r.top) / r.height) * 100;
+    const seamX = REST_TOP + ((REST_BOT - REST_TOP) * yPct) / 100; // seam X at this height
+    return xPct < seamX ? "house" : "car";
+  }
+
   return (
-    <main className="fixed inset-0 overflow-hidden bg-black select-none">
-      {/* ── HomeIQ (houses) ───────────────────────────────────────────── */}
-      <button
-        aria-label="Enter HomeIQ — houses"
-        onMouseEnter={() => setHover("house")}
-        onMouseLeave={() => setHover(null)}
-        onFocus={() => setKeyFocus("house")}
-        onClick={() => enter("house")}
-        className="absolute inset-0 text-left transition-[clip-path] duration-[600ms] ease-out cursor-pointer group"
+    <main
+      ref={ref}
+      onMouseMove={(e) => setHover(sideAt(e.clientX, e.clientY))}
+      onMouseLeave={() => setHover(null)}
+      onClick={() => focus && enter(focus)}
+      className="fixed inset-0 overflow-hidden bg-black select-none cursor-pointer"
+    >
+      {/* ── HomeIQ (houses) — pointer-events:none; the <main> owns the mouse so the seam can't flip-flop. */}
+      <div
+        className="absolute inset-0 text-left transition-[clip-path] duration-500 ease-out pointer-events-none"
         style={{
           clipPath: housePanel,
           background:
@@ -89,16 +104,11 @@ export default function WelcomePage() {
           faded={focus === "car"}
           stats={houseStats}
         />
-      </button>
+      </div>
 
       {/* ── DealerHunt Pro (cars) ─────────────────────────────────────── */}
-      <button
-        aria-label="Enter DealerHunt Pro — cars"
-        onMouseEnter={() => setHover("car")}
-        onMouseLeave={() => setHover(null)}
-        onFocus={() => setKeyFocus("car")}
-        onClick={() => enter("car")}
-        className="absolute inset-0 text-left transition-[clip-path] duration-[600ms] ease-out cursor-pointer group"
+      <div
+        className="absolute inset-0 text-left transition-[clip-path] duration-500 ease-out pointer-events-none"
         style={{
           clipPath: carPanel,
           background:
@@ -116,6 +126,30 @@ export default function WelcomePage() {
           faded={focus === "house"}
           stats={carStats}
         />
+      </div>
+
+      {/* Keyboard/screen-reader entries (focusable, but mouse goes through to <main>). */}
+      <button
+        aria-label="Enter HomeIQ — houses"
+        onFocus={() => setKeyFocus("house")}
+        onClick={(e) => {
+          e.stopPropagation();
+          enter("house");
+        }}
+        className="sr-only"
+      >
+        Enter HomeIQ
+      </button>
+      <button
+        aria-label="Enter DealerHunt Pro — cars"
+        onFocus={() => setKeyFocus("car")}
+        onClick={(e) => {
+          e.stopPropagation();
+          enter("car");
+        }}
+        className="sr-only"
+      >
+        Enter DealerHunt Pro
       </button>
 
       {/* Center crest — the logo + a hint, sitting on the seam. pointer-events-none so it never blocks. */}

@@ -372,7 +372,7 @@ function LeadsInner() {
     : 0;
 
   return (
-    <main className="min-h-screen bg-[var(--s1)] text-[var(--t1)]">
+    <main className="min-h-screen bg-transparent text-[var(--t1)]">
       <header className="max-w-7xl mx-auto px-4 sm:px-6 pt-6 flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2.5">
           <span
