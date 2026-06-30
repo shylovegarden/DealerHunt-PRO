@@ -65,6 +65,9 @@ interface Lead {
   state?: string;
   zip?: string;
   image?: string;
+  // Public-record owner of record + mailing address (direct-mail ready when a county feed supplies it).
+  owner?: string;
+  ownerMailing?: string;
   // Cross-source list-stacking: # of distinct distress lists this property sits on (1 = single list).
   stack?: number;
   // Compact distress detail (amount owed, years, sheriff sale, below-market…) for card/detail badges.
@@ -175,6 +178,8 @@ function fromStored(r: StoredProperty): Lead {
       property_type: r.property_type,
       address: r.address,
       distress: distressFrom(r),
+      owner: (r.signals as any)?.owner,
+      ownerMailing: (r.signals as any)?.owner_mailing,
       city: r.city,
       state: r.state,
       zip: r.zip,
@@ -207,6 +212,8 @@ function fromLive(p: Property): Lead {
       property_type: p.property_type,
       address: p.address,
       distress: distressFrom(p),
+      owner: (p.signals as any)?.owner,
+      ownerMailing: (p.signals as any)?.owner_mailing,
       city: p.city,
       state: p.state,
       zip: p.zip,

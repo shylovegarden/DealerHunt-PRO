@@ -56,6 +56,72 @@ const shortMoney = (n?: number | null) =>
         ? `$${Math.round(n / 1000)}k`
         : `$${Math.round(n)}`;
 
+// Direct-mail / CRM export — the wholesaler's workflow: filter distressed → export → mail-merge. Builds a
+// CSV from the CURRENT filtered set (owner + mailing where public records supplied it, plus the deal math).
+function exportLeadsCsv(leads: Lead[]) {
+  if (!leads.length) return;
+  const cols = [
+    "Score",
+    "Tier",
+    "Property Address",
+    "City",
+    "State",
+    "ZIP",
+    "Price",
+    "Owner",
+    "Owner Mailing",
+    "Tax Owed",
+    "Years Owed",
+    "Foreclosure",
+    "Vacant",
+    "Absentee",
+    "Flip Max Offer",
+    "Verdict",
+    "Cap Rate %",
+    "Cashflow/mo",
+    "Source",
+    "URL",
+  ];
+  const esc = (v: unknown) => {
+    const s = v == null ? "" : String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const rows = leads.map((l) =>
+    [
+      l.score,
+      l.tier,
+      l.address,
+      l.city,
+      l.state,
+      l.zip,
+      l.price,
+      l.owner,
+      l.ownerMailing,
+      l.distress?.totalDue,
+      l.distress?.yearsOwed,
+      l.distress?.foreclosure ? "yes" : "",
+      (l.distress as any)?.vacant ? "yes" : "",
+      l.distress?.outOfState ? "yes" : "",
+      l.mao,
+      l.verdict,
+      l.capRate,
+      l.cashflowMo,
+      l.source,
+      l.url || "",
+    ]
+      .map(esc)
+      .join(","),
+  );
+  const csv = [cols.join(","), ...rows].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `homeiq-leads-${leads.length}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 const TIERS = [
   { key: "", label: "All" },
   { key: "hot", label: "🔥 Hot" },
@@ -119,6 +185,7 @@ function statusColor(s: string): string {
 interface Lead {
   id: string;
   title: string;
+  url?: string;
   price?: number;
   source?: string;
   status?: string;
@@ -126,7 +193,10 @@ interface Lead {
   address?: string;
   city?: string;
   state?: string;
+  zip?: string;
   image?: string;
+  owner?: string;
+  ownerMailing?: string;
   stack?: number;
   distress?: {
     totalDue?: number;
@@ -328,6 +398,14 @@ function LeadsInner() {
           </span>
         )}
         <div className="flex items-center gap-4">
+          <button
+            onClick={() => exportLeadsCsv(leads)}
+            disabled={!leads.length}
+            className="text-sm font-semibold text-[var(--t3)] hover:text-[var(--t1)] disabled:opacity-40"
+            title="Download the current filtered leads as a direct-mail / CRM-ready CSV"
+          >
+            ⬇ Export CSV
+          </button>
           <Link
             href="/homeiq/saved"
             className="text-sm font-semibold text-[var(--t3)] hover:text-[var(--t1)]"
