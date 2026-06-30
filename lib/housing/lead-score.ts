@@ -152,15 +152,30 @@ export function scoreHousingLead(p: Property): LeadScore {
   if (/reduc|price\s*drop|price\s*cut/.test(status))
     add(14, "Price reduced — seller is actively dropping the ask", "pricecut");
 
-  // 6c) DAYS ON MARKET — a stale listing is a softening seller (created_at ≈ first-seen lower bound).
+  // 6b-ii) COMING SOON / PRE-MARKET — a listing not yet fully public is an early-access lane: reach the
+  // seller before the open-market bidding war. The wholesaler's edge, straight off the MLS status.
+  if (/coming\s*soon|pre[-\s]*on[-\s]*market|pre[-\s]*market/.test(status))
+    add(
+      9,
+      "Coming soon / pre-market — early access, low competition",
+      "timing",
+    );
+
+  // 6c) DAYS ON MARKET — a stale listing is a softening seller. Prefer the REAL days-on-market the MLS feed
+  // carries (signals.days_on_market); fall back to created_at (first-seen) only when it's absent.
+  const realDom = Number((p.signals as any)?.days_on_market);
   const firstSeen = (p as any).created_at as string | undefined;
-  if (firstSeen) {
-    const days = (Date.now() - Date.parse(firstSeen)) / 86_400_000;
-    if (Number.isFinite(days)) {
-      if (days >= 90)
-        add(10, `On market ${Math.round(days)}d — stale, negotiable`, "dom");
-      else if (days >= 45) add(6, "On market 45d+ — softening", "dom");
-    }
+  const days = Number.isFinite(realDom)
+    ? realDom
+    : firstSeen
+      ? (Date.now() - Date.parse(firstSeen)) / 86_400_000
+      : NaN;
+  if (Number.isFinite(days)) {
+    if (days >= 180)
+      add(14, `On market ${Math.round(days)}d — very stale, motivated`, "dom");
+    else if (days >= 90)
+      add(10, `On market ${Math.round(days)}d — stale, negotiable`, "dom");
+    else if (days >= 45) add(6, "On market 45d+ — softening", "dom");
   }
 
   // 6d) OWNER DISTRESS (parcel/county data) — the high-value off-market signals the paid platforms sell,

@@ -128,6 +128,33 @@ describe("listing-signal coverage (price cut + days on market)", () => {
     } as any);
     expect(stale.signals.join(" ")).toMatch(/on market/i);
   });
+
+  it("prefers the REAL days-on-market from the MLS feed over the created_at proxy", () => {
+    // Fresh first-seen (created today) but the feed says it's been listed 200 days → still scores stale.
+    const today = new Date().toISOString();
+    const veryStale = scoreHousingLead({
+      ...base,
+      title: "House",
+      price: 90000,
+      created_at: today,
+      signals: { days_on_market: 200 },
+    } as any);
+    expect(veryStale.signals.join(" ")).toMatch(/200d.*motivated/i);
+  });
+
+  it("rewards a coming-soon / pre-market listing (early-access edge)", () => {
+    const coming = scoreHousingLead({
+      ...base,
+      title: "House",
+      price: 90000,
+      signals: { status: "Coming Soon" },
+    } as any);
+    const plain = scoreHousingLead({ ...base, title: "House", price: 90000 });
+    expect(coming.score).toBeGreaterThan(plain.score);
+    expect(coming.signals.join(" ")).toMatch(
+      /early access|pre-market|coming soon/i,
+    );
+  });
 });
 
 describe("top-grade scoring: keywords, negatives, stacking, grade", () => {
