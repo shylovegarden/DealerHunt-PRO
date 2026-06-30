@@ -20,6 +20,7 @@ import { fetchPhillyCodeViolations } from "./sources/code-violations";
 import { fetchOpenDataLeads } from "./sources/open-data-sources";
 import { harvestPortals } from "./sources/portals";
 import { harvestReso } from "./sources/reso";
+import { enrichRedfinProperties } from "./sources/redfin-enrich";
 import { upsertProperties } from "./store";
 
 export interface HarvestResult {
@@ -68,7 +69,7 @@ export async function runHousingHarvest(): Promise<HarvestResult> {
     harvestReso().catch(() => []), // MLS via RESO Web API (legit; [] until a member feed is wired)
   ]);
 
-  const properties = [
+  let properties = [
     ...gd,
     ...ad,
     ...hud,
@@ -86,6 +87,16 @@ export async function runHousingHarvest(): Promise<HarvestResult> {
     ...portals,
     ...mls,
   ];
+
+  // Opt-in per-listing enrichment (REDFIN_ENRICH=1, fleet-only): pull listing remarks/photos for the
+  // hottest Redfin leads so the distress scorer + rehab inference read real wording. Bounded + safe — every
+  // fetch returns null off-fleet, leaving leads untouched.
+  if (process.env.REDFIN_ENRICH === "1") {
+    properties = await enrichRedfinProperties(properties).catch(
+      () => properties,
+    );
+  }
+
   const written = await upsertProperties(properties);
 
   return {

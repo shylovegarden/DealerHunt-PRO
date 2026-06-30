@@ -61,6 +61,19 @@ degrades to `[]` gracefully; the fleet's IP spread + per-box/per-metro pacing ke
 Implemented in `lib/housing/sources/redfin-gis.ts` (`harvestRedfinGis` for-sale, `harvestRedfinSold` comps).
 Config: `REDFIN_AREAS="Name|lat|lng|radiusMiles,…"` (built-in nationwide seed runs by default).
 
+## Enrichment + valuation (built on top)
+
+- **ZIP-level ARV comps** (`redfin-zip-ppsf.ts`, `npm run data:zip-ppsf`) — streams Redfin Data Center's
+  `zip_code_market_tracker` → `data/zip-ppsf.json` (24,530 ZIPs). `arv-psf.ts` now resolves ZIP → county →
+  state; ZIP-level median is comp-grade (high confidence) in the deal-analyzer.
+- **Per-listing enrichment** (`redfin-enrich.ts`) — the gis-csv CSV has no remarks, so a fleet pass fetches
+  the listing page (headed tier clears PerimeterX) and pulls **marketing remarks** (the distress-signal
+  goldmine — "as-is", "investor special", "needs TLC", "cash only"), the listing agent, and full-size
+  photos. Verified live: remarks/agent/12 photos extract from `data-rf-test-id="listingRemarks"`,
+  `listingAgentAndBrokerLogo">Presented by`, and `ssl.cdn-redfin.com/photo/…/bigphoto/….jpg`. INTELLIGENT
+  gating: only Redfin leads missing a description, hottest-first, capped at `REDFIN_ENRICH_MAX` (40).
+  Opt-in via `REDFIN_ENRICH=1` in the harvest (off → leads pass through untouched).
+
 ## Related doors
 
 - **RESO Web API** (`lib/housing/sources/reso.ts`) — the _licensed_ feed; same data, fully legit, dormant
