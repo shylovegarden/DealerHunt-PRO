@@ -21,19 +21,8 @@ concurrency:
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    env:
-      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      SCRAPE_SOURCES: craigslist
-      CL_SHARDS: '8'
-      CL_SHARD: ${{ github.run_number }} # rotates the slice each run
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-      - run: npm ci
-      - run: npm run scrape:ci
+      - name: Note on scraper execution
+        run: |
+          echo "Scraping has been migrated to the Fly.io fleet to resolve GitHub Actions billing limits."
+          echo "Run scripts/deploy-fleet.sh to deploy or scale the workers."
