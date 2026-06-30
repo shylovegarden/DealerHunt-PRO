@@ -75,6 +75,12 @@ interface Lead {
   beds?: number;
   baths?: number;
   sqft?: number;
+  year_built?: number;
+  // Glance metrics (from signals where the source carries them — Redfin/MLS).
+  daysOnMarket?: number;
+  pricePerSqft?: number;
+  mlsNumber?: string;
+  brokerage?: string;
   auction_end?: string;
   bid_count?: number;
   lat?: number;
@@ -112,6 +118,22 @@ function distressFrom(p: Property): Record<string, unknown> | undefined {
   if (s.vacant) d.vacant = true;
   if (s.reo) d.reo = true;
   return Object.keys(d).length ? d : undefined;
+}
+
+// Per-listing glance metrics carried in `signals` by the source (Redfin/MLS) — surfaced on the card.
+function glanceFrom(p: Property): Partial<Lead> {
+  const s = (p.signals as any) || {};
+  const ppsf =
+    s.price_per_sqft ??
+    (p.sqft && p.price ? Math.round(p.price / p.sqft) : undefined);
+  return {
+    year_built: p.year_built ?? undefined,
+    daysOnMarket:
+      typeof s.days_on_market === "number" ? s.days_on_market : undefined,
+    pricePerSqft: ppsf ? Math.round(Number(ppsf)) : undefined,
+    mlsNumber: s.mls_number ? String(s.mls_number) : undefined,
+    brokerage: s.brokerage ? String(s.brokerage) : undefined,
+  };
 }
 
 // Attach the two money lenses to a lead: the 70%-rule FLIP math and the rental HOLD math (cap rate /
@@ -187,6 +209,7 @@ function fromStored(r: StoredProperty): Lead {
       beds: r.beds,
       baths: r.baths,
       sqft: r.sqft,
+      ...glanceFrom(r),
       auction_end: r.auction_end,
       bid_count: r.bid_count,
       lat: r.lat,
@@ -221,6 +244,7 @@ function fromLive(p: Property): Lead {
       beds: p.beds,
       baths: p.baths,
       sqft: p.sqft,
+      ...glanceFrom(p),
       auction_end: p.auction_end,
       bid_count: p.bid_count,
       lat: p.lat,

@@ -202,6 +202,12 @@ interface Lead {
   state?: string;
   zip?: string;
   image?: string;
+  beds?: number;
+  baths?: number;
+  sqft?: number;
+  year_built?: number;
+  daysOnMarket?: number;
+  pricePerSqft?: number;
   owner?: string;
   ownerMailing?: string;
   stack?: number;
@@ -302,8 +308,12 @@ function LeadsInner() {
     if (maxPrice) r = r.filter((l) => (l.price || 0) <= maxPrice);
     if (q.trim()) {
       const t = q.trim().toLowerCase();
+      // Match address + ZIP + city/state + title + the distress signal text, so typing a street, a ZIP,
+      // or a keyword like "vacant"/"foreclosure" all work (people expect a property search to honor these).
       r = r.filter((l) =>
-        `${l.city} ${l.state} ${l.title}`.toLowerCase().includes(t),
+        `${l.address || ""} ${l.zip || ""} ${l.city || ""} ${l.state || ""} ${l.title || ""} ${(l.signals || []).join(" ")}`
+          .toLowerCase()
+          .includes(t),
       );
     }
     const s = [...r];
@@ -843,6 +853,34 @@ function LeadCard({ lead, index = 0 }: { lead: Lead; index?: number }) {
             </span>
           </div>
           <h3 className="text-sm text-[var(--t2)] truncate">{lead.title}</h3>
+          {/* Glance facts — the physical specs buyers scan first (beds/baths/sqft/$psf/days-on-market). */}
+          {(lead.beds != null ||
+            lead.baths != null ||
+            lead.sqft != null ||
+            lead.daysOnMarket != null) && (
+            <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-[var(--t3)] font-semibold flex-wrap">
+              {lead.beds != null && <span>{lead.beds} bd</span>}
+              {lead.baths != null && <span>· {lead.baths} ba</span>}
+              {lead.sqft != null && (
+                <span>· {lead.sqft.toLocaleString()} sqft</span>
+              )}
+              {lead.pricePerSqft != null && (
+                <span className="text-[var(--t4)]">
+                  · ${lead.pricePerSqft}/sqft
+                </span>
+              )}
+              {lead.year_built != null && (
+                <span className="text-[var(--t4)]">
+                  · built {lead.year_built}
+                </span>
+              )}
+              {lead.daysOnMarket != null && lead.daysOnMarket >= 30 && (
+                <span style={{ color: "var(--amber)" }}>
+                  · {lead.daysOnMarket}d on market
+                </span>
+              )}
+            </div>
+          )}
           <div className="flex items-center gap-2 mt-1 flex-wrap">
             {(() => {
               const c = readHomeCondition({
