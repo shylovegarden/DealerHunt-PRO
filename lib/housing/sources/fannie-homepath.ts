@@ -88,6 +88,7 @@ export async function fetchHomePathRegion(
   maxLat: number,
   maxLng: number,
   delayMs = 500,
+  depth = 0,
 ): Promise<HomePathProperty[]> {
   const url = `https://homepath.fanniemae.com/cfl/property-inventory/search?bounds=${minLat},${minLng},${maxLat},${maxLng}`;
   const res = await fetch(url, {
@@ -106,10 +107,10 @@ export async function fetchHomePathRegion(
   const data = (await res.json()) as HomePathResponse;
   let results = data.properties || [];
 
-  if (data.totalProperties > 400) {
+  if (data.totalProperties > 400 && depth < 12) {
     // The API hard-caps at 400. We must subdivide the bounding box.
     console.log(
-      `[HomePath] Region ${minLat},${minLng} to ${maxLat},${maxLng} has ${data.totalProperties} > 400. Subdividing...`,
+      `[HomePath] Region ${minLat},${minLng} to ${maxLat},${maxLng} has ${data.totalProperties} > 400. Subdividing (depth ${depth})...`,
     );
     const midLat = (minLat + maxLat) / 2;
     const midLng = (minLng + maxLng) / 2;
@@ -130,11 +131,15 @@ export async function fetchHomePathRegion(
         qMaxLat,
         qMaxLng,
         delayMs,
+        depth + 1,
       );
       results.push(...qResults);
     }
+  } else if (data.totalProperties > 400) {
+    console.warn(
+      `[HomePath] Region ${minLat},${minLng} to ${maxLat},${maxLng} has ${data.totalProperties} > 400, but reached max depth. Returning partial results.`,
+    );
   }
-
   return results;
 }
 
