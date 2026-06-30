@@ -112,6 +112,17 @@ interface Lead {
   state?: string;
   image?: string;
   stack?: number;
+  distress?: {
+    totalDue?: number;
+    yearsOwed?: number;
+    sheriffSale?: boolean;
+    foreclosure?: boolean;
+    bankruptcy?: boolean;
+    belowMarket?: boolean;
+    violations?: number;
+    outOfState?: boolean;
+    ownerState?: string;
+  };
   auction_end?: string;
   bid_count?: number;
   score: number;
@@ -557,6 +568,50 @@ function LeadCard({ lead }: { lead: Lead }) {
               📚 {lead.stack} lists
             </span>
           )}
+          {/* Distress magnitudes (amount owed, foreclosure, below-market) — the PropStream-grade detail. */}
+          {(lead.distress?.sheriffSale || lead.distress?.foreclosure) && (
+            <span
+              className="text-[10px] font-black px-1.5 py-0.5 rounded-full"
+              style={{ color: "#fff", background: "var(--red)" }}
+            >
+              ⚖️ Foreclosure
+            </span>
+          )}
+          {lead.distress?.totalDue ? (
+            <span
+              className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[var(--s2)]"
+              style={{
+                color: "var(--amber)",
+                border: "1px solid var(--amber)",
+              }}
+              title="Property-tax delinquency"
+            >
+              Owes ${Math.round(lead.distress.totalDue / 1000)}k
+              {lead.distress.yearsOwed ? ` · ${lead.distress.yearsOwed}y` : ""}
+            </span>
+          ) : null}
+          {lead.distress?.belowMarket && (
+            <span
+              className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[var(--s2)]"
+              style={{
+                color: "var(--green)",
+                border: "1px solid var(--green)",
+              }}
+            >
+              ↓ Below market
+            </span>
+          )}
+          {lead.distress?.violations ? (
+            <span
+              className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[var(--s2)]"
+              style={{
+                color: "var(--amber)",
+                border: "1px solid var(--amber)",
+              }}
+            >
+              {lead.distress.violations} violations
+            </span>
+          ) : null}
           {lead.status && (
             <span
               className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"

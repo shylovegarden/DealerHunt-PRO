@@ -192,6 +192,54 @@ export default function LeadDetailPage({
             </Card>
           )}
 
+          {/* Owner distress — the PropStream-grade magnitudes (amount owed, sheriff sale, out-of-state…). */}
+          {lead.distress && Object.keys(lead.distress).length > 0 && (
+            <Card title="Owner distress">
+              <div className="flex flex-wrap gap-2 text-sm">
+                {lead.distress.totalDue ? (
+                  <Fact
+                    label="Tax owed"
+                    value={`$${lead.distress.totalDue.toLocaleString()}${lead.distress.yearsOwed ? ` · ${lead.distress.yearsOwed} yrs` : ""}`}
+                  />
+                ) : null}
+                {(lead.distress.sheriffSale || lead.distress.foreclosure) && (
+                  <Fact
+                    label="Status"
+                    value="Foreclosure / sheriff sale"
+                    danger
+                  />
+                )}
+                {lead.distress.bankruptcy && (
+                  <Fact label="Owner" value="In bankruptcy" />
+                )}
+                {lead.distress.outOfState && (
+                  <Fact
+                    label="Owner"
+                    value={`Out-of-state${lead.distress.ownerState ? ` (${lead.distress.ownerState})` : ""}`}
+                  />
+                )}
+                {lead.distress.marketValue ? (
+                  <Fact
+                    label="Assessed / market value"
+                    value={`$${lead.distress.marketValue.toLocaleString()}`}
+                  />
+                ) : null}
+                {lead.distress.belowMarket && (
+                  <Fact label="Pricing" value="Below assessed value" good />
+                )}
+                {lead.distress.violations ? (
+                  <Fact
+                    label="Code violations"
+                    value={String(lead.distress.violations)}
+                  />
+                ) : null}
+                {lead.distress.vacant && (
+                  <Fact label="Occupancy" value="Vacant" />
+                )}
+              </div>
+            </Card>
+          )}
+
           {/* Deal analysis — the 70% rule */}
           <Card title="Flip analysis (70% rule)">
             {a.mao != null ? (
@@ -433,6 +481,30 @@ function Metric({
           {sub}
         </div>
       )}
+    </div>
+  );
+}
+
+function Fact({
+  label,
+  value,
+  danger,
+  good,
+}: {
+  label: string;
+  value: string;
+  danger?: boolean;
+  good?: boolean;
+}) {
+  const color = danger ? "var(--red)" : good ? "var(--green)" : "var(--t1)";
+  return (
+    <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s2)] px-3 py-2">
+      <div className="text-[10px] font-bold uppercase tracking-widest text-[var(--t4)]">
+        {label}
+      </div>
+      <div className="text-sm font-bold" style={{ color }}>
+        {value}
+      </div>
     </div>
   );
 }

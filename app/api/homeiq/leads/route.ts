@@ -65,6 +65,8 @@ interface Lead {
   image?: string;
   // Cross-source list-stacking: # of distinct distress lists this property sits on (1 = single list).
   stack?: number;
+  // Compact distress detail (amount owed, years, sheriff sale, below-market…) for card/detail badges.
+  distress?: Record<string, unknown>;
   beds?: number;
   baths?: number;
   sqft?: number;
@@ -80,6 +82,27 @@ interface Lead {
   arv?: number | null;
   verdict?: string;
   equity?: number | null;
+}
+
+// Distill the raw `signals` blob into a compact, UI-renderable distress object. The connectors harvest
+// PropStream-grade detail (amount owed, years, sheriff sale, bankruptcy, out-of-state owner, market value,
+// violation counts) but the list previously flattened it to reason-strings — this surfaces the magnitudes.
+function distressFrom(p: Property): Record<string, unknown> | undefined {
+  const s = (p.signals as any) || {};
+  const d: Record<string, unknown> = {};
+  if (s.total_due) d.totalDue = Math.round(Number(s.total_due));
+  if (s.years_owed) d.yearsOwed = Number(s.years_owed);
+  if (s.sheriff_sale) d.sheriffSale = true;
+  if (s.foreclosure) d.foreclosure = true;
+  if (s.bankruptcy) d.bankruptcy = true;
+  if (s.out_of_state_owner) d.outOfState = true;
+  if (s.owner_state) d.ownerState = String(s.owner_state);
+  if (s.market_value) d.marketValue = Math.round(Number(s.market_value));
+  if (s.below_market) d.belowMarket = true;
+  if (s.violation_count) d.violations = Number(s.violation_count);
+  if (s.vacant) d.vacant = true;
+  if (s.reo) d.reo = true;
+  return Object.keys(d).length ? d : undefined;
 }
 
 // Attach the 70%-rule flip math to a lead, from its property fields.
@@ -133,6 +156,7 @@ function fromStored(r: StoredProperty): Lead {
       status: landBankStatus(r),
       property_type: r.property_type,
       address: r.address,
+      distress: distressFrom(r),
       city: r.city,
       state: r.state,
       zip: r.zip,
@@ -164,6 +188,7 @@ function fromLive(p: Property): Lead {
       status: landBankStatus(p),
       property_type: p.property_type,
       address: p.address,
+      distress: distressFrom(p),
       city: p.city,
       state: p.state,
       zip: p.zip,
