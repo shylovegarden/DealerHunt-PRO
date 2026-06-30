@@ -257,6 +257,9 @@ function LeadsInner() {
   // Mobile is list-OR-map (Zillow pattern), so the listings lead instead of a map shoving them down the
   // page; desktop always shows the split. Default to the list — that's what the user came for.
   const [mobileView, setMobileView] = useState<"list" | "map">("list");
+  // Secondary filters (type/source/price/sort) collapse behind a "Filters" button on mobile so the bar
+  // doesn't wrap into 4 cramped rows; always shown on desktop.
+  const [showFilters, setShowFilters] = useState(false);
 
   // SERVER-SIDE SCOPE: fetch the current scope from the full 54k (your state / nearby / national top),
   // then filter/sort/search instantly client-side WITHIN that slice. Re-fetches when the scope changes.
@@ -374,6 +377,12 @@ function LeadsInner() {
         .reduce((n, s) => n + byState[s], 0)
     : 0;
 
+  // Active secondary-filter count for the mobile "Filters" badge.
+  const activeFilters =
+    [type, source, category].filter(Boolean).length +
+    (minPrice ? 1 : 0) +
+    (maxPrice ? 1 : 0);
+
   return (
     <div className="bg-transparent text-[var(--t1)]">
       {/* Location scope — progressive: your state → nearby → nationwide */}
@@ -428,20 +437,20 @@ function LeadsInner() {
           </button>
           <Link
             href="/homeiq/saved"
-            className="text-sm font-semibold text-[var(--t3)] hover:text-[var(--t1)]"
+            className="hidden sm:inline text-sm font-semibold text-[var(--t3)] hover:text-[var(--t1)]"
           >
             📋 Pipeline
           </Link>
           <Link
             href="/homeiq/states"
-            className="text-sm font-semibold text-[var(--t3)] hover:text-[var(--t1)]"
+            className="hidden sm:inline text-sm font-semibold text-[var(--t3)] hover:text-[var(--t1)]"
           >
             🗺️ Browse all states
           </Link>
         </div>
       </div>
 
-      {/* Filter bar */}
+      {/* Filter bar — search + tier always visible; the rest collapses behind "Filters" on mobile. */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-3 flex items-center gap-2 flex-wrap">
         <input
           value={q}
@@ -464,39 +473,59 @@ function LeadsInner() {
             </button>
           ))}
         </div>
-        <Select value={type} onChange={setType} options={TYPES} />
-        <Select value={source} onChange={setSource} options={sourceOptions} />
-        {/* Price RANGE (min + max) — was max-only, capped at $100k. */}
-        <div className="flex items-center gap-1 px-2 py-1.5 rounded-[var(--r3)] bg-[var(--s0)] border border-[var(--b1)] text-xs font-bold text-[var(--t2)]">
-          <span className="text-[var(--t4)]">$</span>
-          <input
-            type="number"
-            inputMode="numeric"
-            value={minPrice || ""}
-            onChange={(e) => setMinPrice(Number(e.target.value) || 0)}
-            placeholder="Min"
-            className="w-16 bg-transparent focus:outline-none"
-            aria-label="Min price"
-          />
-          <span className="text-[var(--t4)]">–</span>
-          <input
-            type="number"
-            inputMode="numeric"
-            value={maxPrice || ""}
-            onChange={(e) => setMaxPrice(Number(e.target.value) || 0)}
-            placeholder="Max"
-            className="w-16 bg-transparent focus:outline-none"
-            aria-label="Max price"
-          />
+        {/* Mobile-only Filters toggle with active-count badge. */}
+        <button
+          onClick={() => setShowFilters((v) => !v)}
+          className="md:hidden inline-flex items-center gap-1.5 px-3 py-2 rounded-[var(--r3)] bg-[var(--s0)] border border-[var(--b1)] text-xs font-bold text-[var(--t2)]"
+        >
+          ⚙ Filters
+          {activeFilters > 0 && (
+            <span
+              className="min-w-[18px] h-[18px] px-1 grid place-items-center rounded-full text-[10px] font-black text-black"
+              style={{ background: ACCENT }}
+            >
+              {activeFilters}
+            </span>
+          )}
+        </button>
+        {/* Secondary filters — hidden on mobile until toggled, always inline on md+. */}
+        <div
+          className={`${showFilters ? "flex" : "hidden"} md:flex items-center gap-2 flex-wrap w-full md:w-auto`}
+        >
+          <Select value={type} onChange={setType} options={TYPES} />
+          <Select value={source} onChange={setSource} options={sourceOptions} />
+          {/* Price RANGE (min + max) — was max-only, capped at $100k. */}
+          <div className="flex items-center gap-1 px-2 py-1.5 rounded-[var(--r3)] bg-[var(--s0)] border border-[var(--b1)] text-xs font-bold text-[var(--t2)]">
+            <span className="text-[var(--t4)]">$</span>
+            <input
+              type="number"
+              inputMode="numeric"
+              value={minPrice || ""}
+              onChange={(e) => setMinPrice(Number(e.target.value) || 0)}
+              placeholder="Min"
+              className="w-16 bg-transparent focus:outline-none"
+              aria-label="Min price"
+            />
+            <span className="text-[var(--t4)]">–</span>
+            <input
+              type="number"
+              inputMode="numeric"
+              value={maxPrice || ""}
+              onChange={(e) => setMaxPrice(Number(e.target.value) || 0)}
+              placeholder="Max"
+              className="w-16 bg-transparent focus:outline-none"
+              aria-label="Max price"
+            />
+          </div>
+          <Select value={sort} onChange={setSort} options={SORTS} />
         </div>
-        <Select value={sort} onChange={setSort} options={SORTS} />
       </div>
 
-      {/* Quick Lists — PropStream-style lead categories (vacant / absentee / tax-delinquent / REO …). */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-3 flex items-center gap-1.5 flex-wrap">
+      {/* Quick Lists — PropStream-style lead categories. One scrolling row on mobile, wraps on desktop. */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-3 flex items-center gap-1.5 overflow-x-auto md:flex-wrap scrollbar-hide">
         <button
           onClick={() => setCategory("")}
-          className="px-3 py-1.5 rounded-full text-xs font-bold transition-colors"
+          className="shrink-0 px-3 py-1.5 rounded-full text-xs font-bold transition-colors whitespace-nowrap"
           style={{
             background: category === "" ? ACCENT : "var(--s2)",
             color: category === "" ? "#000" : "var(--t3)",
@@ -513,7 +542,7 @@ function LeadsInner() {
               onClick={() =>
                 setCategory(category === "stacked" ? "" : "stacked")
               }
-              className="px-3 py-1.5 rounded-full text-xs font-black transition-colors"
+              className="shrink-0 px-3 py-1.5 rounded-full text-xs font-black transition-colors whitespace-nowrap"
               style={{
                 background: category === "stacked" ? "var(--red)" : "var(--s2)",
                 color: category === "stacked" ? "#fff" : "var(--red)",
@@ -535,7 +564,7 @@ function LeadsInner() {
             <button
               key={c.key}
               onClick={() => setCategory(category === c.key ? "" : c.key)}
-              className="px-3 py-1.5 rounded-full text-xs font-bold transition-colors"
+              className="shrink-0 px-3 py-1.5 rounded-full text-xs font-bold transition-colors whitespace-nowrap"
               style={{
                 background: category === c.key ? ACCENT : "var(--s2)",
                 color: category === c.key ? "#000" : "var(--t3)",
