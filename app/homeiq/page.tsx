@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import { stateName, nearestState } from "@/lib/housing/us-states";
 import { HomeIQSearch } from "@/components/home/HomeIQSearch";
+import { useCountUp } from "@/hooks/useCountUp";
 
 // HomeIQ command center — the live, location-aware home. Real totals, the hottest markets, and featured
 // hot leads, with one-tap "find leads near me". Same engine as DealerHunt Pro, pointed at houses, all free.
@@ -69,7 +70,17 @@ export default function HomeIQHome() {
 
   return (
     <div className="bg-transparent text-[var(--t1)]">
-      <section className="max-w-6xl mx-auto px-4 sm:px-6 pt-8">
+      <section className="relative max-w-6xl mx-auto px-4 sm:px-6 pt-8">
+        {/* Ambient money-glow behind the headline — the value hits before you scroll. */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -top-10 -left-10 w-[36rem] h-[22rem] -z-10 opacity-70"
+          style={{
+            background:
+              "radial-gradient(closest-side, color-mix(in srgb, var(--home) 22%, transparent), transparent)",
+            filter: "blur(20px)",
+          }}
+        />
         <span
           className="text-[11px] font-black uppercase tracking-[0.3em]"
           style={{ color: ACCENT }}
@@ -89,17 +100,13 @@ export default function HomeIQHome() {
           </span>
         </p>
 
-        {/* Live stats */}
+        {/* Live stats — count up from 0 the instant the totals land. */}
         <div className="mt-7 grid grid-cols-3 gap-3 max-w-xl">
-          <Stat
-            label="Live leads"
-            value={total.toLocaleString()}
-            accent="var(--t1)"
-          />
-          <Stat label="🔥 Hot" value={byTier.hot ?? "—"} accent="var(--red)" />
+          <Stat label="Live leads" value={total} accent="var(--t1)" />
+          <Stat label="🔥 Hot" value={byTier.hot ?? 0} accent="var(--red)" />
           <Stat
             label="Markets"
-            value={Object.keys(byState).length || "—"}
+            value={Object.keys(byState).length}
             accent={ACCENT}
           />
         </div>
@@ -242,13 +249,17 @@ function Stat({
   accent,
 }: {
   label: string;
-  value: any;
+  value: number;
   accent: string;
 }) {
+  const n = useCountUp(value, 900);
   return (
     <div className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] px-4 py-3">
-      <div className="text-2xl font-black" style={{ color: accent }}>
-        {value}
+      <div
+        className="text-2xl font-black tabular-nums"
+        style={{ color: accent }}
+      >
+        {value ? n.toLocaleString() : "—"}
       </div>
       <div className="text-[11px] font-bold uppercase tracking-widest text-[var(--t4)]">
         {label}
