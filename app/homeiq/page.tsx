@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import { stateName, nearestState } from "@/lib/housing/us-states";
+import { HomeIQSearch } from "@/components/home/HomeIQSearch";
 
 // HomeIQ command center — the live, location-aware home. Real totals, the hottest markets, and featured
 // hot leads, with one-tap "find leads near me". Same engine as DealerHunt Pro, pointed at houses, all free.
@@ -127,7 +128,12 @@ export default function HomeIQHome() {
           />
         </div>
 
-        <div className="mt-6 flex flex-wrap gap-3">
+        {/* City / ZIP front door — type exactly where you want instead of picking a whole state. */}
+        <div className="mt-6">
+          <HomeIQSearch big />
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-3">
           <button
             onClick={detect}
             disabled={locating}

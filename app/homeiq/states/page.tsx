@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import Link from "next/link";
 import { US_STATES as STATES, nearestState } from "@/lib/housing/us-states";
+import { HomeIQSearch } from "@/components/home/HomeIQSearch";
 
 // Full-country view — every state with its live lead count, heat-colored, click into one. "Detect my
 // state" uses the browser's location → nearest state centroid (free, no API) so a user in Missouri lands
@@ -88,12 +89,16 @@ export default function StatesPage() {
           <span className="font-black text-[var(--t1)]">
             {total.toLocaleString()}
           </span>{" "}
-          live leads across the country. Pick your state — or let us find it.
+          live leads across the country. Search a city or ZIP — or pick your
+          state below.
         </p>
+        <div className="mt-4">
+          <HomeIQSearch />
+        </div>
         <button
           onClick={detect}
           disabled={locating}
-          className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-black text-sm disabled:opacity-60"
+          className="mt-3 inline-flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-black text-sm disabled:opacity-60"
           style={{ background: ACCENT }}
         >
           📍 {locating ? "Locating…" : "Detect my state"}

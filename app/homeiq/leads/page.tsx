@@ -144,12 +144,6 @@ const SORTS = [
   { key: "price_desc", label: "Price ↓" },
   { key: "ending", label: "Ending soon" },
 ];
-const PRICES = [
-  { key: 0, label: "Any price" },
-  { key: 25000, label: "≤ $25k" },
-  { key: 50000, label: "≤ $50k" },
-  { key: 100000, label: "≤ $100k" },
-];
 const PAGE = 60;
 
 // Friendly labels for the raw `source` values stored on each property.
@@ -257,7 +251,8 @@ function LeadsInner() {
   const [category, setCategory] = useState(params.get("category") || "");
   const [sort, setSort] = useState("score");
   const [maxPrice, setMaxPrice] = useState(0);
-  const [q, setQ] = useState("");
+  const [minPrice, setMinPrice] = useState(0);
+  const [q, setQ] = useState(params.get("q") || ""); // pre-filled by the city/ZIP front-door search
   const [visible, setVisible] = useState(PAGE);
 
   // SERVER-SIDE SCOPE: fetch the current scope from the full 54k (your state / nearby / national top),
@@ -306,6 +301,7 @@ function LeadsInner() {
     else if (category)
       r = r.filter((l) => leadCategories(l).includes(category));
     if (maxPrice) r = r.filter((l) => (l.price || 0) <= maxPrice);
+    if (minPrice) r = r.filter((l) => (l.price || 0) >= minPrice);
     if (q.trim()) {
       const t = q.trim().toLowerCase();
       // Match address + ZIP + city/state + title + the distress signal text, so typing a street, a ZIP,
@@ -326,12 +322,23 @@ function LeadsInner() {
       );
     else s.sort((a, b) => b.score - a.score);
     return s;
-  }, [all, scopeSet, tier, type, source, category, maxPrice, q, sort]);
+  }, [
+    all,
+    scopeSet,
+    tier,
+    type,
+    source,
+    category,
+    maxPrice,
+    minPrice,
+    q,
+    sort,
+  ]);
 
   // Reset the visible window whenever the result set changes.
   useEffect(
     () => setVisible(PAGE),
-    [scopeSet, tier, type, source, category, maxPrice, q, sort],
+    [scopeSet, tier, type, source, category, maxPrice, minPrice, q, sort],
   );
 
   // Infinite scroll — extend the list as the sentinel comes into view.
@@ -475,11 +482,29 @@ function LeadsInner() {
         </div>
         <Select value={type} onChange={setType} options={TYPES} />
         <Select value={source} onChange={setSource} options={sourceOptions} />
-        <Select
-          value={String(maxPrice)}
-          onChange={(v) => setMaxPrice(Number(v))}
-          options={PRICES.map((p) => ({ key: String(p.key), label: p.label }))}
-        />
+        {/* Price RANGE (min + max) — was max-only, capped at $100k. */}
+        <div className="flex items-center gap-1 px-2 py-1.5 rounded-[var(--r3)] bg-[var(--s0)] border border-[var(--b1)] text-xs font-bold text-[var(--t2)]">
+          <span className="text-[var(--t4)]">$</span>
+          <input
+            type="number"
+            inputMode="numeric"
+            value={minPrice || ""}
+            onChange={(e) => setMinPrice(Number(e.target.value) || 0)}
+            placeholder="Min"
+            className="w-16 bg-transparent focus:outline-none"
+            aria-label="Min price"
+          />
+          <span className="text-[var(--t4)]">–</span>
+          <input
+            type="number"
+            inputMode="numeric"
+            value={maxPrice || ""}
+            onChange={(e) => setMaxPrice(Number(e.target.value) || 0)}
+            placeholder="Max"
+            className="w-16 bg-transparent focus:outline-none"
+            aria-label="Max price"
+          />
+        </div>
         <Select value={sort} onChange={setSort} options={SORTS} />
       </div>
 
