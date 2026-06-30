@@ -55,16 +55,17 @@ describe("analyzeHousingDeal — 70% rule", () => {
     expect(a.arv).toBe(1500 * (psf as number));
   });
 
-  it("a zip→county median is comp-grade (medium confidence)", () => {
-    // 60601 → Cook County, IL has county $/sqft → medium confidence.
+  it("a ZIP-level median is comp-grade (high confidence, treated as comps)", () => {
+    // 60601 → downtown Chicago, present in the ZIP snapshot → tightest free comp → high confidence.
     const a = analyzeHousingDeal({
       ...base,
       sqft: 1500,
       state: "IL",
       zip: "60601",
     });
-    expect(a.arvBasis).toBe("market_psf");
-    expect(a.arvConfidence).toBe("medium");
+    expect(a.arvBasis).toBe("comps");
+    expect(a.arvConfidence).toBe("high");
+    expect(a.arv).toBeGreaterThan(0);
   });
 
   it("falls back to the coarse regional reference for an unmapped region (low confidence)", () => {

@@ -168,14 +168,22 @@ export function analyzeHousingDeal(
         : marketPsfDetailed(stateCode, p.property_type, p.zip);
     if (detail != null && detail.psf > 0) {
       arv = Math.round(p.sqft * detail.psf);
-      arvBasis = "market_psf";
-      // County median = comp-grade (medium). STATE median is a coarse regional guess (low) — a derelict
-      // land-bank shell and a metro home share one statewide number, so don't over-trust it.
-      arvConfidence = detail.level === "county" ? "medium" : "low";
+      arvBasis = detail.level === "zip" ? "comps" : "market_psf";
+      // ZIP median = tightest free comp (street-level) → high. County median = comp-grade (medium). STATE
+      // median is a coarse regional guess (low) — a derelict land-bank shell and a metro home share one
+      // statewide number, so don't over-trust it.
+      arvConfidence =
+        detail.level === "zip"
+          ? "high"
+          : detail.level === "county"
+            ? "medium"
+            : "low";
       notes.push(
-        detail.level === "county"
-          ? `ARV ≈ ${p.sqft.toLocaleString()} sqft × $${detail.psf}/sqft (county median sale $/sqft — confirm with comps)`
-          : `ARV ≈ ${p.sqft.toLocaleString()} sqft × $${detail.psf}/sqft (${stateCode || "US"} STATEWIDE median — coarse, needs local comps)`,
+        detail.level === "zip"
+          ? `ARV ≈ ${p.sqft.toLocaleString()} sqft × $${detail.psf}/sqft (ZIP ${p.zip} median sale $/sqft — comp-grade)`
+          : detail.level === "county"
+            ? `ARV ≈ ${p.sqft.toLocaleString()} sqft × $${detail.psf}/sqft (county median sale $/sqft — confirm with comps)`
+            : `ARV ≈ ${p.sqft.toLocaleString()} sqft × $${detail.psf}/sqft (${stateCode || "US"} STATEWIDE median — coarse, needs local comps)`,
       );
     } else {
       const psf = STATE_PSF[stateCode] || NATIONAL_PSF;

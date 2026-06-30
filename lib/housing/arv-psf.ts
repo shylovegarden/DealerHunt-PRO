@@ -8,6 +8,7 @@
 
 import statePpsf from "./data/state-ppsf.json";
 import countyPpsf from "./data/county-ppsf.json";
+import zipPpsf from "./data/zip-ppsf.json";
 import zipCounty from "./data/zip-county.json";
 
 type PpsfByType = Record<string, number>;
@@ -16,6 +17,8 @@ const BY_STATE: Record<string, PpsfByType> =
   (statePpsf as { byState?: Record<string, PpsfByType> }).byState || {};
 const BY_COUNTY: Record<string, PpsfByType> =
   (countyPpsf as { byCounty?: Record<string, PpsfByType> }).byCounty || {};
+const BY_ZIP: Record<string, PpsfByType> =
+  (zipPpsf as { byZip?: Record<string, PpsfByType> }).byZip || {};
 const ZIP_COUNTY: Record<string, string> =
   (zipCounty as { byZip?: Record<string, string> }).byZip || {};
 
@@ -39,22 +42,29 @@ function pick(byType?: PpsfByType, propertyType?: string): number | null {
 }
 
 /**
- * Median sale $/sqft WITH its granularity, most-precise-first: county (zip→county) → state → null. The
- * `level` tells callers how much to trust it — a COUNTY median is comp-grade; a STATE median is a coarse
- * regional guess (a Detroit land-bank shell and a Birmingham metro condo share one statewide number), so
- * ARV built on it must NOT be presented as a verified flip.
+ * Median sale $/sqft WITH its granularity, most-precise-first: ZIP → county (zip→county) → state → null.
+ * The `level` tells callers how much to trust it — a ZIP median is the tightest free comp (street-level),
+ * a COUNTY median is comp-grade, a STATE median is a coarse regional guess (a Detroit land-bank shell and a
+ * Birmingham metro condo share one statewide number) so ARV built on it must NOT be presented as a flip.
  */
 export function marketPsfDetailed(
   stateCode?: string,
   propertyType?: string,
   zip?: string | null,
-): { psf: number; level: "county" | "state" } | null {
+): { psf: number; level: "zip" | "county" | "state" } | null {
   const st = (stateCode || "").toUpperCase();
+  const z = zip ? String(zip).trim().slice(0, 5) : null;
+
+  // ZIP-level first (tightest comp — works even when we don't know the state).
+  if (z) {
+    const v = pick(BY_ZIP[z], propertyType);
+    if (v != null) return { psf: v, level: "zip" };
+  }
   if (!st) return null;
 
-  // County-level first (most precise).
-  if (zip) {
-    const county = ZIP_COUNTY[String(zip).trim().slice(0, 5)];
+  // County-level next (zip→county crosswalk).
+  if (z) {
+    const county = ZIP_COUNTY[z];
     if (county) {
       const v = pick(BY_COUNTY[`${normCounty(county)}|${st}`], propertyType);
       if (v != null) return { psf: v, level: "county" };
