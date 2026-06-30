@@ -391,7 +391,7 @@ export default function LeadDetailPage({
           {/* Rental cashflow — the buy-and-hold lens */}
           {cf && (
             <Card title="Rental cashflow (buy & hold)">
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <Metric
                   label="Rent (est.)"
                   value={`${money(cf.monthlyRent)}/mo`}
@@ -422,7 +422,7 @@ export default function LeadDetailPage({
               lead.market.medianDom != null ||
               lead.market.listPsf) && (
               <Card title={`Market temperature · ${lead.zip || ""}`}>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {lead.market.activeCount != null && (
                     <Metric
                       label="Active listings"
@@ -492,8 +492,8 @@ export default function LeadDetailPage({
 
           {/* Similar leads nearby */}
           <SimilarLeads state={lead.state} excludeId={lead.id} zip={lead.zip} />
-          {/* spacer so the sticky bar never covers the last card */}
-          <div className="h-16" />
+          {/* spacer so neither the action bar nor the mobile bottom-nav covers the last card */}
+          <div className="h-28 md:h-16" />
         </div>
 
         {/* Right: map */}
@@ -508,8 +508,9 @@ export default function LeadDetailPage({
         </div>
       </div>
 
-      {/* Sticky action bar — always-reachable Save + View, mirrors the cars detail page. */}
-      <div className="fixed left-0 right-0 bottom-0 z-40 border-t border-[var(--b1)] bg-[var(--s0)]/95 backdrop-blur">
+      {/* Sticky action bar — always-reachable Save + View. Sits ABOVE the mobile bottom-nav (56px) so its
+          buttons aren't hidden behind it on phones; flush to the bottom on desktop (no bottom-nav there). */}
+      <div className="fixed left-0 right-0 bottom-[calc(56px+env(safe-area-inset-bottom))] md:bottom-0 z-40 border-t border-[var(--b1)] bg-[var(--s0)]/95 backdrop-blur">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-end gap-2 flex-wrap">
           {lead.auction_end && (
             <span className="mr-auto text-sm font-semibold text-[var(--t3)]">

@@ -254,6 +254,9 @@ function LeadsInner() {
   const [minPrice, setMinPrice] = useState(0);
   const [q, setQ] = useState(params.get("q") || ""); // pre-filled by the city/ZIP front-door search
   const [visible, setVisible] = useState(PAGE);
+  // Mobile is list-OR-map (Zillow pattern), so the listings lead instead of a map shoving them down the
+  // page; desktop always shows the split. Default to the list — that's what the user came for.
+  const [mobileView, setMobileView] = useState<"list" | "map">("list");
 
   // SERVER-SIDE SCOPE: fetch the current scope from the full 54k (your state / nearby / national top),
   // then filter/sort/search instantly client-side WITHIN that slice. Re-fetches when the scope changes.
@@ -546,13 +549,33 @@ function LeadsInner() {
         })}
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-3 text-xs font-bold uppercase tracking-widest text-[var(--t4)]">
-        {leads.length.toLocaleString()} leads{scopeSet ? "" : " (top)"} ·
-        showing {shown.length}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-3 flex items-center justify-between gap-2">
+        <span className="text-xs font-bold uppercase tracking-widest text-[var(--t4)]">
+          {leads.length.toLocaleString()} leads{scopeSet ? "" : " (top)"} ·
+          showing {shown.length}
+        </span>
+        {/* Mobile list/map toggle — desktop shows both, so this is mobile-only. */}
+        <div className="lg:hidden flex items-center p-0.5 rounded-full bg-[var(--s2)] border border-[var(--b1)] text-xs font-bold">
+          {(["list", "map"] as const).map((v) => (
+            <button
+              key={v}
+              onClick={() => setMobileView(v)}
+              className="px-3 py-1 rounded-full capitalize transition-colors"
+              style={{
+                background: mobileView === v ? "var(--home)" : "transparent",
+                color: mobileView === v ? "#04201d" : "var(--t3)",
+              }}
+            >
+              {v === "list" ? "☰ List" : "🗺 Map"}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 grid lg:grid-cols-[1fr_minmax(360px,46%)] gap-5">
-        <div className="space-y-3 order-2 lg:order-1">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 grid lg:grid-cols-[1fr_minmax(320px,38%)] gap-5">
+        <div
+          className={`space-y-3 ${mobileView === "map" ? "hidden lg:block" : ""}`}
+        >
           {isLoading &&
             Array.from({ length: 6 }).map((_, i) => <CardSkeleton key={i} />)}
           {!isLoading && leads.length === 0 && (
@@ -577,7 +600,11 @@ function LeadsInner() {
             </button>
           )}
         </div>
-        <div className="order-1 lg:order-2 lg:sticky lg:top-5 h-[42vh] lg:h-[78vh]">
+        <div
+          className={`lg:sticky lg:top-5 h-[70vh] lg:h-[78vh] ${
+            mobileView === "list" ? "hidden lg:block" : ""
+          }`}
+        >
           <DealerMap points={mapPoints} />
         </div>
       </div>
@@ -711,7 +738,7 @@ function AlertButton({ criteria }: { criteria: Record<string, unknown> }) {
 function CardSkeleton() {
   return (
     <div className="flex gap-3 rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] p-3">
-      <div className="shrink-0 w-28 h-24 rounded-[var(--r2)] shimmer" />
+      <div className="shrink-0 w-36 h-28 sm:w-44 sm:h-32 rounded-[var(--r2)] shimmer" />
       <div className="flex-1 space-y-2 py-1">
         <div className="h-3 w-1/3 rounded shimmer" />
         <div className="h-4 w-2/3 rounded shimmer" />
@@ -736,7 +763,7 @@ function LeadCard({ lead, index = 0 }: { lead: Lead; index?: number }) {
         className="group relative flex gap-3 rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] p-3 transition-shadow hover:shadow-[var(--shadow)] hover:border-[var(--home-bd)]"
       >
         <QuickSave listingId={lead.id} />
-        <div className="relative shrink-0 w-28 h-24 rounded-[var(--r2)] overflow-hidden bg-[var(--s2)]">
+        <div className="relative shrink-0 w-36 h-28 sm:w-44 sm:h-32 rounded-[var(--r2)] overflow-hidden bg-[var(--s2)]">
           {lead.image ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img

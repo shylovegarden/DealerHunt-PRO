@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { AccountMenu } from "@/components/home/AccountMenu";
+import { VerticalSwitch } from "@/components/shared/VerticalSwitch";
 
 // The HomeIQ top bar — the housing twin of the cars TopNav. Persistent nav across every housing surface
 // (was hand-rolled per page), teal-themed, with a scroll shadow, active pills, theme toggle, and the
@@ -63,18 +64,21 @@ export function HousingTopNav() {
         transition: "all 200ms ease",
       }}
     >
-      {/* Logo */}
-      <Link href="/homeiq" className="flex items-center gap-2.5 group shrink-0">
-        <div
-          className="w-8 h-8 rounded-xl grid place-items-center text-black font-black transition-transform group-hover:scale-105 shadow-[var(--shadow2)]"
-          style={{ background: "var(--grad-home)" }}
-        >
-          H
-        </div>
-        <span className="text-[15px] font-bold tracking-tight text-[var(--t1)] hidden sm:block">
-          HomeIQ
-        </span>
-      </Link>
+      {/* Logo + vertical switch */}
+      <div className="flex items-center gap-2 shrink-0">
+        <Link href="/homeiq" className="flex items-center gap-2.5 group">
+          <div
+            className="w-8 h-8 rounded-xl grid place-items-center text-black font-black transition-transform group-hover:scale-105 shadow-[var(--shadow2)]"
+            style={{ background: "var(--grad-home)" }}
+          >
+            H
+          </div>
+          <span className="text-[15px] font-bold tracking-tight text-[var(--t1)] hidden lg:block">
+            HomeIQ
+          </span>
+        </Link>
+        <VerticalSwitch />
+      </div>
 
       {/* Primary nav (desktop) */}
       <nav className="hidden md:flex items-center gap-0.5 absolute left-1/2 -translate-x-1/2">
