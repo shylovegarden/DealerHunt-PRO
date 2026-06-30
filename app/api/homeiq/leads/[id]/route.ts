@@ -61,6 +61,23 @@ export async function GET(
       // NOT scraped — that needs a licensed, compliant skip-trace provider (surfaced as an opt-in).
       owner: (row.signals as any)?.owner,
       ownerMailing: (row.signals as any)?.owner_mailing,
+      distress: (() => {
+        const s = (row.signals as any) || {};
+        const d: Record<string, unknown> = {};
+        if (s.total_due) d.totalDue = Math.round(Number(s.total_due));
+        if (s.years_owed) d.yearsOwed = Number(s.years_owed);
+        if (s.sheriff_sale) d.sheriffSale = true;
+        if (s.foreclosure) d.foreclosure = true;
+        if (s.bankruptcy) d.bankruptcy = true;
+        if (s.out_of_state_owner) d.outOfState = true;
+        if (s.owner_state) d.ownerState = String(s.owner_state);
+        if (s.market_value) d.marketValue = Math.round(Number(s.market_value));
+        if (s.below_market) d.belowMarket = true;
+        if (s.violation_count) d.violations = Number(s.violation_count);
+        if (s.vacant) d.vacant = true;
+        if (s.reo) d.reo = true;
+        return Object.keys(d).length ? d : undefined;
+      })(),
       auction_end: row.auction_end,
       bid_count: row.bid_count,
       score: row.lead_score ?? score.score,
