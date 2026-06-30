@@ -7,6 +7,7 @@
 
 import { harvestGovDealsProperties } from "./sources/govdeals-property";
 import { scrapeHudHomes } from "./sources/hud-homes";
+import { scrapeHomePath } from "./sources/fannie-homepath";
 import { scrapeGsaRealEstate } from "./sources/gsa-realestate";
 import { scrapeRedfin } from "./sources/redfin";
 import { scrapePublicSurplusProperties } from "./sources/publicsurplus-property";
@@ -36,6 +37,7 @@ export async function runHousingHarvest(): Promise<HarvestResult> {
     gd,
     ad,
     hud,
+    homepath,
     gsare,
     redfin,
     psre,
@@ -53,6 +55,7 @@ export async function runHousingHarvest(): Promise<HarvestResult> {
     harvestGovDealsProperties("GD", 5).catch(() => []),
     harvestGovDealsProperties("AD", 3).catch(() => []),
     scrapeHudHomes().catch(() => []),
+    scrapeHomePath().catch(() => []),
     scrapeGsaRealEstate().catch(() => []),
     scrapeRedfin().catch(() => []), // fleet-only (PerimeterX); [] elsewhere
     scrapePublicSurplusProperties().catch(() => []),
@@ -72,6 +75,7 @@ export async function runHousingHarvest(): Promise<HarvestResult> {
     ...gd,
     ...ad,
     ...hud,
+    ...homepath,
     ...gsare,
     ...redfin,
     ...psre,
@@ -97,6 +101,7 @@ export async function runHousingHarvest(): Promise<HarvestResult> {
       govdeals: gd.length,
       allsurplus: ad.length,
       hud: hud.length,
+      homepath: homepath.length,
       gsa_realestate: gsare.length,
       redfin: redfin.length,
       publicsurplus: psre.length,
