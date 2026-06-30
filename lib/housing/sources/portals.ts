@@ -13,6 +13,7 @@
 
 import { smartFetch } from "../../scrapers/smart-fetch";
 import { genericExtractProperties } from "../extract-property";
+import { stableId } from "../../db/stable-id";
 import type { Property } from "../types";
 
 interface Portal {
@@ -33,9 +34,7 @@ const PORTALS: Portal[] = [
 function listingId(source: string, p: Property): string | null {
   const basis = p.source_url || `${p.address || ""}|${p.zip || p.city || ""}`;
   if (!basis.trim()) return null;
-  let h = 0;
-  for (let i = 0; i < basis.length; i++) h = (h * 31 + basis.charCodeAt(i)) | 0;
-  return `${source}-${(h >>> 0).toString(36)}`;
+  return stableId(basis, source);
 }
 
 /** Parse a portal page's embedded listings (JSON-LD / __NEXT_DATA__) into HomeIQ Properties. */
