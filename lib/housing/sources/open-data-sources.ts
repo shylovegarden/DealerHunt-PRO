@@ -370,6 +370,39 @@ export const CITY_FEED_SOURCES: OpenDataSource[] = [
     },
   },
   {
+    // New York City — HPD housing-maintenance violations, Class C (immediately hazardous) + still open.
+    // No lat/lng or owner in this feed (block/lot/boro only) → address-level, maps to state centroid.
+    source: "code_violation",
+    api: "socrata",
+    url: "https://data.cityofnewyork.us/resource/wvxf-dwi5.json",
+    state: "NY",
+    city: "New York",
+    where: "currentstatus = 'NOV SENT OUT' AND class = 'C'",
+    limit: 5000,
+    map: (a, g): Property | null => {
+      const address = [s(a.housenumber), s(a.streetname)]
+        .filter(Boolean)
+        .join(" ");
+      if (!address) return null;
+      return {
+        source: "code_violation",
+        source_listing_id: `nyc-hpd-${a.violationid}`,
+        title: `Code violation (Class C) · ${address}`,
+        address,
+        city: s(a.boro) || "New York",
+        state: "NY",
+        zip: s(a.zip),
+        lat: g.lat,
+        lng: g.lng,
+        seller_type: "owner",
+        signals: {
+          code_violation: true,
+          status: "Class C — immediately hazardous",
+        },
+      };
+    },
+  },
+  {
     // Chicago, IL — Vacant & Abandoned Buildings violations with a balance due (vacant + code distress).
     source: "code_violation",
     api: "socrata",
