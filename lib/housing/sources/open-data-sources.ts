@@ -370,6 +370,103 @@ export const CITY_FEED_SOURCES: OpenDataSource[] = [
     },
   },
   {
+    // Chicago, IL — Vacant & Abandoned Buildings violations with a balance due (vacant + code distress).
+    source: "code_violation",
+    api: "socrata",
+    url: "https://data.cityofchicago.org/resource/kc9i-wq85.json",
+    state: "IL",
+    city: "Chicago",
+    where: "current_amount_due > 0",
+    limit: 5000,
+    map: (a, g): Property | null => {
+      const address = s(a.property_address);
+      if (!address) return null;
+      return {
+        source: "code_violation",
+        source_listing_id: `chivac-${a.docket_number}-${a.violation_number || ""}`,
+        title: `Vacant / code violation · ${address}`,
+        address,
+        city: "Chicago",
+        state: "IL",
+        lat: coord(a.latitude, g.lat),
+        lng: coord(a.longitude, g.lng),
+        seller_type: "owner",
+        signals: {
+          code_violation: true,
+          vacant: true,
+          total_due: n(a.current_amount_due),
+          status: s(a.violation_type) || "Vacant building violation",
+        },
+      };
+    },
+  },
+  {
+    // Norfolk, VA — delinquent real-estate taxes (owner + amount). Address-only → maps to state centroid.
+    source: "tax_delinquent",
+    api: "socrata",
+    url: "https://data.norfolk.gov/resource/7qie-z5gv.json",
+    state: "VA",
+    city: "Norfolk",
+    where: "total > 1000",
+    limit: 5000,
+    map: (a, g): Property | null => {
+      const address = s(a.address);
+      if (!address) return null;
+      return {
+        source: "tax_delinquent",
+        source_listing_id: `norfolk-tax-${a.account || address}`,
+        title: `Tax-delinquent · ${address}`,
+        address,
+        city: "Norfolk",
+        state: "VA",
+        lat: g.lat,
+        lng: g.lng,
+        seller_type: "owner",
+        signals: {
+          tax_delinquent: true,
+          total_due: n(a.total),
+          owner: s(a.owner_name),
+          status: "Tax-delinquent",
+        },
+      };
+    },
+  },
+  {
+    // Richmond, VA — delinquent real-estate taxes with YEARS owed + owner. Address-only → state centroid.
+    source: "tax_delinquent",
+    api: "socrata",
+    url: "https://data.richmondgov.com/resource/83t5-hbac.json",
+    state: "VA",
+    city: "Richmond",
+    // total_due ships as TEXT here, so we can't filter numerically server-side — filter in the map.
+    limit: 5000,
+    map: (a, g): Property | null => {
+      const address = s(a.physical_address);
+      if (!address || address === "0") return null;
+      const due = n(a.total_due);
+      if (!due || due < 1000) return null;
+      const yrs = n(a.total_years_del);
+      return {
+        source: "tax_delinquent",
+        source_listing_id: `richmond-tax-${a.property_code || address}`,
+        title: `Tax-delinquent · ${address}`,
+        address,
+        city: "Richmond",
+        state: "VA",
+        lat: g.lat,
+        lng: g.lng,
+        seller_type: "owner",
+        signals: {
+          tax_delinquent: true,
+          total_due: due,
+          years_owed: yrs,
+          owner: s(a.current_owner_name_1),
+          status: yrs ? `Tax-delinquent ${yrs}y` : "Tax-delinquent",
+        },
+      };
+    },
+  },
+  {
     // Buffalo, NY — ACTIVE code violations.
     source: "code_violation",
     api: "socrata",
