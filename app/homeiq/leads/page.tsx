@@ -209,6 +209,7 @@ interface Lead {
   prevPrice?: number | null;
   anomaly?: boolean;
   anomalyPct?: number;
+  neighborhood?: string;
   distress?: {
     totalDue?: number;
     yearsOwed?: number;
@@ -843,6 +844,19 @@ function LeadCard({ lead, index = 0 }: { lead: Lead; index?: number }) {
                 title="Appears on multiple distress lists — high motivation"
               >
                 📚 {lead.stack} lists
+              </span>
+            )}
+            {/* Census neighborhood trajectory — rising = appreciating area. */}
+            {lead.neighborhood === "rising" && (
+              <span
+                className="text-[10px] font-black px-1.5 py-0.5 rounded-full"
+                style={{
+                  color: "var(--green)",
+                  border: "1px solid var(--green)",
+                }}
+                title="Census: incomes/population outpacing the national median"
+              >
+                🌆 Rising area
               </span>
             )}
             {/* Statistical underpricing flag (vs same-type $/sqft comps). */}

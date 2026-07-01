@@ -9,6 +9,7 @@ import { rentCashflow } from "@/lib/housing/rent";
 import { loadLivePsf } from "@/lib/housing/live-psf";
 import { loadCalibration } from "@/lib/housing/calibration";
 import { flagPriceAnomalies } from "@/lib/housing/anomaly";
+import { neighborhoodScore } from "@/lib/housing/neighborhood";
 import {
   queryProperties,
   countByState,
@@ -91,6 +92,8 @@ interface Lead {
   // Statistical underpricing flag (vs same-state/type $/sqft peers).
   anomaly?: boolean;
   anomalyPct?: number;
+  // Census ACS neighborhood trajectory ("rising" | "stable" | "declining"), when the ZIP is in the snapshot.
+  neighborhood?: string;
   auction_end?: string;
   bid_count?: number;
   lat?: number;
@@ -227,6 +230,7 @@ function fromStored(r: StoredProperty): Lead {
       priceDrops: r.price_drops,
       prevPrice: r.prev_price,
       priceChangedAt: r.price_changed_at,
+      neighborhood: neighborhoodScore(r.zip)?.trajectory,
       score: ls.score,
       tier: ls.tier,
       signals: ls.signals,

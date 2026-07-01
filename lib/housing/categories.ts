@@ -47,6 +47,12 @@ export const LEAD_CATEGORIES: LeadCategory[] = [
     match: (l) => sig(l, /below comps|underpriced/i),
   },
   {
+    // In a ZIP the Census ACS data shows is appreciating (income/population outpacing the national median).
+    key: "rising",
+    label: "🌆 Rising area",
+    match: (l) => sig(l, /rising area/i),
+  },
+  {
     key: "tax_delinquent",
     label: "Tax-delinquent",
     match: (l) => l.source === "tax_delinquent" || sig(l, /tax-?delinquent/i),
