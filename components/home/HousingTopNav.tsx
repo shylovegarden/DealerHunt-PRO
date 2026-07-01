@@ -11,6 +11,7 @@ import {
   Bookmark,
   Search,
   Bell,
+  Settings,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { AccountMenu } from "@/components/home/AccountMenu";
@@ -142,6 +143,14 @@ export function HousingTopNav() {
           className="h-9 w-9 grid place-items-center rounded-xl text-[var(--t3)] hover:text-[var(--t1)] bg-[var(--s0)] shadow-[var(--shadow2)]"
         >
           <Bell style={{ width: 17, height: 17 }} />
+        </Link>
+        <Link
+          href="/homeiq/settings"
+          title="Settings"
+          aria-label="Settings"
+          className="h-9 w-9 grid place-items-center rounded-xl text-[var(--t3)] hover:text-[var(--t1)] bg-[var(--s0)] shadow-[var(--shadow2)]"
+        >
+          <Settings style={{ width: 17, height: 17 }} />
         </Link>
         <ThemeToggle />
         <AccountMenu floating={false} />
