@@ -83,6 +83,10 @@ interface Lead {
   pricePerSqft?: number;
   mlsNumber?: string;
   brokerage?: string;
+  // Price-drop tracking (our own harvest-over-harvest detection).
+  priceDrops?: number | null;
+  prevPrice?: number | null;
+  priceChangedAt?: string | null;
   auction_end?: string;
   bid_count?: number;
   lat?: number;
@@ -216,6 +220,9 @@ function fromStored(r: StoredProperty): Lead {
       bid_count: r.bid_count,
       lat: r.lat,
       lng: r.lng,
+      priceDrops: r.price_drops,
+      prevPrice: r.prev_price,
+      priceChangedAt: r.price_changed_at,
       score: ls.score,
       tier: ls.tier,
       signals: ls.signals,

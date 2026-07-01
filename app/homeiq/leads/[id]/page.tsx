@@ -145,6 +145,20 @@ export default function LeadDetailPage({
                 ? ` · ${lead.bid_count} bids`
                 : ""}
             </p>
+            {/* Self-detected price drop — the "seller is softening" tell, tracked across our own harvests. */}
+            {lead.priceDrops > 0 && lead.prevPrice > lead.price && (
+              <span
+                className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-bold px-2 py-1 rounded-full"
+                style={{
+                  background: "color-mix(in srgb, var(--red) 13%, transparent)",
+                  color: "var(--red)",
+                }}
+                title={`Was ${money(lead.prevPrice)}${lead.priceChangedAt ? ` · last cut ${new Date(lead.priceChangedAt).toLocaleDateString()}` : ""}`}
+              >
+                ↓ Reduced from {money(lead.prevPrice)}
+                {lead.priceDrops > 1 ? ` · ${lead.priceDrops} cuts` : ""}
+              </span>
+            )}
             {/* Quick-facts strip — the physical specs, hoisted to the top (were buried at the bottom). */}
             {(lead.beds != null ||
               lead.baths != null ||

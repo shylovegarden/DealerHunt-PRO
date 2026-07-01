@@ -171,6 +171,29 @@ export function scoreHousingLead(p: Property): LeadScore {
       "timing",
     );
 
+  // 6b-iii) SELF-DETECTED PRICE DROP — we watched the price fall across our OWN harvests (DB trigger),
+  // independent of whether the source tagged a reduction. A recent cut is a strong "seller will deal" tell;
+  // repeated cuts = a softening, motivated seller. Recency-weighted; skipped when the source already tags a
+  // reduction (the block above) so we never double-count the same concept.
+  const priceDrops = Number(p.price_drops) || 0;
+  if (priceDrops > 0 && !/reduc|price\s*drop|price\s*cut/.test(status)) {
+    const daysSinceCut = p.price_changed_at
+      ? (Date.now() - Date.parse(p.price_changed_at)) / 86_400_000
+      : NaN;
+    const fresh = Number.isFinite(daysSinceCut) && daysSinceCut <= 45;
+    const cutPct =
+      p.prev_price && p.price && p.prev_price > 0
+        ? Math.round((1 - p.price / p.prev_price) * 100)
+        : 0;
+    let pts = priceDrops >= 3 ? 16 : priceDrops === 2 ? 12 : 8;
+    if (!fresh) pts = Math.round(pts * 0.6); // a stale one-time cut is weaker motivation
+    add(
+      pts,
+      `Price cut ${priceDrops}×${cutPct > 0 ? ` (−${cutPct}% latest)` : ""} — seller softening`,
+      "pricecut",
+    );
+  }
+
   // 6c) DAYS ON MARKET — a stale listing is a softening seller. Prefer the REAL days-on-market the MLS feed
   // carries (signals.days_on_market); fall back to created_at (first-seen) only when it's absent.
   const realDom = Number((p.signals as any)?.days_on_market);

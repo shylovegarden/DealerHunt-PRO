@@ -117,6 +117,9 @@ export async function GET(
       })(),
       auction_end: row.auction_end,
       bid_count: row.bid_count,
+      priceDrops: row.price_drops,
+      prevPrice: row.prev_price,
+      priceChangedAt: row.price_changed_at,
       // Use the FRESH recompute for score+tier+signals together (calibration + live comps already injected
       // above) so they're one consistent unit — and so the "Calibrated from N deals" reason can never sit
       // next to a stored score that predates it. Matches the list route, which also recomputes.

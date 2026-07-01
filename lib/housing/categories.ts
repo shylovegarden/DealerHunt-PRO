@@ -35,6 +35,12 @@ export const LEAD_CATEGORIES: LeadCategory[] = [
     match: (l) => (l.equity ?? 0) >= 50000,
   },
   {
+    // A published/detected price reduction — one of the strongest "seller will deal" tells.
+    key: "price_cut",
+    label: "💸 Price cut",
+    match: (l) => sig(l, /price cut|price reduc|price drop|reduced from/i),
+  },
+  {
     key: "tax_delinquent",
     label: "Tax-delinquent",
     match: (l) => l.source === "tax_delinquent" || sig(l, /tax-?delinquent/i),

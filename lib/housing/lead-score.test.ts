@@ -275,6 +275,40 @@ describe("money gate (verified verdict overrides distress vibes)", () => {
   });
 });
 
+describe("self-detected price drop", () => {
+  it("scores a fresh price cut we tracked ourselves (no source tag needed)", () => {
+    const now = new Date().toISOString();
+    const r = scoreHousingLead({
+      ...base,
+      title: "house",
+      price: 80000,
+      prev_price: 100000,
+      price_drops: 2,
+      price_changed_at: now,
+    });
+    expect(r.signals.join(" ")).toMatch(/Price cut 2×.*−20%/);
+  });
+
+  it("does not fire without a recorded drop", () => {
+    const r = scoreHousingLead({ ...base, title: "house", price: 80000 });
+    expect(r.signals.join(" ")).not.toMatch(/Price cut/);
+  });
+
+  it("does not double-count when the source already tags a reduction", () => {
+    const r = scoreHousingLead({
+      ...base,
+      title: "house",
+      price: 80000,
+      prev_price: 100000,
+      price_drops: 1,
+      signals: { status: "Price Reduced" },
+    });
+    // Only the source-tagged 'Price reduced' reason, not a second self-detected one.
+    const cuts = r.signals.filter((s) => /Price (cut|reduced)/i.test(s));
+    expect(cuts).toHaveLength(1);
+  });
+});
+
 describe("learned tier calibration", () => {
   afterEach(() => setTierCalibration(null)); // never leak into other tests
 
