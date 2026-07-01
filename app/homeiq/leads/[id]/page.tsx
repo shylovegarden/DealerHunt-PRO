@@ -284,7 +284,7 @@ export default function LeadDetailPage({
 
           {/* Owner & contact — public-record owner + mailing address (direct-mail ready). Phone/email is
               NOT scraped; it requires a licensed, compliant skip-trace provider (TCPA/DNC rules apply). */}
-          {(lead.owner || lead.ownerMailing) && (
+          {(lead.owner || lead.ownerMailing || lead.entityContact) && (
             <Card title="Owner & contact">
               <div className="space-y-2 text-sm">
                 {lead.owner && (
@@ -312,6 +312,34 @@ export default function LeadDetailPage({
                       className="shrink-0 text-[11px] font-bold px-2 py-1 rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s2)] text-[var(--t2)] hover:border-[var(--b3)]"
                     >
                       Copy for mail
+                    </button>
+                  </div>
+                )}
+                {lead.entityContact && (
+                  <div className="flex items-start justify-between gap-2 pt-2 border-t border-[var(--b1)]">
+                    <div>
+                      <span className="text-[var(--t4)]">LLC contact: </span>
+                      <span className="font-semibold text-[var(--home)]">
+                        {lead.entityContact.name}
+                      </span>
+                      {lead.entityContact.address && (
+                        <div className="text-[var(--t2)] text-[13px]">
+                          {lead.entityContact.address}
+                        </div>
+                      )}
+                      <div className="text-[10px] text-[var(--t4)] mt-0.5">
+                        via {lead.entityContact.source}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() =>
+                        navigator.clipboard.writeText(
+                          `${lead.entityContact!.name}\n${lead.entityContact!.address || ""}`.trim(),
+                        )
+                      }
+                      className="shrink-0 text-[11px] font-bold px-2 py-1 rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s2)] text-[var(--t2)] hover:border-[var(--b3)]"
+                    >
+                      Copy
                     </button>
                   </div>
                 )}

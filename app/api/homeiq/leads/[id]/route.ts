@@ -111,6 +111,8 @@ export async function GET(
       // NOT scraped — that needs a licensed, compliant skip-trace provider (surfaced as an opt-in).
       owner: (row.signals as any)?.owner,
       ownerMailing: (row.signals as any)?.owner_mailing,
+      // LLC owner → real contact person + address, matched from the free state business registry.
+      entityContact: (row.signals as any)?.entity_contact || null,
       // Listing identity (MLS-grade) + glance metrics — collected by Redfin/MLS/REO sources, never shown.
       listing: (() => {
         const s = (row.signals as any) || {};
