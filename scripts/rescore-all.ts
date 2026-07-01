@@ -28,11 +28,9 @@ async function main() {
       .range(page * pageSize, (page + 1) * pageSize - 1);
     if (error) throw error;
     if (!deals || deals.length === 0) break;
-    for (const d of deals) {
+
+    const processDeal = async (row: any) => {
       try {
-        const row = d as any;
-        // Backfill trim from the title for existing rows (A2) so the baseline is trim-aware before
-        // we re-score. New scrapes get this in normalizeDeal; this catches the back catalog.
         if (!row.trim) {
           const t = extractTrim(row.title, row.make, row.model);
           if (t) row.trim = t;
@@ -49,8 +47,6 @@ async function main() {
             profit_score: a.score,
             deal_verdict: a.verdict,
             is_arbitrage_opportunity: a.verdict === "go",
-            // Refresh the basis/implausible label in deal_analysis so the deal page + IQ confidence
-            // reflect the re-scored valuation (not a stale "markup"/baseline from the last scrape).
             deal_analysis: {
               ...(row.deal_analysis || {}),
               sellBasis: a.sellBasis,
@@ -68,7 +64,15 @@ async function main() {
       } catch {
         /* skip */
       }
+    };
+
+    // Concurrently process updates in sub-batches of 50
+    const concurrencyLimit = 50;
+    for (let i = 0; i < deals.length; i += concurrencyLimit) {
+      const subBatch = deals.slice(i, i + concurrencyLimit);
+      await Promise.all(subBatch.map((d) => processDeal(d)));
     }
+
     scanned += deals.length;
     console.log(
       `page ${page}: scanned ${scanned}, updated ${updated}, go→pass ${goToPass}`,

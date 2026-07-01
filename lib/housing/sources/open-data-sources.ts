@@ -164,6 +164,49 @@ export const MISSOURI_SOURCES: OpenDataSource[] = [
     },
   },
   {
+    // Cook County (Chicago) Assessor parcel roll — out-of-state ABSENTEE owners, direct-mail ready (owner
+    // name + full mailing address). Fills the single biggest IL gap: we had ZERO Illinois absentee, and
+    // this is ~65k current out-of-state owners in the 2nd-largest US county. The roll carries historical
+    // years, so pin to the current one — BUMP the year each year as Cook publishes the new roll. No geo in
+    // the feed → geocoded by property address on upsert.
+    source: "absentee_owner",
+    api: "socrata",
+    url: "https://datacatalog.cookcountyil.gov/resource/3723-97qp.json",
+    state: "IL",
+    city: "Cook County",
+    where:
+      "year='2026.0' AND mail_address_state IS NOT NULL AND mail_address_state != 'IL' AND prop_address_full IS NOT NULL",
+    limit: 20000,
+    map: (a): Property | null => {
+      const address = s(a.prop_address_full);
+      if (!address) return null;
+      return {
+        source: "absentee_owner",
+        source_listing_id: `cook-abs-${a.pin}`,
+        title: `Absentee owner · ${address}`,
+        property_type: "single_family",
+        address,
+        city: s(a.prop_address_city_name) || "Chicago",
+        state: "IL",
+        zip: s(a.prop_address_zipcode_1),
+        seller_type: "owner",
+        signals: {
+          absentee: true,
+          out_of_state_owner: true,
+          owner: s(a.mail_address_name),
+          owner_state: s(a.mail_address_state),
+          owner_mailing: mailing(
+            a.mail_address_full,
+            a.mail_address_city_name,
+            a.mail_address_state,
+            a.mail_address_zipcode_1,
+          ),
+          status: `Absentee (${s(a.mail_address_state)})`,
+        },
+      };
+    },
+  },
+  {
     // Greene County (Springfield) Assessor — out-of-state absentee residential. iasWorld rejects
     // resultOffset, so use OID-batch paging.
     source: "absentee_owner",
