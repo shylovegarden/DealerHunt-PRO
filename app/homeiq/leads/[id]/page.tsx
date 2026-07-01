@@ -478,6 +478,55 @@ export default function LeadDetailPage({
             </Card>
           )}
 
+          {/* BRRRR — refinance & hold: how much capital comes back out, and the return on what stays in. */}
+          {lead.brrrr && (
+            <Card title="BRRRR (refinance & hold)">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <Metric
+                  label="Cash left in"
+                  value={money(lead.brrrr.cashLeftIn)}
+                  accent={lead.brrrr.fullBrrrr ? "var(--green)" : "var(--t1)"}
+                  sub={`from ${money(lead.brrrr.allIn)} all-in`}
+                />
+                <Metric
+                  label="Cashflow"
+                  value={`${money(lead.brrrr.monthlyCashflow)}/mo`}
+                  accent={
+                    lead.brrrr.monthlyCashflow >= 0
+                      ? "var(--green)"
+                      : "var(--red)"
+                  }
+                  sub="after refi debt"
+                />
+                <Metric
+                  label="Cash-on-cash"
+                  value={
+                    lead.brrrr.fullBrrrr
+                      ? "∞"
+                      : lead.brrrr.cashOnCashPct != null
+                        ? `${lead.brrrr.cashOnCashPct}%`
+                        : "—"
+                  }
+                  accent={
+                    lead.brrrr.fullBrrrr
+                      ? "var(--green)"
+                      : CASHFLOW_COLOR.decent
+                  }
+                  sub={
+                    lead.brrrr.fullBrrrr ? "all capital recovered" : "annual"
+                  }
+                />
+              </div>
+              <p className="mt-3 text-[11px] text-[var(--t4)] leading-snug">
+                {lead.brrrr.fullBrrrr
+                  ? "Full BRRRR — the refi pulls back everything you put in; the return on $0 left in is effectively infinite. "
+                  : ""}
+                Pulls {money(lead.brrrr.cashOut)} out at refi (
+                {lead.brrrr.notes[0]}). Estimates — no live lender feed.
+              </p>
+            </Card>
+          )}
+
           {/* Market temperature — live from our own harvest of this ZIP (context, not ARV). */}
           {lead.market &&
             (lead.market.activeCount ||

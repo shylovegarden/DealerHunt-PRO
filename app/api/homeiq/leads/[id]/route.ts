@@ -6,6 +6,7 @@ import { scoreHousingLead } from "@/lib/housing/lead-score";
 import { analyzeHousingDeal } from "@/lib/housing/deal-analyzer";
 import { rentCashflow } from "@/lib/housing/rent";
 import { holdingCost } from "@/lib/housing/holding-cost";
+import { brrrrAnalysis } from "@/lib/housing/brrrr";
 import { neighborhoodScore } from "@/lib/housing/neighborhood";
 import { loadLivePsf } from "@/lib/housing/live-psf";
 import { loadCalibration } from "@/lib/housing/calibration";
@@ -51,6 +52,17 @@ export async function GET(
           months: market?.medianDom
             ? Math.round(3 + market.medianDom / 30)
             : undefined,
+        })
+      : null;
+
+  // BRRRR (refi-and-hold) exit — needs a real comp-driven ARV + a ZORI rent.
+  const brrrr =
+    analysis.arv && cashflow?.monthlyRent
+      ? brrrrAnalysis({
+          price: p.price || 0,
+          repairEstimate: analysis.repairEstimate || 0,
+          arv: analysis.arv,
+          monthlyRent: cashflow.monthlyRent,
         })
       : null;
 
@@ -143,6 +155,7 @@ export async function GET(
       signals: score.signals,
       analysis,
       cashflow,
+      brrrr, // refi-and-hold exit: { cashLeftIn, monthlyCashflow, cashOnCashPct, fullBrrrr, … }
       holding, // time cost of the flip: { perMonth, months, total, breakdown, notes }
       neighborhood: neighborhoodScore(p.zip), // Census ACS trajectory (null until data:acs is run)
       market, // live ZIP temperature: { activeCount, medianDom, listPsf } — context, not ARV
