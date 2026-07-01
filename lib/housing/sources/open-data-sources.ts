@@ -700,7 +700,7 @@ export const NATIONAL_SOURCES: OpenDataSource[] = [
     state: "NY",
     where:
       "MAIL_STATE NOT IN ('NY') AND (PROP_CLASS LIKE '21%' OR PROP_CLASS LIKE '22%' OR PROP_CLASS LIKE '23%') AND FULL_MARKET_VAL > 50000 AND FULL_MARKET_VAL < 900000 AND SQFT_LIVING > 500",
-    limit: 6000,
+    limit: 50000, // ~53k available statewide — capture the full owner-rich set (engine ceiling is 50k)
     map: (a, g): Property | null => {
       const address =
         s(a.PARCEL_ADDR) ||
@@ -748,7 +748,7 @@ export const NATIONAL_SOURCES: OpenDataSource[] = [
     state: "MT",
     where:
       "OwnerState <> 'MT' AND OwnerState IS NOT NULL AND PropType = 'Improved Property' AND TotalBuildingValue > 30000",
-    limit: 6000,
+    limit: 32000, // ~31k available — capture the full state (was capped at 6k)
     map: (a, g): Property | null => {
       const address = s(a.AddressLine1);
       if (!address) return null;
@@ -795,7 +795,7 @@ export const NATIONAL_SOURCES: OpenDataSource[] = [
     state: "MA",
     where:
       "OWN_STATE<>'MA' AND OWN_STATE IS NOT NULL AND USE_CODE LIKE '101%' AND RES_AREA>500 AND TOTAL_VAL>60000",
-    limit: 6000,
+    limit: 45000, // ~44k available — capture the full state (was capped at 6k)
     map: (a, g): Property | null => {
       const address = s(a.SITE_ADDR);
       if (!address) return null;
@@ -837,7 +837,7 @@ export const NATIONAL_SOURCES: OpenDataSource[] = [
     url: "https://gis.mcassessor.maricopa.gov/arcgis/rest/services/Parcels/MapServer/0",
     state: "AZ",
     where: "MAIL_STATE NOT IN ('AZ') AND PHYSICAL_CITY IS NOT NULL",
-    limit: 6000,
+    limit: 20000, // Maricopa is huge; the map() filters residential post-fetch, so cap raw pulls at 20k
     map: (a, g): Property | null => {
       const parts = [
         a.PHYSICAL_STREET_NUM,
