@@ -90,13 +90,14 @@ Risk is honest; ignore any "2-hour" estimates from prior handoffs.
 
 ### P2 — cheap intelligence adds (free, real, additive)
 
-4. **Census ACS neighborhood-trajectory score** — new `lib/housing/sources/census.ts`. Free API
-   (`api.census.gov`), one cached call per ZIP/tract: income/population/vacancy trend → a labeled
-   trajectory badge + a transparent scorer signal. Risk: low. **Label as an estimate.**
-   ⚠️ Needs network — build/run on the fleet/box (this dev sandbox proxies-blocks census.gov + FEMA), or
-   snapshot to JSON like `zip-ppsf`/`zip-rent` via a `scripts/fetch-census-acs.ts` run there.
+4. ✅ **CODE DONE — Census ACS neighborhood-trajectory score** — `lib/housing/neighborhood.ts` +
+   `scripts/fetch-census-acs.ts` (`npm run data:acs`) + wired (scorer 7c, detail card). **ACTION: run
+   `npm run data:acs` on a networked box** to populate `lib/housing/data/zip-acs.json` (seeded empty; the
+   whole feature no-ops until then). This dev sandbox proxy-blocks census.gov.
+   ✅ **DONE — BRRRR (refinance & hold)** — `lib/housing/brrrr.ts` + detail card. Pure, live now.
 5. **FEMA flood-zone flag** — new `lib/housing/sources/fema-flood.ts`. One call per lat/lng; flag Zone
-   AE/VE (kills buy-and-hold ROI). Surface as a risk chip. Risk: low. ⚠️ Same network caveat as #4.
+   AE/VE (kills buy-and-hold ROI). Surface as a risk chip. Risk: low. ⚠️ Network-blocked in this sandbox
+   (FEMA returns a WebSEAL auth page) — build as a runtime lookup w/ cache + graceful null, run on the box.
 6. ✅ **DONE — Holding-cost calculator** — `lib/housing/holding-cost.ts` (taxes+insurance+utilities+
    hard-money interest, months ≈ 3 + ZIP DOM/30); detail-page "Holding cost" card w/ net-after-carry.
 7. **Owner → queryable columns** **[migration]** — add `owner_name/owner_mailing/owner_state` cols to
