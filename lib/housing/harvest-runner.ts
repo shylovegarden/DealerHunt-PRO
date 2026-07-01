@@ -28,6 +28,7 @@ import { upsertProperties, reconcileStaleProperties } from "./store";
 import { loadLivePsf, refreshMarketTemp } from "./live-psf";
 import { loadCalibration } from "./calibration";
 import { enrichFloodZones } from "./flood-enrich";
+import { enrichEntityContacts } from "./entity-enrich";
 import { scrapeFsbo } from "./sources/fsbo";
 import { scrapeHubzu } from "./sources/hubzu";
 import { scrapeBid4Assets } from "./sources/bid4assets";
@@ -147,6 +148,10 @@ export async function runHousingHarvest(): Promise<HarvestResult> {
   // Enrich a bounded, hottest-first batch with FEMA flood zones (static per parcel, stored once) so flood
   // risk becomes a filter/badge — accumulates full coverage across harvests. Best-effort; never blocks.
   if (written > 0) await enrichFloodZones(800).catch(() => 0);
+
+  // Owner-contact enrichment: match LLC-owned leads (in registry-covered states) to the free state business
+  // registry → a real contact person + address. Bounded, hottest-first; never blocks the harvest.
+  if (written > 0) await enrichEntityContacts(400).catch(() => 0);
 
   return {
     ok: true,
