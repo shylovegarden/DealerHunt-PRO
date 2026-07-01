@@ -7,6 +7,7 @@ import { scoreHousingLead } from "@/lib/housing/lead-score";
 import { analyzeHousingDeal } from "@/lib/housing/deal-analyzer";
 import { rentCashflow } from "@/lib/housing/rent";
 import { loadLivePsf } from "@/lib/housing/live-psf";
+import { loadCalibration } from "@/lib/housing/calibration";
 import {
   queryProperties,
   countByState,
@@ -280,8 +281,11 @@ async function cachedCountByState(): Promise<Record<string, number>> {
 }
 
 export async function GET(req: NextRequest) {
-  // Inject our live sold $/sqft into arv-psf so every served lead's ARV/score uses the freshest comps.
+  // Inject the freshest comps (live sold $/sqft) AND the learned tier calibration BEFORE any (re)scoring,
+  // so every served lead's score matches the harvest + detail paths deterministically (fromStored
+  // recomputes the score, so without this the list could use a stale TIER_CAL left on a warm worker).
   await loadLivePsf().catch(() => {});
+  await loadCalibration().catch(() => {});
   const sp = new URL(req.url).searchParams;
   const state = (sp.get("state") || "").toUpperCase();
   const statesParam = (sp.get("states") || "")

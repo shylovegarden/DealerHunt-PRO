@@ -69,8 +69,8 @@ export interface OutcomeSummary {
 }
 
 // How much real resolved data each tier needs before its win rate is trusted to nudge scoring (below this
-// the sample is noise).
-const MIN_TIER_RESOLVED = 8;
+// the sample is noise). Exported so the UI can honestly gray out a tier the model is still ignoring.
+export const MIN_TIER_RESOLVED = 8;
 // The learned nudge is clamped to ±15% so a small, noisy sample can never dominate the hand-tuned base.
 const CAL_MIN = 0.85;
 const CAL_MAX = 1.15;

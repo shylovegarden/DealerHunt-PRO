@@ -1,18 +1,14 @@
-// app/api/homeiq/insights/route.ts — the learning-loop insights for the signed-in user's pipeline.
-// Reads their saved_properties, turns each into a training row (features + win/loss/profit label), and
-// returns the calibration summary: win rate by predicted tier ("is our hot actually hot?"), realized
-// profit, and progress toward the point where the model starts adjusting the score. Honest by design —
-// it reports exactly what's been resolved, nothing inferred.
+// app/api/homeiq/insights/route.ts — the learning-loop status for the calibration card.
+//
+// Returns the GLOBAL model calibration — the exact summary the scorer uses (loadCalibration reads every
+// closed/dead deal, service-role, and injects the per-tier factors into scoring). The card must show what
+// the model actually does, not a per-user slice that wouldn't match the (global) adjustment. Auth-gated so
+// only signed-in users see it; the numbers are aggregate outcomes, no PII.
 
 import { NextResponse } from "next/server";
-import { createServerComponentClient } from "@/lib/supabase";
 import { getServerUser } from "@/lib/server-supabase";
-import {
-  extractOutcomeRow,
-  summarizeOutcomes,
-  calibrationFromOutcomes,
-  type OutcomeRow,
-} from "@/lib/housing/outcomes";
+import { loadCalibration } from "@/lib/housing/calibration";
+import { calibrationFromOutcomes } from "@/lib/housing/outcomes";
 
 export const dynamic = "force-dynamic";
 
@@ -23,19 +19,10 @@ export async function GET() {
   if (!user?.id)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const sb = createServerComponentClient();
-  const { data, error } = await sb
-    .from("saved_properties")
-    .select("status, snapshot")
-    .eq("user_id", user.id);
-  if (error)
-    return NextResponse.json({ error: error.message }, { status: 500 });
-
-  const rows = (data || [])
-    .map((r) => extractOutcomeRow(r as any))
-    .filter((r): r is OutcomeRow => r != null);
-  const summary = summarizeOutcomes(rows);
-  const calibration = calibrationFromOutcomes(summary);
-
-  return NextResponse.json({ summary, calibration });
+  const summary = await loadCalibration().catch(() => null);
+  if (!summary) return NextResponse.json({ summary: null, calibration: null });
+  return NextResponse.json({
+    summary,
+    calibration: calibrationFromOutcomes(summary),
+  });
 }

@@ -1,11 +1,12 @@
 "use client";
 
 import useSWR from "swr";
+import { MIN_TIER_RESOLVED } from "@/lib/housing/outcomes";
 
-// The visible half of the learning loop — shows the user that HomeIQ is calibrating its score against what
-// they ACTUALLY close. Honest by construction: it only reports resolved outcomes, shows real progress toward
-// the point where the model starts adjusting, and says plainly when it's still learning. No fabricated
-// "AI accuracy" number — just the realized win rate by the tier we predicted.
+// The visible half of the learning loop — shows that HomeIQ is calibrating its score against deals that
+// ACTUALLY close. Honest by construction: it reports the GLOBAL model's resolved outcomes (the same data
+// the scorer uses), shows real progress to the activation gate, says plainly when it's still learning, and
+// grays out any tier whose sample is too small for the model to trust. No fabricated "AI accuracy" number.
 
 const fetcher = (u: string) => fetch(u).then((r) => r.json());
 const ACCENT = "var(--home)";
@@ -97,8 +98,20 @@ export function CalibrationCard() {
           </p>
           {tiers.map(([tier, t]) => {
             const rate = t.resolved ? t.won / t.resolved : 0;
+            // Below the model's minimum sample this win rate is noise — show it dimmed so it doesn't read
+            // as a confident "hot is 100% accurate" on 2 deals (the model ignores it too).
+            const trusted = t.resolved >= MIN_TIER_RESOLVED;
             return (
-              <div key={tier} className="flex items-center gap-2 text-[11px]">
+              <div
+                key={tier}
+                className="flex items-center gap-2 text-[11px]"
+                style={{ opacity: trusted ? 1 : 0.45 }}
+                title={
+                  trusted
+                    ? undefined
+                    : `Needs ${MIN_TIER_RESOLVED - t.resolved} more resolved to count`
+                }
+              >
                 <span
                   className="w-14 shrink-0 font-bold capitalize"
                   style={{ color: TIER_COLOR[tier] || "var(--t3)" }}
@@ -126,15 +139,15 @@ export function CalibrationCard() {
       <p className="mt-3 text-[11px] text-[var(--t4)] leading-snug">
         {active ? (
           <>
-            Scores are now nudged by how each tier actually converts in your
-            pipeline — learned from {s.resolved} closed/dead deals.
+            Scores are now nudged by how each tier actually converts — learned
+            from {s.resolved} closed/dead deals across the platform.
           </>
         ) : (
           <>
             Mark deals <strong className="text-[var(--t3)]">Closed</strong>{" "}
             (won) or <strong className="text-[var(--t3)]">Dead</strong> (lost)
             as they resolve. At {GATE}, HomeIQ starts tuning the score toward
-            what actually converts — no guesses, only your real outcomes.
+            what actually converts — no guesses, only real outcomes.
           </>
         )}
       </p>
