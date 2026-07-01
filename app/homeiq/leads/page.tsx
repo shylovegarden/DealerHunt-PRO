@@ -14,6 +14,7 @@ import {
   HOME_CONDITION_TIER_COLOR,
 } from "@/lib/housing/condition";
 import { LEAD_CATEGORIES, leadCategories } from "@/lib/housing/categories";
+import { usePreferences } from "@/hooks/usePreferences";
 
 // Market-leading housing browse — Zillow/Redfin split map+list + photo-forward cards + PropStream-style
 // lead signals. LOCATION-FIRST + PROGRESSIVE: scoped to your state shows it IMMEDIATELY, then "Nearby"
@@ -246,10 +247,17 @@ export default function HomeIQLeadsPage() {
 
 function LeadsInner() {
   const params = useSearchParams();
-  const scopeState = (params.get("state") || "").toUpperCase();
+  // A deep-link `?state=` always wins; otherwise fall back to the user's saved default market (applied once
+  // below). Effective scope = URL state OR saved pref — so you land on your market without re-picking, and
+  // can still widen to Nearby / Nationwide whenever you want more.
+  const urlState = (params.get("state") || "").toUpperCase();
+  const [prefState, setPrefState] = useState("");
+  const scopeState = urlState || prefState;
   const [scopeMode, setScopeMode] = useState<"state" | "nearby" | "national">(
-    scopeState ? "state" : "national",
+    urlState ? "state" : "national",
   );
+  const { prefs } = usePreferences();
+  const prefsApplied = useRef(false);
   // Initialize filters from the URL so deep-links from the Market dashboard land pre-filtered.
   const [tier, setTier] = useState(params.get("tier") || "");
   const [type, setType] = useState(params.get("type") || "");
@@ -266,6 +274,20 @@ function LeadsInner() {
   // Secondary filters (type/source/price/sort) collapse behind a "Filters" button on mobile so the bar
   // doesn't wrap into 4 cramped rows; always shown on desktop.
   const [showFilters, setShowFilters] = useState(false);
+
+  // Apply the saved defaults ONCE, only for what the URL didn't already specify (so deep-links win and we
+  // never fight the user after they've started filtering).
+  useEffect(() => {
+    if (prefsApplied.current || !Object.keys(prefs).length) return;
+    prefsApplied.current = true;
+    if (!urlState && prefs.homeiqState) {
+      setPrefState(prefs.homeiqState.toUpperCase());
+      setScopeMode("state");
+    }
+    if (!params.get("tier") && prefs.homeiqTier) setTier(prefs.homeiqTier);
+    if (!params.get("type") && prefs.homeiqType) setType(prefs.homeiqType);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefs]);
 
   // SERVER-SIDE SCOPE: fetch the current scope from the full 54k (your state / nearby / national top),
   // then filter/sort/search instantly client-side WITHIN that slice. Re-fetches when the scope changes.
