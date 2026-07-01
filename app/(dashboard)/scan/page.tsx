@@ -507,6 +507,7 @@ export default function ScanPage() {
   const [minProfit, setMinProfit] = useState("any");
   const [state, setState] = useState("all");
   const [make, setMake] = useState("all");
+  const [model, setModel] = useState("all");
   const [maxPrice, setMaxPrice] = useState("any");
   const [minYear, setMinYear] = useState("any");
   const [maxMileage, setMaxMileage] = useState("any");
@@ -574,6 +575,25 @@ export default function ScanPage() {
     return opts;
   }, [facets]);
 
+  // CASCADE: once a make is chosen, load its full model list (Copart-style make → model).
+  const { data: modelFacets } = useSWR(
+    make !== "all"
+      ? `/api/scan/facets?make=${encodeURIComponent(make)}${state !== "all" ? `&state=${state}` : ""}`
+      : null,
+    fetcher,
+    { revalidateOnFocus: false },
+  );
+  const modelOptions = useMemo(() => {
+    const opts = [{ value: "all", label: "Model: All" }];
+    for (const m of modelFacets?.models ?? [])
+      opts.push({ value: m.model, label: `${m.model} (${m.count})` });
+    return opts;
+  }, [modelFacets]);
+  // Reset the model whenever the make changes so a stale model can't linger.
+  useEffect(() => {
+    setModel("all");
+  }, [make]);
+
   // Build SWR key from filters
   const swrKey = useMemo(() => {
     if (dealerLoading || !dealerId) return null;
@@ -584,6 +604,7 @@ export default function ScanPage() {
     if (lane !== "all") params.set("lane", lane);
     if (state !== "all") params.set("state", state);
     if (make !== "all") params.set("make", make);
+    if (model !== "all") params.set("model", model);
     if (minProfit !== "any")
       params.set("minProfit", minProfit.replace("k", "000"));
     if (maxPrice !== "any")
@@ -608,6 +629,7 @@ export default function ScanPage() {
     lane,
     state,
     make,
+    model,
     minProfit,
     maxPrice,
     minPrice,
@@ -1032,6 +1054,15 @@ export default function ScanPage() {
             onChange={setMake}
             options={makeOptions}
           />
+          {/* Model cascades off the chosen make (Copart-style) — appears once a make is picked. */}
+          {make !== "all" && (
+            <FilterSelect
+              label="Model"
+              value={model}
+              onChange={setModel}
+              options={modelOptions}
+            />
+          )}
           <FilterSelect
             label="State"
             value={state}
