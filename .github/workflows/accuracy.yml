@@ -26,12 +26,5 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run valuation backtest
-        run: |
-          npx tsx scripts/valuation-backtest.ts | tee /tmp/acc.txt
-          MAPE=$(grep -o 'MAPE: [0-9.]*' /tmp/acc.txt | awk '{print $2}')
-          echo "Found MAPE: $MAPE"
-          if awk -v mape="$MAPE" 'BEGIN { exit (mape > 15 ? 0 : 1) }'; then
-            echo "MAPE exceeds 15%. Failing workflow."
-            exit 1
-          fi
+      - name: Run valuation backtest accuracy gate
+        run: npm run accuracy:gate

@@ -22,6 +22,7 @@
     "test:watch": "vitest",
     "verify": "node scripts/verify.mjs",
     "verify:quick": "npm run typecheck && npm run lint",
+    "accuracy:gate": "tsx scripts/valuation-backtest.ts",
     "audit:data": "tsx scripts/audit-data-quality.ts",
     "audit:properties": "tsx scripts/audit-properties.ts",
     "data:ppsf": "tsx scripts/fetch-redfin-ppsf.ts",

@@ -4,6 +4,9 @@
 
 The Bid4Assets Angular SPA fetches auction listings via a `POST` request to its `process` endpoint. It returns a clean JSON array of results.
 
+**Current Status**: Blocked by Akamai Edge Suite / PerimeterX on standard headless/cloud IPs (Returns 403 Access Denied).
+Requires the residential proxy FLEET (`smartFetch` via FlareSolverr) to bypass the WAF.
+
 **URL:** `https://www.bid4assets.com/api/search/process?take=25&skip=0&page=1&pageSize=25`
 **Method:** `POST`
 

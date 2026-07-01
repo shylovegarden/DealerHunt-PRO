@@ -7,6 +7,8 @@
 
 import { harvestGovDealsProperties } from "./sources/govdeals-property";
 import { scrapeHudHomes } from "./sources/hud-homes";
+import { scrapeHomeSteps } from "./sources/homesteps";
+import { scrapeAuctionCom } from "./sources/auctioncom";
 import { scrapeGsaRealEstate } from "./sources/gsa-realestate";
 import { harvestRedfinGis } from "./sources/redfin-gis";
 import { harvestHomePath } from "./sources/homepath";
@@ -25,6 +27,10 @@ import { enrichRedfinProperties } from "./sources/redfin-enrich";
 import { upsertProperties, reconcileStaleProperties } from "./store";
 import { loadLivePsf, refreshMarketTemp } from "./live-psf";
 import { loadCalibration } from "./calibration";
+import { scrapeFsbo } from "./sources/fsbo";
+import { scrapeHubzu } from "./sources/hubzu";
+import { scrapeBid4Assets } from "./sources/bid4assets";
+import { scrapeUsdaResales } from "./sources/usda-resales";
 
 export interface HarvestResult {
   ok: boolean;
@@ -46,6 +52,8 @@ export async function runHousingHarvest(): Promise<HarvestResult> {
     gd,
     ad,
     hud,
+    homesteps,
+    auctioncom,
     gsare,
     redfin,
     homepath,
@@ -60,10 +68,16 @@ export async function runHousingHarvest(): Promise<HarvestResult> {
     od,
     portals,
     mls,
+    fsbo,
+    hubzu,
+    b4a,
+    usda,
   ] = await Promise.all([
     harvestGovDealsProperties("GD", 5).catch(() => []),
     harvestGovDealsProperties("AD", 3).catch(() => []),
     scrapeHudHomes().catch(() => []),
+    scrapeHomeSteps().catch(() => []),
+    scrapeAuctionCom().catch(() => []),
     scrapeGsaRealEstate().catch(() => []),
     harvestRedfinGis().catch(() => []), // verified open MLS door: gis-csv bbox, no anti-bot
     harvestHomePath().catch(() => []), // Fannie Mae REO — open JSON, nationwide bank-owned
@@ -78,12 +92,18 @@ export async function runHousingHarvest(): Promise<HarvestResult> {
     fetchOpenDataLeads().catch(() => []), // generic open-data registry (nationwide off-market)
     harvestPortals().catch(() => []), // Zillow/Realtor/… (fleet-gated, config-driven)
     harvestReso().catch(() => []), // MLS via RESO Web API (legit; [] until a member feed is wired)
+    scrapeFsbo().catch(() => []), // FSBO.com national owner listings (open JSON API, no auth)
+    scrapeHubzu().catch(() => []), // Hubzu.com REO/foreclosure auctions (open JSON API, XSSI-prefixed)
+    scrapeBid4Assets().catch(() => []), // Bid4Assets.com tax/REO auctions (open JSON API with CSRF token)
+    scrapeUsdaResales().catch(() => []), // USDA RD/FSA surplus resales (FIPS state crawling, no auth)
   ]);
 
   let properties = [
     ...gd,
     ...ad,
     ...hud,
+    ...homesteps,
+    ...auctioncom,
     ...gsare,
     ...redfin,
     ...homepath,
@@ -98,6 +118,10 @@ export async function runHousingHarvest(): Promise<HarvestResult> {
     ...od,
     ...portals,
     ...mls,
+    ...fsbo,
+    ...hubzu,
+    ...b4a,
+    ...usda,
   ];
 
   // Opt-in per-listing enrichment (REDFIN_ENRICH=1, fleet-only): pull listing remarks/photos for the
@@ -128,6 +152,8 @@ export async function runHousingHarvest(): Promise<HarvestResult> {
       govdeals: gd.length,
       allsurplus: ad.length,
       hud: hud.length,
+      homesteps: homesteps.length,
+      auctioncom: auctioncom.length,
       gsa_realestate: gsare.length,
       redfin: redfin.length,
       fannie_homepath: homepath.length,
@@ -142,6 +168,10 @@ export async function runHousingHarvest(): Promise<HarvestResult> {
       open_data: od.length,
       portals: portals.length,
       mls: mls.length,
+      fsbo: fsbo.length,
+      hubzu: hubzu.length,
+      bid4assets: b4a.length,
+      usda_resales: usda.length,
     },
   };
 }
