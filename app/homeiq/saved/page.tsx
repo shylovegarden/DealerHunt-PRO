@@ -288,7 +288,8 @@ function Card({
         </select>
         <button
           onClick={() => onRemove(row.id)}
-          className="text-[11px] text-[var(--t4)] hover:text-[var(--red)] px-1"
+          aria-label="Remove from pipeline"
+          className="shrink-0 w-7 h-7 grid place-items-center rounded-[var(--r2)] text-[var(--t4)] hover:text-[var(--red)] hover:bg-[var(--s2)]"
         >
           ✕
         </button>

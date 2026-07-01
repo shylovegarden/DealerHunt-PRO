@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import useSWR from "swr";
 import { stateName } from "@/lib/housing/us-states";
@@ -80,14 +80,43 @@ const fmtMoney = (n: number) =>
       : `$${n}`;
 
 export default function MarketIntelligence() {
-  const { data, isLoading } = useSWR(`/api/homeiq/leads?limit=2000`, fetcher, {
-    revalidateOnFocus: false,
-  });
+  const { data, isLoading, error } = useSWR(
+    `/api/homeiq/leads?limit=2000`,
+    fetcher,
+    { revalidateOnFocus: false },
+  );
   const leads: Lead[] = data?.leads ?? [];
 
-  const f = useMemo(() => summarizeMarket(leads), [leads]);
+  // Interactive slicing — the cars market page is a sourcing tool, not a static dashboard. Filter by state
+  // / source / type and the WHOLE dashboard (KPIs, heatmap, every chart) re-slices over the filtered set.
+  const [fState, setFState] = useState("");
+  const [fSource, setFSource] = useState("");
+  const [fType, setFType] = useState("");
+  const hasFilter = !!(fState || fSource || fType);
 
-  const total = leads.length;
+  // Options come from the FULL set (so a filter never hides the other options); charts use the filtered set.
+  const fullF = useMemo(() => summarizeMarket(leads), [leads]);
+  const filtered = useMemo(
+    () =>
+      leads.filter(
+        (l) =>
+          (!fState || l.state === fState) &&
+          (!fSource || l.source === fSource) &&
+          (!fType || l.property_type === fType),
+      ),
+    [leads, fState, fSource, fType],
+  );
+  const f = useMemo(() => summarizeMarket(filtered), [filtered]);
+
+  const opt = (m: Record<string, number>, lbl: (k: string) => string) =>
+    Object.entries(m)
+      .sort((a, b) => b[1] - a[1])
+      .map(([k, n]) => ({ key: k, label: `${lbl(k)} (${n})` }));
+  const stateOpts = opt(fullF.byState, stateName);
+  const sourceOpts = opt(fullF.bySource, sourceLabel);
+  const typeOpts = opt(fullF.byType, typeLabel);
+
+  const total = filtered.length;
   const sourceItems = Object.entries(f.bySource)
     .sort((a, b) => b[1] - a[1])
     .map(([s, n], i) => ({
@@ -171,6 +200,46 @@ export default function MarketIntelligence() {
           flip opportunity across every free source.
         </p>
 
+        {/* Filter bar — slice the whole dashboard by state / source / type. */}
+        {total + (hasFilter ? 1 : 0) > 0 && (
+          <div className="mt-5 flex flex-wrap items-center gap-2">
+            <Sel
+              value={fState}
+              onChange={setFState}
+              placeholder="All states"
+              options={stateOpts}
+            />
+            <Sel
+              value={fSource}
+              onChange={setFSource}
+              placeholder="All sources"
+              options={sourceOpts}
+            />
+            <Sel
+              value={fType}
+              onChange={setFType}
+              placeholder="All types"
+              options={typeOpts}
+            />
+            {hasFilter && (
+              <button
+                onClick={() => {
+                  setFState("");
+                  setFSource("");
+                  setFType("");
+                }}
+                className="px-3 py-2 rounded-[var(--r3)] bg-[var(--s2)] border border-[var(--b1)] text-xs font-bold text-[var(--t3)] hover:text-[var(--t1)]"
+              >
+                ✕ Reset
+              </button>
+            )}
+            <span className="ml-auto text-xs font-bold text-[var(--t4)]">
+              {total.toLocaleString()}
+              {hasFilter ? ` of ${leads.length.toLocaleString()}` : ""} leads
+            </span>
+          </div>
+        )}
+
         {/* KPI row */}
         <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           <Kpi label="Live leads" value={total.toLocaleString()} />
@@ -207,7 +276,11 @@ export default function MarketIntelligence() {
           </div>
         ) : !total ? (
           <div className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] p-10 text-center text-[var(--t4)]">
-            No market data yet.
+            {error
+              ? "Couldn't load market data — try again."
+              : hasFilter
+                ? "No leads match these filters."
+                : "No market data yet."}
           </div>
         ) : (
           <div className="flex flex-col gap-4">
@@ -290,6 +363,34 @@ export default function MarketIntelligence() {
         )}
       </section>
     </div>
+  );
+}
+
+function Sel({
+  value,
+  onChange,
+  placeholder,
+  options,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+  options: { key: string; label: string }[];
+}) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="px-3 py-2 rounded-[var(--r3)] bg-[var(--s0)] border text-xs font-bold text-[var(--t2)] focus:outline-none cursor-pointer"
+      style={{ borderColor: value ? "var(--home)" : "var(--b1)" }}
+    >
+      <option value="">{placeholder}</option>
+      {options.map((o) => (
+        <option key={o.key} value={o.key}>
+          {o.label}
+        </option>
+      ))}
+    </select>
   );
 }
 

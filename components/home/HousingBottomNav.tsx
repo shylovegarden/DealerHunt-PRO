@@ -9,7 +9,7 @@ import { Home, List, Map as MapIcon, BarChart3, Bookmark } from "lucide-react";
 const NAV_ITEMS = [
   { name: "Home", href: "/homeiq", icon: Home },
   { name: "Leads", href: "/homeiq/leads", icon: List },
-  { name: "Markets", href: "/homeiq/states", icon: MapIcon },
+  { name: "States", href: "/homeiq/states", icon: MapIcon },
   { name: "Market", href: "/homeiq/market", icon: BarChart3 },
   { name: "Pipeline", href: "/homeiq/saved", icon: Bookmark },
 ];

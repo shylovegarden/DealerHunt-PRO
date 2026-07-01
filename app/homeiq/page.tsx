@@ -102,13 +102,24 @@ export default function HomeIQHome() {
         </p>
 
         {/* Live stats — count up from 0 the instant the totals land. */}
-        <div className="mt-7 grid grid-cols-3 gap-3 max-w-xl">
-          <Stat label="Live leads" value={total} accent="var(--t1)" />
-          <Stat label="🔥 Hot" value={byTier.hot ?? 0} accent="var(--red)" />
+        <div className="mt-7 grid grid-cols-3 gap-2 sm:gap-3 max-w-xl">
           <Stat
-            label="Markets"
+            label="Live leads"
+            value={total}
+            accent="var(--t1)"
+            loading={!data}
+          />
+          <Stat
+            label="🔥 Hot"
+            value={byTier.hot ?? 0}
+            accent="var(--red)"
+            loading={!data}
+          />
+          <Stat
+            label="States"
             value={Object.keys(byState).length}
             accent={ACCENT}
+            loading={!data}
           />
         </div>
 
@@ -255,21 +266,23 @@ function Stat({
   label,
   value,
   accent,
+  loading,
 }: {
   label: string;
   value: number;
   accent: string;
+  loading?: boolean;
 }) {
   const n = useCountUp(value, 900);
   return (
-    <div className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] px-4 py-3">
+    <div className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] px-3 sm:px-4 py-3">
       <div
-        className="text-2xl font-black tabular-nums"
+        className="text-xl sm:text-2xl font-black tabular-nums"
         style={{ color: accent }}
       >
-        {value ? n.toLocaleString() : "—"}
+        {loading ? "—" : n.toLocaleString()}
       </div>
-      <div className="text-[11px] font-bold uppercase tracking-widest text-[var(--t4)]">
+      <div className="text-[10px] sm:text-[11px] font-bold uppercase tracking-widest text-[var(--t4)]">
         {label}
       </div>
     </div>

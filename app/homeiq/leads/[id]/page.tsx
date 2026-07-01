@@ -732,7 +732,7 @@ function FlipWaterfall({
         {
           width: w(Math.max(0, arv - ask)),
           bg: "var(--amber)",
-          t: `Repairs ${money(rep)}`,
+          t: `Repairs (up to ARV) ${money(Math.max(0, arv - ask))}`,
         },
         {
           width: w(ask + rep - arv),

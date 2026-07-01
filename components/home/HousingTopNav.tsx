@@ -21,8 +21,8 @@ import { VerticalSwitch } from "@/components/shared/VerticalSwitch";
 const PRIMARY = [
   { name: "Home", href: "/homeiq", icon: Home },
   { name: "Leads", href: "/homeiq/leads", icon: List },
-  { name: "Markets", href: "/homeiq/states", icon: MapIcon },
-  { name: "Market data", href: "/homeiq/market", icon: BarChart3 },
+  { name: "States", href: "/homeiq/states", icon: MapIcon },
+  { name: "Market", href: "/homeiq/market", icon: BarChart3 },
   { name: "Pipeline", href: "/homeiq/saved", icon: Bookmark },
 ];
 

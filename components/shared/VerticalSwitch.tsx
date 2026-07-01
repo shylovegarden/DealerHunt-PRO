@@ -21,6 +21,7 @@ export function VerticalSwitch() {
       <button
         role="tab"
         aria-selected={inHouses}
+        aria-label="Houses — HomeIQ"
         onClick={() => !inHouses && router.push("/homeiq")}
         title="Houses — HomeIQ"
         className="flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-bold transition-colors"
@@ -36,6 +37,7 @@ export function VerticalSwitch() {
       <button
         role="tab"
         aria-selected={!inHouses}
+        aria-label="Cars — DealerHunt Pro"
         onClick={() => inHouses && router.push("/discover")}
         title="Cars — DealerHunt Pro"
         className="flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-bold transition-colors"
