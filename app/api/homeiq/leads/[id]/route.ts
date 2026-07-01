@@ -8,7 +8,7 @@ import { rentCashflow } from "@/lib/housing/rent";
 import { holdingCost } from "@/lib/housing/holding-cost";
 import { brrrrAnalysis } from "@/lib/housing/brrrr";
 import { neighborhoodScore } from "@/lib/housing/neighborhood";
-import { floodZone } from "@/lib/housing/sources/fema-flood";
+import { floodZone, classifyFloodZone } from "@/lib/housing/sources/fema-flood";
 import { loadLivePsf } from "@/lib/housing/live-psf";
 import { loadCalibration } from "@/lib/housing/calibration";
 import type { Property } from "@/lib/housing/types";
@@ -67,8 +67,12 @@ export async function GET(
         })
       : null;
 
-  // FEMA flood zone (best-effort, cached, short timeout) — a Special Flood Hazard Area hits hold ROI hard.
-  const flood = await floodZone(p.lat, p.lng).catch(() => null);
+  // FEMA flood zone — prefer the pre-enriched value in signals (instant); fall back to a live NFHL lookup
+  // only for a not-yet-enriched property. A Special Flood Hazard Area hits hold ROI hard.
+  const storedFz = (p.signals as any)?.flood_zone;
+  const flood = storedFz
+    ? classifyFloodZone(String(storedFz))
+    : await floodZone(p.lat, p.lng).catch(() => null);
 
   return NextResponse.json({
     lead: {

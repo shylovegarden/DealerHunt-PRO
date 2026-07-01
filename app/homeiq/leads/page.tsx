@@ -210,6 +210,7 @@ interface Lead {
   anomaly?: boolean;
   anomalyPct?: number;
   neighborhood?: string;
+  flood?: { zone: string; high: boolean };
   distress?: {
     totalDue?: number;
     yearsOwed?: number;
@@ -844,6 +845,19 @@ function LeadCard({ lead, index = 0 }: { lead: Lead; index?: number }) {
                 title="Appears on multiple distress lists — high motivation"
               >
                 📚 {lead.stack} lists
+              </span>
+            )}
+            {/* FEMA flood risk — a Special Flood Hazard Area (mandatory insurance, worse for a hold). */}
+            {lead.flood?.high && (
+              <span
+                className="text-[10px] font-black px-1.5 py-0.5 rounded-full"
+                style={{
+                  color: "var(--blue)",
+                  border: "1px solid var(--blue)",
+                }}
+                title={`FEMA flood zone ${lead.flood.zone} — mandatory flood insurance`}
+              >
+                🌊 Flood {lead.flood.zone}
               </span>
             )}
             {/* Census neighborhood trajectory — rising = appreciating area. */}

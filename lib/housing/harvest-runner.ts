@@ -27,6 +27,7 @@ import { enrichRedfinProperties } from "./sources/redfin-enrich";
 import { upsertProperties, reconcileStaleProperties } from "./store";
 import { loadLivePsf, refreshMarketTemp } from "./live-psf";
 import { loadCalibration } from "./calibration";
+import { enrichFloodZones } from "./flood-enrich";
 import { scrapeFsbo } from "./sources/fsbo";
 import { scrapeHubzu } from "./sources/hubzu";
 import { scrapeBid4Assets } from "./sources/bid4assets";
@@ -142,6 +143,10 @@ export async function runHousingHarvest(): Promise<HarvestResult> {
   // Freshness: retire listings not re-seen in 21 days (sold/delisted) so counts stay truthful. Only after a
   // healthy harvest (written > 0) — never prune on an empty/failed run that could wrongly retire everything.
   if (written > 0) await reconcileStaleProperties(21).catch(() => 0);
+
+  // Enrich a bounded, hottest-first batch with FEMA flood zones (static per parcel, stored once) so flood
+  // risk becomes a filter/badge — accumulates full coverage across harvests. Best-effort; never blocks.
+  if (written > 0) await enrichFloodZones(800).catch(() => 0);
 
   return {
     ok: true,

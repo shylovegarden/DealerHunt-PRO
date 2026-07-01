@@ -53,6 +53,12 @@ export const LEAD_CATEGORIES: LeadCategory[] = [
     match: (l) => sig(l, /rising area/i),
   },
   {
+    // In a FEMA Special Flood Hazard Area — mandatory flood insurance, worse for a hold. Surface to avoid.
+    key: "flood",
+    label: "🌊 Flood risk",
+    match: (l) => sig(l, /flood zone/i),
+  },
+  {
     key: "tax_delinquent",
     label: "Tax-delinquent",
     match: (l) => l.source === "tax_delinquent" || sig(l, /tax-?delinquent/i),
