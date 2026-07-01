@@ -8,6 +8,7 @@ import { analyzeHousingDeal } from "@/lib/housing/deal-analyzer";
 import { rentCashflow } from "@/lib/housing/rent";
 import { loadLivePsf } from "@/lib/housing/live-psf";
 import { loadCalibration } from "@/lib/housing/calibration";
+import { flagPriceAnomalies } from "@/lib/housing/anomaly";
 import {
   queryProperties,
   countByState,
@@ -87,6 +88,9 @@ interface Lead {
   priceDrops?: number | null;
   prevPrice?: number | null;
   priceChangedAt?: string | null;
+  // Statistical underpricing flag (vs same-state/type $/sqft peers).
+  anomaly?: boolean;
+  anomalyPct?: number;
   auction_end?: string;
   bid_count?: number;
   lat?: number;
@@ -319,6 +323,20 @@ export async function GET(req: NextRequest) {
           : await liveHarvest();
     all.sort((a, b) => b.score - a.score);
     applyStacking(all); // cross-source list-stacking → each lead's `stack` count
+    // Statistical underpricing flag ("🎯 priced N% below comps") — robust MAD test vs same state+type
+    // $/sqft peers, independent of the distress scorer. Display + filter only (score already rewards equity).
+    const anomalies = flagPriceAnomalies(all);
+    for (const l of all) {
+      const a = anomalies.get(l.id);
+      if (a) {
+        l.anomaly = true;
+        l.anomalyPct = a.pctBelow;
+        l.signals = [
+          ...(l.signals || []),
+          `🎯 Priced ${a.pctBelow}% below comps`,
+        ];
+      }
+    }
   } catch (e) {
     return NextResponse.json(
       { error: (e as Error).message, leads: [], points: [] },

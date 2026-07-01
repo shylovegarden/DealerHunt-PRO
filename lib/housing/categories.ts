@@ -41,6 +41,12 @@ export const LEAD_CATEGORIES: LeadCategory[] = [
     match: (l) => sig(l, /price cut|price reduc|price drop|reduced from/i),
   },
   {
+    // Statistically priced below same-type/state $/sqft comps (the MAD-outlier flag).
+    key: "underpriced",
+    label: "🎯 Underpriced",
+    match: (l) => sig(l, /below comps|underpriced/i),
+  },
+  {
     key: "tax_delinquent",
     label: "Tax-delinquent",
     match: (l) => l.source === "tax_delinquent" || sig(l, /tax-?delinquent/i),

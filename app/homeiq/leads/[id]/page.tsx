@@ -399,6 +399,54 @@ export default function LeadDetailPage({
             )}
           </Card>
 
+          {/* Holding cost — the time cost of the flip, and the real margin after carry. */}
+          {lead.holding && (
+            <Card title="Holding cost (time to flip)">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <Metric
+                  label="Per month"
+                  value={`${money(lead.holding.perMonth)}/mo`}
+                  accent="var(--amber)"
+                />
+                <Metric
+                  label={`Over ${lead.holding.months} mo`}
+                  value={money(lead.holding.total)}
+                  accent="var(--amber)"
+                  sub="taxes+ins+utils+interest"
+                />
+                {a.equitySpread != null && (
+                  <Metric
+                    label="Net after carry"
+                    value={money(a.equitySpread - lead.holding.total)}
+                    accent={
+                      a.equitySpread - lead.holding.total > 0
+                        ? "var(--green)"
+                        : "var(--red)"
+                    }
+                    sub="gross equity − holding"
+                  />
+                )}
+              </div>
+              <div className="mt-2 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-[var(--t4)]">
+                <span>Taxes {money(lead.holding.breakdown.taxes)}/mo</span>
+                <span>
+                  · Insurance {money(lead.holding.breakdown.insurance)}/mo
+                </span>
+                <span>
+                  · Utilities {money(lead.holding.breakdown.utilities)}/mo
+                </span>
+                <span>
+                  · Interest {money(lead.holding.breakdown.financing)}/mo
+                </span>
+              </div>
+              <p className="mt-2 text-[11px] text-[var(--t4)] leading-snug">
+                {lead.holding.taxesEstimated
+                  ? "Rates are estimates (no live tax/insurance feed) — a planning figure, not a quote."
+                  : "Taxes from county record; other rates are estimates."}
+              </p>
+            </Card>
+          )}
+
           {/* AI deal brief — grounded plain-English verdict, on demand */}
           <AIBrief id={lead.id} />
 

@@ -5,6 +5,7 @@ import { getProperty } from "@/lib/housing/store";
 import { scoreHousingLead } from "@/lib/housing/lead-score";
 import { analyzeHousingDeal } from "@/lib/housing/deal-analyzer";
 import { rentCashflow } from "@/lib/housing/rent";
+import { holdingCost } from "@/lib/housing/holding-cost";
 import { loadLivePsf } from "@/lib/housing/live-psf";
 import { loadCalibration } from "@/lib/housing/calibration";
 import type { Property } from "@/lib/housing/types";
@@ -38,6 +39,19 @@ export async function GET(
         ? p.price + analysis.repairEstimate
         : undefined,
   });
+  // The time cost of the flip — taxes + insurance + utilities + hard-money interest over the hold. Months
+  // ≈ 3 (rehab) + the ZIP's median days-on-market ÷ 30 (list→close) when we know it.
+  const holding =
+    p.price && p.price > 0
+      ? holdingCost({
+          price: p.price,
+          repairEstimate: analysis.repairEstimate,
+          annualTaxes: Number((p.signals as any)?.annual_taxes) || null,
+          months: market?.medianDom
+            ? Math.round(3 + market.medianDom / 30)
+            : undefined,
+        })
+      : null;
 
   return NextResponse.json({
     lead: {
@@ -128,6 +142,7 @@ export async function GET(
       signals: score.signals,
       analysis,
       cashflow,
+      holding, // time cost of the flip: { perMonth, months, total, breakdown, notes }
       market, // live ZIP temperature: { activeCount, medianDom, listPsf } — context, not ARV
     },
   });
