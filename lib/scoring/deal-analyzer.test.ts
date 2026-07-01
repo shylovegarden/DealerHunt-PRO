@@ -67,4 +67,36 @@ describe("analyzeDeal reality gate", () => {
     } as any);
     expect(a.priceImplausible).toBe(false);
   });
+
+  it("anchors a RETAIL listing's value to its ask (no fabricated profit above the ask)", () => {
+    // Same car, low retail ask: the sell estimate must stay anchored to the ask (≤ ask × 1.15), not jump
+    // to the car's baseline/comp value — that's the fake-profit bug (a $76k retail Corvette read as $100k).
+    const a = analyzeDeal({
+      year: 2020,
+      make: "Toyota",
+      model: "Camry",
+      ask_price: 5000,
+      mileage: 40000,
+      condition: "clean",
+      title: "2020 Toyota Camry LE",
+      source: "carvana",
+    } as any);
+    expect(a.sellEstimate).toBeLessThanOrEqual(Math.round(5000 * 1.15));
+  });
+
+  it("does NOT ask-anchor an AUCTION listing — retail sell above the bid is real arbitrage", () => {
+    // Identical car from Copart: the bid IS below retail, so the sell estimate should rise to the car's
+    // real value, NOT be clamped to the bid.
+    const a = analyzeDeal({
+      year: 2020,
+      make: "Toyota",
+      model: "Camry",
+      ask_price: 5000,
+      mileage: 40000,
+      condition: "clean",
+      title: "2020 Toyota Camry LE",
+      source: "copart",
+    } as any);
+    expect(a.sellEstimate).toBeGreaterThan(Math.round(5000 * 1.15));
+  });
 });

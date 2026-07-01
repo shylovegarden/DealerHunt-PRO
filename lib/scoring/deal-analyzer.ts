@@ -141,6 +141,28 @@ function feeModel(source?: string): FeeModel {
   return { feeRate: 0, flatFee: 0, titleFee: 0, reconCost: 0 };
 }
 
+// Wholesale/auction channels — the ONLY listings where the ask/bid legitimately sits BELOW retail (that's
+// the arbitrage). Everything else is a RETAIL ASK: the seller's own researched market price, which must
+// anchor the value (see the ask-ceiling in analyzeDeal) so contaminated model-comps can't invent profit.
+const AUCTION_SOURCES = new Set([
+  "copart",
+  "iaa",
+  "manheim",
+  "adesa",
+  "acv",
+  "publicsurplus",
+  "govdeals",
+  "gsa",
+  "gsa_auctions",
+  "municibid",
+  "govplanet",
+  "purplewave",
+  "govdeals_auction",
+]);
+function isRetailAsk(source?: string): boolean {
+  return !AUCTION_SOURCES.has((source || "").toLowerCase());
+}
+
 // Fallback sell value when no market/MMR number is available: source/condition-aware markup on ask.
 function estimateSellValue(
   askPrice: number,
@@ -340,6 +362,27 @@ export function analyzeDeal(deal: Partial<Deal>): DealAnalysis {
   } else {
     sellEstimate = estimateSellValue(askPrice, deal.source, deal.condition);
     sellBasis = "baseline";
+  }
+
+  // ── ASK-ANCHOR (retail listings) ──────────────────────────────────────────────────────────────────
+  // A retail ASKING price is the seller's own researched market value — the strongest single signal of
+  // THIS exact car's worth. Model-level comps get contaminated (a base Corvette priced off Z06s/C8s, an
+  // XLT off a Raptor), so a retail listing must NEVER be valued far above its ask — that manufactures fake
+  // profit and misleads the user. Only deep, high-confidence comps justify a real underpricing gap, and
+  // even then it's bounded. Auction/wholesale sources are exempt: there the ask IS below retail (the whole
+  // point), so retail comps above it are the legitimate arbitrage.
+  if (isRetailAsk(deal.source) && askPrice > 0) {
+    const overAsk =
+      comps?.confidence === "high"
+        ? 1.15
+        : comps?.confidence === "medium"
+          ? 1.08
+          : 1.03; // low/no confidence → the ask essentially IS the value
+    const askCeiling = Math.round(askPrice * overAsk);
+    if (sellEstimate > askCeiling) {
+      sellEstimate = askCeiling;
+      sellBasis = "market"; // ask-anchored (retail listing's own price is the market read)
+    }
   }
 
   // WHOLESALE / MMR-equivalent — the buy-side benchmark (what this unit is worth at auction/wholesale).
