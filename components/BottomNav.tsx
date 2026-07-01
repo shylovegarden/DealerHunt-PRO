@@ -3,15 +3,22 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Compass, FileCheck, Clock, TrendingUp, MapPin } from "lucide-react";
+import {
+  Compass,
+  Search,
+  SlidersHorizontal,
+  FileCheck,
+  Clock,
+} from "lucide-react";
 
-// Core 5 tabs only — everything else lives in the desktop "More" menu / Settings.
+// Core 5 tabs — identical to the desktop TopNav primary so nav is consistent across mobile/desktop.
+// Everything else lives in the "More" menu / Settings.
 const NAV_ITEMS = [
   { name: "Discover", href: "/discover", icon: Compass },
+  { name: "Scan", href: "/scan", icon: Search },
+  { name: "Market", href: "/market", icon: SlidersHorizontal },
   { name: "Deal Check", href: "/deal-check", icon: FileCheck },
   { name: "Fleet", href: "/fleet", icon: Clock },
-  { name: "Map", href: "/map", icon: MapPin },
-  { name: "Intel", href: "/insights", icon: TrendingUp },
 ];
 
 export function BottomNav() {

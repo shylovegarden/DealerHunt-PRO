@@ -38,16 +38,13 @@ import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { AccountMenu } from "@/components/home/AccountMenu";
 import { VerticalSwitch } from "@/components/shared/VerticalSwitch";
 
-// Clean primary nav — only real, dealer-relevant routes. Dead/ops/dev pages were pruned.
+// PRIMARY = the 5 daily-driver routes (kept in sync with the mobile bottom nav). Everything else lives in
+// the grouped "More" menu so the bar stays uncluttered on desktop and mobile.
 const PRIMARY = [
   { name: "Discover", href: "/discover", icon: Compass },
-  { name: "Market", href: "/market", icon: SlidersHorizontal },
-  { name: "Arbitrage", href: "/arbitrage", icon: ArrowLeftRight },
   { name: "Scan", href: "/scan", icon: Search },
+  { name: "Market", href: "/market", icon: SlidersHorizontal },
   { name: "Deal Check", href: "/deal-check", icon: FileCheck },
-  { name: "Map", href: "/map", icon: MapPin },
-  { name: "Intel", href: "/insights", icon: TrendingUp },
-  { name: "Parts", href: "/parts", icon: Wrench },
   { name: "Fleet", href: "/fleet", icon: Clock },
 ];
 
@@ -55,10 +52,19 @@ const MORE_GROUPS = [
   {
     group: "Find deals",
     items: [
+      { name: "Arbitrage", href: "/arbitrage", icon: ArrowLeftRight },
+      { name: "Map", href: "/map", icon: MapPin },
       { name: "Today", href: "/today", icon: CalendarDays },
-      { name: "Find", href: "/find", icon: Search },
       { name: "Flash deals", href: "/flash-deals", icon: Zap },
       { name: "Compare", href: "/compare", icon: Columns3 },
+      { name: "Find", href: "/find", icon: Search },
+    ],
+  },
+  {
+    group: "Analyze",
+    items: [
+      { name: "Intel", href: "/insights", icon: TrendingUp },
+      { name: "Parts", href: "/parts", icon: Wrench },
     ],
   },
   {
@@ -72,7 +78,7 @@ const MORE_GROUPS = [
     ],
   },
   {
-    group: "More",
+    group: "Account",
     items: [
       { name: "Saved searches", href: "/searches", icon: BellRing },
       { name: "Upgrade", href: "/upgrade", icon: Sparkles },
