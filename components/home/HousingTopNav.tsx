@@ -10,6 +10,7 @@ import {
   BarChart3,
   Bookmark,
   Search,
+  Bell,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { AccountMenu } from "@/components/home/AccountMenu";
@@ -134,6 +135,14 @@ export function HousingTopNav() {
         >
           <Search style={{ width: 17, height: 17 }} />
         </button>
+        <Link
+          href="/homeiq/alerts"
+          title="Alerts"
+          aria-label="Alerts"
+          className="h-9 w-9 grid place-items-center rounded-xl text-[var(--t3)] hover:text-[var(--t1)] bg-[var(--s0)] shadow-[var(--shadow2)]"
+        >
+          <Bell style={{ width: 17, height: 17 }} />
+        </Link>
         <ThemeToggle />
         <AccountMenu floating={false} />
       </div>

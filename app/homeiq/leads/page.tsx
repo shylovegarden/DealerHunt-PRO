@@ -734,7 +734,8 @@ function AlertButton({ criteria }: { criteria: Record<string, unknown> }) {
       if (r.status === 401) return setState("auth");
       if (r.ok) {
         toast.success("Alert set 🔔", {
-          description: "We'll email you when a new matching deal appears.",
+          description:
+            "New hot/warm matches will show in your Alerts (and email, if enabled).",
         });
         setState("done");
       } else setState("idle");
