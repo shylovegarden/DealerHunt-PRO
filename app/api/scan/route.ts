@@ -100,6 +100,7 @@ export async function GET(req: NextRequest) {
     .slice(0, 60);
   const state = searchParams.get("state") || "";
   const make = searchParams.get("make") || "";
+  const model = searchParams.get("model") || "";
   const source = searchParams.get("source") || "";
   const titleType = searchParams.get("titleType") || "";
   const lane = (searchParams.get("lane") || "").toLowerCase();
@@ -128,6 +129,10 @@ export async function GET(req: NextRequest) {
 
   if (make) {
     query = query.ilike("make", make);
+  }
+
+  if (model) {
+    query = query.ilike("model", model);
   }
 
   if (availability) {
