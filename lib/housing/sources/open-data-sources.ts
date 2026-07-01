@@ -785,6 +785,51 @@ export const NATIONAL_SOURCES: OpenDataSource[] = [
     },
   },
   {
+    // Massachusetts STATEWIDE (MassGIS L3 standardized assessor parcels) — out-of-state absentee single-
+    // family owners. Verified live 2026-07: 44,167 out-of-state-owned SFHs, each with owner + FULL mailing
+    // (OWN_ADDR/CITY/STATE/ZIP) + assessed value + living sqft (RES_AREA) → real flip/ARV math. USE_CODE
+    // '101' = single family (MA state class code). One config = the whole state, money-grade.
+    source: "absentee_owner",
+    api: "arcgis",
+    url: "https://services1.arcgis.com/hGdibHYSPO59RG1h/arcgis/rest/services/Massachusetts_Property_Tax_Parcels/FeatureServer/0",
+    state: "MA",
+    where:
+      "OWN_STATE<>'MA' AND OWN_STATE IS NOT NULL AND USE_CODE LIKE '101%' AND RES_AREA>500 AND TOTAL_VAL>60000",
+    limit: 6000,
+    map: (a, g): Property | null => {
+      const address = s(a.SITE_ADDR);
+      if (!address) return null;
+      return {
+        source: "absentee_owner",
+        source_listing_id: `ma-${a.LOC_ID || a.OBJECTID}`,
+        title: `Absentee owner · ${address}`,
+        property_type: "single_family",
+        address,
+        city: s(a.CITY),
+        state: "MA",
+        zip: s(a.ZIP),
+        lat: g.lat,
+        lng: g.lng,
+        price: n(a.TOTAL_VAL), // assessed value (off-market — no list price)
+        sqft: n(a.RES_AREA),
+        seller_type: "owner",
+        signals: {
+          absentee: true,
+          out_of_state_owner: true,
+          owner: s(a.OWNER1),
+          owner_state: s(a.OWN_STATE),
+          owner_mailing: mailing(
+            a.OWN_ADDR,
+            a.OWN_CITY,
+            a.OWN_STATE,
+            a.OWN_ZIP,
+          ),
+          status: `Absentee (${s(a.OWN_STATE)})`,
+        },
+      };
+    },
+  },
+  {
     // Maricopa County AZ (Phoenix metro) — out-of-state absentee. Numbers ship as formatted strings;
     // map parses them and requires a living-space value (residential filter).
     source: "absentee_owner",
