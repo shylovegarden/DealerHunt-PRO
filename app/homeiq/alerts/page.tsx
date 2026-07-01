@@ -90,8 +90,8 @@ export default function AlertsPage() {
           Alerts
         </h1>
         <p className="mt-1 text-[var(--t3)]">
-          New hot &amp; warm leads matching your saved searches — surfaced here
-          and emailed as they land.
+          New hot &amp; warm leads matching your saved searches — they show up
+          here the moment they land.
         </p>
 
         {unauth && (
