@@ -176,7 +176,7 @@ export const MISSOURI_SOURCES: OpenDataSource[] = [
     city: "Cook County",
     where:
       "year='2026.0' AND mail_address_state IS NOT NULL AND mail_address_state != 'IL' AND prop_address_full IS NOT NULL",
-    limit: 20000,
+    limit: 50000, // ~65k available — capture the full set (engine ceiling 50k); geocoded on upsert
     map: (a): Property | null => {
       const address = s(a.prop_address_full);
       if (!address) return null;
