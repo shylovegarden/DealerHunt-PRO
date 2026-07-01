@@ -35,6 +35,11 @@
   --clo: rgba(255, 56, 92, 0.1);
   --cbd: rgba(255, 56, 92, 0.22);
   --grad: linear-gradient(135deg, #ff7a4d, #f25b9a 55%, #9b6bff);
+  /* HomeIQ housing accent — teal (its brand vs the cars warm gradient), theme-aware. */
+  --home: #14b8a6;
+  --home-lo: rgba(20, 184, 166, 0.12);
+  --home-bd: rgba(20, 184, 166, 0.32);
+  --grad-home: linear-gradient(135deg, #2dd4bf, #14b8a6 55%, #0ea5a4);
 
   /* Semantic colors */
   --green: #00ff66;
@@ -89,6 +94,11 @@
    invert, with slightly stronger accent glows for contrast.
    ─────────────────────────────────────────────────────────────────────────── */
 [data-theme="dark"] {
+  /* HomeIQ teal — brighter on dark so it pops on obsidian. */
+  --home: #2dd4bf;
+  --home-lo: rgba(45, 212, 191, 0.14);
+  --home-bd: rgba(45, 212, 191, 0.4);
+  --grad-home: linear-gradient(135deg, #5eead4, #2dd4bf 55%, #14b8a6);
   /* Surfaces — deep warm charcoal; cards (s0) sit above the page (s1) */
   --s0: rgba(26, 22, 32, 0.7); /* Translucent for glass */
   --s1: #0b090f; /* Deep obsidian background */

@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { marketPsf, PPSF_UPDATED } from "./arv-psf";
+import {
+  marketPsf,
+  marketPsfDetailed,
+  setLiveZipPsf,
+  PPSF_UPDATED,
+} from "./arv-psf";
 
 // Runs against the committed real Redfin snapshot (lib/housing/data/state-ppsf.json). Assertions are
 // shape/relationship-based (not exact dollar values) so a monthly refresh doesn't break them.
@@ -45,5 +50,40 @@ describe("marketPsf", () => {
     expect(marketPsf("CA", "single_family", "00000")).toBe(
       marketPsf("CA", "single_family"),
     );
+  });
+
+  it("returns ZIP-level granularity (tightest comp) for a populated zip", () => {
+    // 30303 = downtown Atlanta, present in the committed zip snapshot.
+    const d = marketPsfDetailed("GA", "single_family", "30303");
+    expect(d).not.toBeNull();
+    expect(d!.level).toBe("zip");
+    expect(d!.psf).toBeGreaterThan(0);
+  });
+
+  it("ZIP tier resolves even without a state code (zip is globally unique)", () => {
+    const d = marketPsfDetailed(undefined, "all", "30303");
+    expect(d?.level).toBe("zip");
+  });
+
+  it("LIVE injected sold $/sqft overrides the static snapshot for that ZIP", () => {
+    const before = marketPsfDetailed("GA", "all", "30303")!.psf;
+    setLiveZipPsf({ "30303": { all: before + 777 } });
+    const after = marketPsfDetailed("GA", "all", "30303")!;
+    expect(after.psf).toBe(before + 777);
+    expect(after.level).toBe("zip");
+    setLiveZipPsf({}); // reset so other tests see the static snapshot
+    expect(marketPsfDetailed("GA", "all", "30303")!.psf).toBe(before);
+  });
+
+  it("tags the source as live + carries the real comp count when injected", () => {
+    setLiveZipPsf({ "30303": { all: 250 } }, { "30303": 9 });
+    const d = marketPsfDetailed("GA", "all", "30303")!;
+    expect(d.source).toBe("live");
+    expect(d.comps).toBe(9);
+    setLiveZipPsf({}); // reset
+    // The committed snapshot is "snapshot"-sourced with no comp count.
+    const s = marketPsfDetailed("GA", "all", "30303")!;
+    expect(s.source).toBe("snapshot");
+    expect(s.comps).toBeUndefined();
   });
 });

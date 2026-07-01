@@ -119,7 +119,12 @@ export async function GET(req: NextRequest) {
   const page = parseInt(searchParams.get("page") || "0");
   const pageSize = 20;
 
-  let query = supabase.from("deals").select("*", { count: "exact" });
+  let query = supabase
+    .from("deals")
+    .select("*", { count: "exact" })
+    // Only live inventory — the nightly prune sets active=false on deals unseen >30 days (awaiting
+    // hard-delete at 60). discover/deals-service already filter this; scan was leaking stale rows.
+    .eq("active", true);
 
   if (make) {
     query = query.ilike("make", make);

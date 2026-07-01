@@ -4,6 +4,8 @@ import { useState, useMemo, useEffect, useRef, Suspense } from "react";
 import dynamic from "next/dynamic";
 import useSWR from "swr";
 import Link from "next/link";
+import { motion } from "framer-motion";
+import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
 import { US_STATES as ST, nearbyStates } from "@/lib/housing/us-states";
 import { housingPriceTerms } from "@/lib/housing/price-semantics";
@@ -27,7 +29,7 @@ const DealerMap = dynamic(() => import("@/components/map/DealerMap"), {
   ),
 });
 
-const ACCENT = "#2dd4bf";
+const ACCENT = "var(--home)";
 const fetcher = (u: string) => fetch(u).then((r) => r.json());
 const TIER_COLOR: Record<string, string> = {
   hot: "var(--red)",
@@ -40,6 +42,90 @@ const VERDICT_COLOR: Record<string, string> = {
   tight: "var(--amber)",
   pass: "var(--red)",
 };
+const CASHFLOW_COLOR: Record<string, string> = {
+  strong: "var(--green)",
+  decent: ACCENT,
+  thin: "var(--amber)",
+  negative: "var(--red)",
+};
+// Compact money for dense cards: $90k, $1.2M.
+const shortMoney = (n?: number | null) =>
+  n == null
+    ? "—"
+    : Math.abs(n) >= 1_000_000
+      ? `$${(n / 1_000_000).toFixed(1)}M`
+      : Math.abs(n) >= 1000
+        ? `$${Math.round(n / 1000)}k`
+        : `$${Math.round(n)}`;
+
+// Direct-mail / CRM export — the wholesaler's workflow: filter distressed → export → mail-merge. Builds a
+// CSV from the CURRENT filtered set (owner + mailing where public records supplied it, plus the deal math).
+function exportLeadsCsv(leads: Lead[]) {
+  if (!leads.length) return;
+  const cols = [
+    "Score",
+    "Tier",
+    "Property Address",
+    "City",
+    "State",
+    "ZIP",
+    "Price",
+    "Owner",
+    "Owner Mailing",
+    "Tax Owed",
+    "Years Owed",
+    "Foreclosure",
+    "Vacant",
+    "Absentee",
+    "Flip Max Offer",
+    "Verdict",
+    "Cap Rate %",
+    "Cashflow/mo",
+    "Source",
+    "URL",
+  ];
+  const esc = (v: unknown) => {
+    const s = v == null ? "" : String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const rows = leads.map((l) =>
+    [
+      l.score,
+      l.tier,
+      l.address,
+      l.city,
+      l.state,
+      l.zip,
+      l.price,
+      l.owner,
+      l.ownerMailing,
+      l.distress?.totalDue,
+      l.distress?.yearsOwed,
+      l.distress?.foreclosure ? "yes" : "",
+      (l.distress as any)?.vacant ? "yes" : "",
+      l.distress?.outOfState ? "yes" : "",
+      l.mao,
+      l.verdict,
+      l.capRate,
+      l.cashflowMo,
+      l.source,
+      l.url || "",
+    ]
+      .map(esc)
+      .join(","),
+  );
+  const csv = [cols.join(","), ...rows].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `homeiq-leads-${leads.length}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast.success(`Exported ${leads.length} leads`, {
+    description: "Owner + mailing + deal math — ready for mail-merge.",
+  });
+}
 
 const TIERS = [
   { key: "", label: "All" },
@@ -58,12 +144,6 @@ const SORTS = [
   { key: "price_desc", label: "Price ↓" },
   { key: "ending", label: "Ending soon" },
 ];
-const PRICES = [
-  { key: 0, label: "Any price" },
-  { key: 25000, label: "≤ $25k" },
-  { key: 50000, label: "≤ $50k" },
-  { key: 100000, label: "≤ $100k" },
-];
 const PAGE = 60;
 
 // Friendly labels for the raw `source` values stored on each property.
@@ -77,9 +157,11 @@ const SOURCE_LABELS: Record<string, string> = {
   code_violation: "Code violations",
   absentee_owner: "Absentee owner",
   mls: "MLS",
+  fannie_homepath: "Fannie REO",
   hud_reo: "HUD REO",
   foreclosure: "Foreclosure",
   dangerous_building: "Dangerous building",
+  vacant_building: "Vacant building",
   zillow: "Zillow",
   realtor: "Realtor.com",
   homes: "Homes.com",
@@ -104,6 +186,7 @@ function statusColor(s: string): string {
 interface Lead {
   id: string;
   title: string;
+  url?: string;
   price?: number;
   source?: string;
   status?: string;
@@ -111,8 +194,21 @@ interface Lead {
   address?: string;
   city?: string;
   state?: string;
+  zip?: string;
   image?: string;
+  beds?: number;
+  baths?: number;
+  sqft?: number;
+  year_built?: number;
+  daysOnMarket?: number;
+  pricePerSqft?: number;
+  owner?: string;
+  ownerMailing?: string;
   stack?: number;
+  priceDrops?: number | null;
+  prevPrice?: number | null;
+  anomaly?: boolean;
+  anomalyPct?: number;
   distress?: {
     totalDue?: number;
     yearsOwed?: number;
@@ -133,6 +229,9 @@ interface Lead {
   arv?: number | null;
   equity?: number | null;
   verdict?: string;
+  capRate?: number | null;
+  cashflowMo?: number | null;
+  cashflowRating?: string;
 }
 
 export default function HomeIQLeadsPage() {
@@ -156,8 +255,15 @@ function LeadsInner() {
   const [category, setCategory] = useState(params.get("category") || "");
   const [sort, setSort] = useState("score");
   const [maxPrice, setMaxPrice] = useState(0);
-  const [q, setQ] = useState("");
+  const [minPrice, setMinPrice] = useState(0);
+  const [q, setQ] = useState(params.get("q") || ""); // pre-filled by the city/ZIP front-door search
   const [visible, setVisible] = useState(PAGE);
+  // Mobile is list-OR-map (Zillow pattern), so the listings lead instead of a map shoving them down the
+  // page; desktop always shows the split. Default to the list — that's what the user came for.
+  const [mobileView, setMobileView] = useState<"list" | "map">("list");
+  // Secondary filters (type/source/price/sort) collapse behind a "Filters" button on mobile so the bar
+  // doesn't wrap into 4 cramped rows; always shown on desktop.
+  const [showFilters, setShowFilters] = useState(false);
 
   // SERVER-SIDE SCOPE: fetch the current scope from the full 54k (your state / nearby / national top),
   // then filter/sort/search instantly client-side WITHIN that slice. Re-fetches when the scope changes.
@@ -205,10 +311,15 @@ function LeadsInner() {
     else if (category)
       r = r.filter((l) => leadCategories(l).includes(category));
     if (maxPrice) r = r.filter((l) => (l.price || 0) <= maxPrice);
+    if (minPrice) r = r.filter((l) => (l.price || 0) >= minPrice);
     if (q.trim()) {
       const t = q.trim().toLowerCase();
+      // Match address + ZIP + city/state + title + the distress signal text, so typing a street, a ZIP,
+      // or a keyword like "vacant"/"foreclosure" all work (people expect a property search to honor these).
       r = r.filter((l) =>
-        `${l.city} ${l.state} ${l.title}`.toLowerCase().includes(t),
+        `${l.address || ""} ${l.zip || ""} ${l.city || ""} ${l.state || ""} ${l.title || ""} ${(l.signals || []).join(" ")}`
+          .toLowerCase()
+          .includes(t),
       );
     }
     const s = [...r];
@@ -221,12 +332,23 @@ function LeadsInner() {
       );
     else s.sort((a, b) => b.score - a.score);
     return s;
-  }, [all, scopeSet, tier, type, source, category, maxPrice, q, sort]);
+  }, [
+    all,
+    scopeSet,
+    tier,
+    type,
+    source,
+    category,
+    maxPrice,
+    minPrice,
+    q,
+    sort,
+  ]);
 
   // Reset the visible window whenever the result set changes.
   useEffect(
     () => setVisible(PAGE),
-    [scopeSet, tier, type, source, category, maxPrice, q, sort],
+    [scopeSet, tier, type, source, category, maxPrice, minPrice, q, sort],
   );
 
   // Infinite scroll — extend the list as the sentinel comes into view.
@@ -246,40 +368,27 @@ function LeadsInner() {
   }, [leads.length]);
 
   const shown = leads.slice(0, visible);
-  const visibleIds = new Set(shown.map((l) => l.id));
-  const mapPoints = points.filter((p: any) => visibleIds.has(p.id));
+  // Map plots the FULL filtered set (not just the scrolled-in window) so it's a real search surface: filter
+  // the list → every matching lead appears on the map, anywhere in scope. Clustering handles the volume;
+  // cap at 3000 markers for perf.
+  const filteredIds = new Set(leads.map((l) => l.id));
+  const mapPoints = points
+    .filter((p: any) => filteredIds.has(p.id))
+    .slice(0, 3000);
   const nearbyCount = scopeState
     ? Object.keys(byState)
         .filter((s) => nearbyStates(scopeState, 6).has(s))
         .reduce((n, s) => n + byState[s], 0)
     : 0;
 
-  return (
-    <main className="min-h-screen bg-[var(--s1)] text-[var(--t1)]">
-      <header className="max-w-7xl mx-auto px-4 sm:px-6 pt-6 flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-2.5">
-          <span
-            className="w-8 h-8 rounded-[10px] grid place-items-center text-black font-black"
-            style={{ background: ACCENT }}
-          >
-            H
-          </span>
-          <span className="font-black text-lg">HomeIQ</span>
-          <span
-            className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full"
-            style={{ background: `${ACCENT}22`, color: ACCENT }}
-          >
-            Leads
-          </span>
-        </div>
-        <Link
-          href="/welcome"
-          className="text-sm font-semibold text-[var(--t3)] hover:text-[var(--t1)]"
-        >
-          ← Switch
-        </Link>
-      </header>
+  // Active secondary-filter count for the mobile "Filters" badge.
+  const activeFilters =
+    [type, source, category].filter(Boolean).length +
+    (minPrice ? 1 : 0) +
+    (maxPrice ? 1 : 0);
 
+  return (
+    <div className="bg-transparent text-[var(--t1)]">
       {/* Location scope — progressive: your state → nearby → nationwide */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-4 flex items-center justify-between gap-2 flex-wrap">
         {scopeState ? (
@@ -310,22 +419,42 @@ function LeadsInner() {
           </span>
         )}
         <div className="flex items-center gap-4">
+          <AlertButton
+            criteria={{
+              name:
+                [scopeState, type, source].filter(Boolean).join(" ") ||
+                "All deals",
+              state: scopeState || undefined,
+              property_type: type || undefined,
+              source: source || undefined,
+              tier: tier || undefined,
+              max_price: maxPrice || undefined,
+            }}
+          />
+          <button
+            onClick={() => exportLeadsCsv(leads)}
+            disabled={!leads.length}
+            className="text-sm font-semibold text-[var(--t3)] hover:text-[var(--t1)] disabled:opacity-40"
+            title="Download the current filtered leads as a direct-mail / CRM-ready CSV"
+          >
+            ⬇ Export CSV
+          </button>
           <Link
             href="/homeiq/saved"
-            className="text-sm font-semibold text-[var(--t3)] hover:text-[var(--t1)]"
+            className="hidden sm:inline text-sm font-semibold text-[var(--t3)] hover:text-[var(--t1)]"
           >
             📋 Pipeline
           </Link>
           <Link
             href="/homeiq/states"
-            className="text-sm font-semibold text-[var(--t3)] hover:text-[var(--t1)]"
+            className="hidden sm:inline text-sm font-semibold text-[var(--t3)] hover:text-[var(--t1)]"
           >
             🗺️ Browse all states
           </Link>
         </div>
       </div>
 
-      {/* Filter bar */}
+      {/* Filter bar — search + tier always visible; the rest collapses behind "Filters" on mobile. */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-3 flex items-center gap-2 flex-wrap">
         <input
           value={q}
@@ -348,21 +477,59 @@ function LeadsInner() {
             </button>
           ))}
         </div>
-        <Select value={type} onChange={setType} options={TYPES} />
-        <Select value={source} onChange={setSource} options={sourceOptions} />
-        <Select
-          value={String(maxPrice)}
-          onChange={(v) => setMaxPrice(Number(v))}
-          options={PRICES.map((p) => ({ key: String(p.key), label: p.label }))}
-        />
-        <Select value={sort} onChange={setSort} options={SORTS} />
+        {/* Mobile-only Filters toggle with active-count badge. */}
+        <button
+          onClick={() => setShowFilters((v) => !v)}
+          className="md:hidden inline-flex items-center gap-1.5 px-3 py-2 rounded-[var(--r3)] bg-[var(--s0)] border border-[var(--b1)] text-xs font-bold text-[var(--t2)]"
+        >
+          ⚙ Filters
+          {activeFilters > 0 && (
+            <span
+              className="min-w-[18px] h-[18px] px-1 grid place-items-center rounded-full text-[10px] font-black text-black"
+              style={{ background: ACCENT }}
+            >
+              {activeFilters}
+            </span>
+          )}
+        </button>
+        {/* Secondary filters — hidden on mobile until toggled, always inline on md+. */}
+        <div
+          className={`${showFilters ? "flex" : "hidden"} md:flex items-center gap-2 flex-wrap w-full md:w-auto`}
+        >
+          <Select value={type} onChange={setType} options={TYPES} />
+          <Select value={source} onChange={setSource} options={sourceOptions} />
+          {/* Price RANGE (min + max) — was max-only, capped at $100k. */}
+          <div className="flex items-center gap-1 px-2 py-1.5 rounded-[var(--r3)] bg-[var(--s0)] border border-[var(--b1)] text-xs font-bold text-[var(--t2)]">
+            <span className="text-[var(--t4)]">$</span>
+            <input
+              type="number"
+              inputMode="numeric"
+              value={minPrice || ""}
+              onChange={(e) => setMinPrice(Number(e.target.value) || 0)}
+              placeholder="Min"
+              className="w-16 bg-transparent focus:outline-none"
+              aria-label="Min price"
+            />
+            <span className="text-[var(--t4)]">–</span>
+            <input
+              type="number"
+              inputMode="numeric"
+              value={maxPrice || ""}
+              onChange={(e) => setMaxPrice(Number(e.target.value) || 0)}
+              placeholder="Max"
+              className="w-16 bg-transparent focus:outline-none"
+              aria-label="Max price"
+            />
+          </div>
+          <Select value={sort} onChange={setSort} options={SORTS} />
+        </div>
       </div>
 
-      {/* Quick Lists — PropStream-style lead categories (vacant / absentee / tax-delinquent / REO …). */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-3 flex items-center gap-1.5 flex-wrap">
+      {/* Quick Lists — PropStream-style lead categories. One scrolling row on mobile, wraps on desktop. */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-3 flex items-center gap-1.5 overflow-x-auto md:flex-wrap scrollbar-hide">
         <button
           onClick={() => setCategory("")}
-          className="px-3 py-1.5 rounded-full text-xs font-bold transition-colors"
+          className="shrink-0 px-3 py-1.5 rounded-full text-xs font-bold transition-colors whitespace-nowrap"
           style={{
             background: category === "" ? ACCENT : "var(--s2)",
             color: category === "" ? "#000" : "var(--t3)",
@@ -379,7 +546,7 @@ function LeadsInner() {
               onClick={() =>
                 setCategory(category === "stacked" ? "" : "stacked")
               }
-              className="px-3 py-1.5 rounded-full text-xs font-black transition-colors"
+              className="shrink-0 px-3 py-1.5 rounded-full text-xs font-black transition-colors whitespace-nowrap"
               style={{
                 background: category === "stacked" ? "var(--red)" : "var(--s2)",
                 color: category === "stacked" ? "#fff" : "var(--red)",
@@ -401,7 +568,7 @@ function LeadsInner() {
             <button
               key={c.key}
               onClick={() => setCategory(category === c.key ? "" : c.key)}
-              className="px-3 py-1.5 rounded-full text-xs font-bold transition-colors"
+              className="shrink-0 px-3 py-1.5 rounded-full text-xs font-bold transition-colors whitespace-nowrap"
               style={{
                 background: category === c.key ? ACCENT : "var(--s2)",
                 color: category === c.key ? "#000" : "var(--t3)",
@@ -415,25 +582,46 @@ function LeadsInner() {
         })}
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-3 text-xs font-bold uppercase tracking-widest text-[var(--t4)]">
-        {leads.length.toLocaleString()} leads{scopeSet ? "" : " (top)"} ·
-        showing {shown.length}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-3 flex items-center justify-between gap-2">
+        <span className="text-xs font-bold uppercase tracking-widest text-[var(--t4)]">
+          {leads.length.toLocaleString()} leads{scopeSet ? "" : " (top)"} ·
+          showing {shown.length}
+        </span>
+        {/* Mobile list/map toggle — desktop shows both, so this is mobile-only. */}
+        <div className="lg:hidden flex items-center p-0.5 rounded-full bg-[var(--s2)] border border-[var(--b1)] text-xs font-bold">
+          {(["list", "map"] as const).map((v) => (
+            <button
+              key={v}
+              onClick={() => setMobileView(v)}
+              className="px-3 py-1 rounded-full capitalize transition-colors"
+              style={{
+                background: mobileView === v ? "var(--home)" : "transparent",
+                color: mobileView === v ? "#04201d" : "var(--t3)",
+              }}
+            >
+              {v === "list" ? "☰ List" : "🗺 Map"}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 grid lg:grid-cols-[1fr_minmax(360px,46%)] gap-5">
-        <div className="space-y-3 order-2 lg:order-1">
-          {isLoading && (
-            <p className="text-[var(--t4)] text-sm py-10 text-center">
-              Harvesting live leads…
-            </p>
-          )}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 grid lg:grid-cols-[1fr_minmax(320px,38%)] gap-5">
+        <div
+          className={`space-y-3 ${mobileView === "map" ? "hidden lg:block" : ""}`}
+        >
+          {isLoading &&
+            Array.from({ length: 6 }).map((_, i) => <CardSkeleton key={i} />)}
           {!isLoading && leads.length === 0 && (
-            <p className="text-[var(--t4)] text-sm py-10 text-center">
-              No leads match — try widening the scope.
-            </p>
+            <div className="py-16 text-center">
+              <div className="text-4xl mb-3">🔍</div>
+              <p className="text-[var(--t2)] font-bold">No leads match</p>
+              <p className="text-[var(--t4)] text-sm mt-1">
+                Try widening the scope or clearing a filter.
+              </p>
+            </div>
           )}
-          {shown.map((l) => (
-            <LeadCard key={l.id} lead={l} />
+          {shown.map((l, i) => (
+            <LeadCard key={l.id} lead={l} index={i} />
           ))}
           <div ref={sentinel} className="h-8" />
           {visible < leads.length && (
@@ -445,11 +633,15 @@ function LeadsInner() {
             </button>
           )}
         </div>
-        <div className="order-1 lg:order-2 lg:sticky lg:top-5 h-[42vh] lg:h-[78vh]">
+        <div
+          className={`lg:sticky lg:top-5 h-[70vh] lg:h-[78vh] ${
+            mobileView === "list" ? "hidden lg:block" : ""
+          }`}
+        >
           <DealerMap points={mapPoints} />
         </div>
       </div>
-    </main>
+    </div>
   );
 }
 
@@ -498,7 +690,10 @@ function QuickSave({ listingId }: { listingId: string }) {
       window.location.href = "/";
       return;
     }
-    setState(res.ok ? "saved" : "idle");
+    if (res.ok) {
+      toast.success("Saved to pipeline 📋");
+      setState("saved");
+    } else setState("idle");
   };
   return (
     <button
@@ -521,174 +716,285 @@ function QuickSave({ listingId }: { listingId: string }) {
   );
 }
 
-function LeadCard({ lead }: { lead: Lead }) {
+// Turn the current search into an instant-alert: the app emails you when a NEW hot/warm match appears.
+function AlertButton({ criteria }: { criteria: Record<string, unknown> }) {
+  const [state, setState] = useState<"idle" | "saving" | "done" | "auth">(
+    "idle",
+  );
+  async function save() {
+    setState("saving");
+    try {
+      const r = await fetch("/api/homeiq/saved-searches", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(criteria),
+      });
+      if (r.status === 401) return setState("auth");
+      if (r.ok) {
+        toast.success("Alert set 🔔", {
+          description: "We'll email you when a new matching deal appears.",
+        });
+        setState("done");
+      } else setState("idle");
+    } catch {
+      setState("idle");
+    }
+  }
+  if (state === "done")
+    return (
+      <span className="text-sm font-semibold text-[var(--green)]">
+        🔔 Alert on ✓
+      </span>
+    );
+  if (state === "auth")
+    return (
+      <Link
+        href="/login"
+        className="text-sm font-semibold text-[var(--t3)] hover:text-[var(--t1)]"
+      >
+        Sign in to set alerts
+      </Link>
+    );
+  return (
+    <button
+      onClick={save}
+      disabled={state === "saving"}
+      className="text-sm font-semibold text-[var(--t3)] hover:text-[var(--t1)] disabled:opacity-40"
+      title="Get emailed when a NEW hot/warm deal matches this search"
+    >
+      🔔 {state === "saving" ? "Saving…" : "Alert me"}
+    </button>
+  );
+}
+
+// Shimmer placeholder while leads load — same shape as the real card.
+function CardSkeleton() {
+  return (
+    <div className="flex gap-3 rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] p-3">
+      <div className="shrink-0 w-36 h-28 sm:w-44 sm:h-32 rounded-[var(--r2)] shimmer" />
+      <div className="flex-1 space-y-2 py-1">
+        <div className="h-3 w-1/3 rounded shimmer" />
+        <div className="h-4 w-2/3 rounded shimmer" />
+        <div className="h-3 w-1/2 rounded shimmer" />
+        <div className="h-5 w-3/4 rounded shimmer mt-2" />
+      </div>
+    </div>
+  );
+}
+
+function LeadCard({ lead, index = 0 }: { lead: Lead; index?: number }) {
   const color = TIER_COLOR[lead.tier] || "var(--blue)";
   return (
-    <Link
-      href={`/homeiq/leads/${encodeURIComponent(lead.id)}`}
-      className="relative flex gap-3 rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] p-3 hover:border-[var(--b3)] transition-colors"
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, delay: Math.min(index, 8) * 0.03 }}
+      whileHover={{ y: -3 }}
     >
-      <QuickSave listingId={lead.id} />
-      <div className="relative shrink-0 w-28 h-24 rounded-[var(--r2)] overflow-hidden bg-[var(--s2)]">
-        {lead.image ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={lead.image}
-            alt={lead.title}
-            className="w-full h-full object-cover"
-            loading="lazy"
-          />
-        ) : (
-          <div className="w-full h-full grid place-items-center text-[var(--t4)] text-[10px]">
-            No photo
-          </div>
-        )}
-        <span
-          className="absolute top-1 left-1 text-[11px] font-black px-1.5 py-0.5 rounded text-white"
-          style={{ background: color }}
-        >
-          {lead.score}
-        </span>
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
+      <Link
+        href={`/homeiq/leads/${encodeURIComponent(lead.id)}`}
+        className="group relative flex gap-3 rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] p-3 transition-shadow hover:shadow-[var(--shadow)] hover:border-[var(--home-bd)]"
+      >
+        <QuickSave listingId={lead.id} />
+        <div className="relative shrink-0 w-36 h-28 sm:w-44 sm:h-32 rounded-[var(--r2)] overflow-hidden bg-[var(--s2)]">
+          {lead.image ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={lead.image}
+              alt={lead.title}
+              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+              loading="lazy"
+            />
+          ) : (
+            <div className="w-full h-full grid place-items-center text-[var(--t4)] text-[10px]">
+              No photo
+            </div>
+          )}
           <span
-            className="text-[10px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full"
-            style={{ background: `${color}22`, color }}
+            className="absolute top-1 left-1 text-[11px] font-black px-1.5 py-0.5 rounded text-white"
+            style={{ background: color }}
           >
-            {lead.tier}
-          </span>
-          <span className="text-[11px] text-[var(--t4)] capitalize">
-            {(lead.property_type || "").replace("_", " ")}
-          </span>
-          {lead.source && (
-            <span className="text-[10px] font-semibold text-[var(--t4)] px-1.5 py-0.5 rounded-full bg-[var(--s2)] border border-[var(--b1)]">
-              {sourceLabel(lead.source)}
-            </span>
-          )}
-          {(lead.stack || 0) >= 2 && (
-            <span
-              className="text-[10px] font-black px-1.5 py-0.5 rounded-full"
-              style={{ color: "#fff", background: "var(--red)" }}
-              title="Appears on multiple distress lists — high motivation"
-            >
-              📚 {lead.stack} lists
-            </span>
-          )}
-          {/* Distress magnitudes (amount owed, foreclosure, below-market) — the PropStream-grade detail. */}
-          {(lead.distress?.sheriffSale || lead.distress?.foreclosure) && (
-            <span
-              className="text-[10px] font-black px-1.5 py-0.5 rounded-full"
-              style={{ color: "#fff", background: "var(--red)" }}
-            >
-              ⚖️ Foreclosure
-            </span>
-          )}
-          {lead.distress?.totalDue ? (
-            <span
-              className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[var(--s2)]"
-              style={{
-                color: "var(--amber)",
-                border: "1px solid var(--amber)",
-              }}
-              title="Property-tax delinquency"
-            >
-              Owes ${Math.round(lead.distress.totalDue / 1000)}k
-              {lead.distress.yearsOwed ? ` · ${lead.distress.yearsOwed}y` : ""}
-            </span>
-          ) : null}
-          {lead.distress?.belowMarket && (
-            <span
-              className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[var(--s2)]"
-              style={{
-                color: "var(--green)",
-                border: "1px solid var(--green)",
-              }}
-            >
-              ↓ Below market
-            </span>
-          )}
-          {lead.distress?.violations ? (
-            <span
-              className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[var(--s2)]"
-              style={{
-                color: "var(--amber)",
-                border: "1px solid var(--amber)",
-              }}
-            >
-              {lead.distress.violations} violations
-            </span>
-          ) : null}
-          {lead.status && (
-            <span
-              className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
-              style={{
-                color: statusColor(lead.status),
-                background: `${statusColor(lead.status)}1a`,
-              }}
-            >
-              {lead.status}
-            </span>
-          )}
-        </div>
-        <div className="mt-0.5">
-          <span className="text-[9px] font-bold uppercase tracking-widest text-[var(--t4)] mr-1.5">
-            {housingPriceTerms(lead.source, !!lead.auction_end).priceLabel}
-          </span>
-          <span className="font-black text-[var(--t1)]">
-            {lead.price ? `$${lead.price.toLocaleString()}` : "—"}
-          </span>
-          <span className="font-medium text-sm text-[var(--t3)]">
-            {lead.city
-              ? ` · ${lead.city}, ${lead.state || ""}`
-              : lead.state
-                ? ` · ${lead.state}`
-                : ""}
+            {lead.score}
           </span>
         </div>
-        <h3 className="text-sm text-[var(--t2)] truncate">{lead.title}</h3>
-        <div className="flex items-center gap-2 mt-1 flex-wrap">
-          {(() => {
-            const c = readHomeCondition({
-              property_type: lead.property_type,
-              status: lead.status,
-              title: lead.title,
-            });
-            if (!c) return null;
-            return (
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span
+              className="text-[10px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full"
+              style={{
+                background: `color-mix(in srgb, ${color} 14%, transparent)`,
+                color,
+              }}
+            >
+              {lead.tier}
+            </span>
+            <span className="text-[11px] text-[var(--t4)] capitalize">
+              {(lead.property_type || "").replace("_", " ")}
+            </span>
+            {lead.source && (
+              <span className="text-[10px] font-semibold text-[var(--t4)] px-1.5 py-0.5 rounded-full bg-[var(--s2)] border border-[var(--b1)]">
+                {sourceLabel(lead.source)}
+              </span>
+            )}
+            {(lead.stack || 0) >= 2 && (
+              <span
+                className="text-[10px] font-black px-1.5 py-0.5 rounded-full"
+                style={{ color: "#fff", background: "var(--red)" }}
+                title="Appears on multiple distress lists — high motivation"
+              >
+                📚 {lead.stack} lists
+              </span>
+            )}
+            {/* Statistical underpricing flag (vs same-type $/sqft comps). */}
+            {lead.anomaly && (
+              <span
+                className="text-[10px] font-black px-1.5 py-0.5 rounded-full"
+                style={{
+                  color: "var(--green)",
+                  border: "1px solid var(--green)",
+                }}
+                title="Priced below comparable listings in this market"
+              >
+                🎯 {lead.anomalyPct}% below comps
+              </span>
+            )}
+            {/* Self-detected price cut — seller softening. */}
+            {(lead.priceDrops || 0) > 0 &&
+              (lead.prevPrice || 0) > (lead.price || 0) && (
+                <span
+                  className="text-[10px] font-black px-1.5 py-0.5 rounded-full"
+                  style={{
+                    color: "var(--red)",
+                    border: "1px solid var(--red)",
+                  }}
+                  title={`Was $${(lead.prevPrice || 0).toLocaleString()}`}
+                >
+                  ↓ Cut{lead.priceDrops! > 1 ? ` ${lead.priceDrops}×` : ""}
+                </span>
+              )}
+            {/* Distress magnitudes (amount owed, foreclosure, below-market) — the PropStream-grade detail. */}
+            {(lead.distress?.sheriffSale || lead.distress?.foreclosure) && (
+              <span
+                className="text-[10px] font-black px-1.5 py-0.5 rounded-full"
+                style={{ color: "#fff", background: "var(--red)" }}
+              >
+                ⚖️ Foreclosure
+              </span>
+            )}
+            {lead.distress?.totalDue ? (
+              <span
+                className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[var(--s2)]"
+                style={{
+                  color: "var(--amber)",
+                  border: "1px solid var(--amber)",
+                }}
+                title="Property-tax delinquency"
+              >
+                Owes ${Math.round(lead.distress.totalDue / 1000)}k
+                {lead.distress.yearsOwed
+                  ? ` · ${lead.distress.yearsOwed}y`
+                  : ""}
+              </span>
+            ) : null}
+            {lead.distress?.belowMarket && (
+              <span
+                className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[var(--s2)]"
+                style={{
+                  color: "var(--green)",
+                  border: "1px solid var(--green)",
+                }}
+              >
+                ↓ Below market
+              </span>
+            )}
+            {lead.distress?.violations ? (
+              <span
+                className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[var(--s2)]"
+                style={{
+                  color: "var(--amber)",
+                  border: "1px solid var(--amber)",
+                }}
+              >
+                {lead.distress.violations} violations
+              </span>
+            ) : null}
+            {lead.status && (
               <span
                 className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
                 style={{
-                  background: `${HOME_CONDITION_TIER_COLOR[c.tier]}1f`,
-                  color: HOME_CONDITION_TIER_COLOR[c.tier],
+                  color: statusColor(lead.status),
+                  background: `${statusColor(lead.status)}1a`,
                 }}
               >
-                {c.label}
-              </span>
-            );
-          })()}
-          {lead.mao != null && (
-            <span
-              className="text-[11px] font-bold"
-              style={{ color: VERDICT_COLOR[lead.verdict || ""] || ACCENT }}
-            >
-              Max offer ${lead.mao.toLocaleString()} · {lead.verdict}
-            </span>
-          )}
-          {lead.equity != null &&
-            lead.equity > 0 &&
-            (lead.verdict === "strong" || lead.verdict === "fair") && (
-              <span
-                className="text-[11px] font-bold"
-                style={{ color: "var(--green)" }}
-                title="Estimated gross equity = county-anchored ARV − price − repairs (a verified flip)"
-              >
-                ~${Math.round(lead.equity).toLocaleString()} equity
+                {lead.status}
               </span>
             )}
-          {(lead.signals || [])
-            .slice(0, lead.mao != null ? 1 : 2)
-            .map((s, i) => (
+          </div>
+          <div className="mt-0.5">
+            <span className="text-[9px] font-bold uppercase tracking-widest text-[var(--t4)] mr-1.5">
+              {housingPriceTerms(lead.source, !!lead.auction_end).priceLabel}
+            </span>
+            <span className="font-black text-[var(--t1)]">
+              {lead.price ? `$${lead.price.toLocaleString()}` : "—"}
+            </span>
+            <span className="font-medium text-sm text-[var(--t3)]">
+              {lead.city
+                ? ` · ${lead.city}, ${lead.state || ""}`
+                : lead.state
+                  ? ` · ${lead.state}`
+                  : ""}
+            </span>
+          </div>
+          <h3 className="text-sm text-[var(--t2)] truncate">{lead.title}</h3>
+          {/* Glance facts — the physical specs buyers scan first (beds/baths/sqft/$psf/days-on-market). */}
+          {(lead.beds != null ||
+            lead.baths != null ||
+            lead.sqft != null ||
+            lead.daysOnMarket != null) && (
+            <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-[var(--t3)] font-semibold flex-wrap">
+              {lead.beds != null && <span>{lead.beds} bd</span>}
+              {lead.baths != null && <span>· {lead.baths} ba</span>}
+              {lead.sqft != null && (
+                <span>· {lead.sqft.toLocaleString()} sqft</span>
+              )}
+              {lead.pricePerSqft != null && (
+                <span className="text-[var(--t4)]">
+                  · ${lead.pricePerSqft}/sqft
+                </span>
+              )}
+              {lead.year_built != null && (
+                <span className="text-[var(--t4)]">
+                  · built {lead.year_built}
+                </span>
+              )}
+              {lead.daysOnMarket != null && lead.daysOnMarket >= 30 && (
+                <span style={{ color: "var(--amber)" }}>
+                  · {lead.daysOnMarket}d on market
+                </span>
+              )}
+            </div>
+          )}
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
+            {(() => {
+              const c = readHomeCondition({
+                property_type: lead.property_type,
+                status: lead.status,
+                title: lead.title,
+              });
+              if (!c) return null;
+              return (
+                <span
+                  className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                  style={{
+                    background: `${HOME_CONDITION_TIER_COLOR[c.tier]}1f`,
+                    color: HOME_CONDITION_TIER_COLOR[c.tier],
+                  }}
+                >
+                  {c.label}
+                </span>
+              );
+            })()}
+            {(lead.signals || []).slice(0, 1).map((s, i) => (
               <span
                 key={i}
                 className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--s2)] text-[var(--t3)] border border-[var(--b1)]"
@@ -696,8 +1002,55 @@ function LeadCard({ lead }: { lead: Lead }) {
                 {s}
               </span>
             ))}
+          </div>
+
+          {/* Dual-lens deal strip — the two ways to make money, glanceable on every card. FLIP (70%-rule
+            max offer + verdict) and HOLD (cap rate + monthly cashflow). Each lights up only when computable. */}
+          {(lead.mao != null || lead.capRate != null) && (
+            <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+              {lead.mao != null && (
+                <span
+                  className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-[var(--s2)] border"
+                  style={{
+                    borderColor:
+                      VERDICT_COLOR[lead.verdict || ""] || "var(--b1)",
+                    color: VERDICT_COLOR[lead.verdict || ""] || ACCENT,
+                  }}
+                  title="Flip — 70%-rule max allowable offer + verdict"
+                >
+                  🔨 {shortMoney(lead.mao)}
+                  <span className="opacity-70 capitalize">{lead.verdict}</span>
+                  {lead.equity != null &&
+                    lead.equity > 0 &&
+                    (lead.verdict === "strong" || lead.verdict === "fair") && (
+                      <span className="opacity-90">
+                        · {shortMoney(lead.equity)} equity
+                      </span>
+                    )}
+                </span>
+              )}
+              {lead.capRate != null && (
+                <span
+                  className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-[var(--s2)] border"
+                  style={{
+                    borderColor:
+                      CASHFLOW_COLOR[lead.cashflowRating || ""] || "var(--b1)",
+                    color: CASHFLOW_COLOR[lead.cashflowRating || ""] || ACCENT,
+                  }}
+                  title="Hold — rental cap rate + monthly cashflow (50% rule, all-in basis)"
+                >
+                  🏦 {lead.capRate}% cap
+                  {lead.cashflowMo != null && (
+                    <span className="opacity-90">
+                      · {shortMoney(lead.cashflowMo)}/mo
+                    </span>
+                  )}
+                </span>
+              )}
+            </div>
+          )}
         </div>
-      </div>
-    </Link>
+      </Link>
+    </motion.div>
   );
 }

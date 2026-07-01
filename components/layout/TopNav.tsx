@@ -35,6 +35,8 @@ import {
   Banknote,
 } from "lucide-react";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
+import { AccountMenu } from "@/components/home/AccountMenu";
+import { VerticalSwitch } from "@/components/shared/VerticalSwitch";
 
 // Clean primary nav — only real, dealer-relevant routes. Dead/ops/dev pages were pruned.
 const PRIMARY = [
@@ -187,8 +189,8 @@ export function TopNav() {
         transition: "all 200ms ease",
       }}
     >
-      {/* LEFT: Logo */}
-      <div className="flex items-center gap-3 flex-shrink-0">
+      {/* LEFT: Logo + vertical switch */}
+      <div className="flex items-center gap-2 flex-shrink-0">
         <Link href="/discover" className="flex items-center gap-2.5 group">
           <div
             className="w-8 h-8 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105"
@@ -196,10 +198,11 @@ export function TopNav() {
           >
             <BarChart3 className="w-4 h-4 text-white" strokeWidth={2.5} />
           </div>
-          <span className="text-[15px] font-bold tracking-tight text-[var(--t1)] hidden sm:block">
+          <span className="text-[15px] font-bold tracking-tight text-[var(--t1)] hidden lg:block">
             DealerHunt<span className="text-[var(--amber)] ml-0.5">Pro</span>
           </span>
         </Link>
+        <VerticalSwitch />
       </div>
 
       {/* CENTER: Primary nav + More (desktop) */}
@@ -327,6 +330,8 @@ export function TopNav() {
         <IconBtn href="/settings" title="Settings">
           <Settings style={{ width: 17, height: 17 }} />
         </IconBtn>
+        {/* Switch vertical + logout (inline so it doesn't float over the nav). */}
+        <AccountMenu floating={false} />
       </div>
     </header>
   );

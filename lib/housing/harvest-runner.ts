@@ -7,11 +7,11 @@
 
 import { harvestGovDealsProperties } from "./sources/govdeals-property";
 import { scrapeHudHomes } from "./sources/hud-homes";
-import { scrapeHomePath } from "./sources/fannie-homepath";
 import { scrapeHomeSteps } from "./sources/homesteps";
 import { scrapeAuctionCom } from "./sources/auctioncom";
 import { scrapeGsaRealEstate } from "./sources/gsa-realestate";
-import { scrapeRedfin } from "./sources/redfin";
+import { harvestRedfinGis } from "./sources/redfin-gis";
+import { harvestHomePath } from "./sources/homepath";
 import { scrapePublicSurplusProperties } from "./sources/publicsurplus-property";
 import { scrapeMunicibidProperties } from "./sources/municibid-property";
 import { scrapeDetroitLandBank } from "./sources/detroit-landbank";
@@ -23,11 +23,14 @@ import { fetchPhillyCodeViolations } from "./sources/code-violations";
 import { fetchOpenDataLeads } from "./sources/open-data-sources";
 import { harvestPortals } from "./sources/portals";
 import { harvestReso } from "./sources/reso";
+import { enrichRedfinProperties } from "./sources/redfin-enrich";
+import { upsertProperties, reconcileStaleProperties } from "./store";
+import { loadLivePsf, refreshMarketTemp } from "./live-psf";
+import { loadCalibration } from "./calibration";
 import { scrapeFsbo } from "./sources/fsbo";
 import { scrapeHubzu } from "./sources/hubzu";
 import { scrapeBid4Assets } from "./sources/bid4assets";
 import { scrapeUsdaResales } from "./sources/usda-resales";
-import { upsertProperties } from "./store";
 
 export interface HarvestResult {
   ok: boolean;
@@ -39,15 +42,21 @@ export interface HarvestResult {
 
 /** Run the full housing harvest: all free sources in parallel, then upsert. Safe to call anywhere. */
 export async function runHousingHarvest(): Promise<HarvestResult> {
+  // Inject our own live SOLD $/sqft into arv-psf BEFORE scoring, so every lead's ARV/equity uses the
+  // freshest comps we've harvested (falls back to the static snapshot per-ZIP where we have none yet).
+  await loadLivePsf().catch(() => {});
+  // Inject the learned tier calibration (realized pipeline outcomes) before scoring too — no-op until
+  // enough deals have been closed/killed, then stored scores start reflecting what actually converts.
+  await loadCalibration().catch(() => {});
   const [
     gd,
     ad,
     hud,
-    homepath,
     homesteps,
     auctioncom,
     gsare,
     redfin,
+    homepath,
     psre,
     mbre,
     dlb,
@@ -67,11 +76,11 @@ export async function runHousingHarvest(): Promise<HarvestResult> {
     harvestGovDealsProperties("GD", 5).catch(() => []),
     harvestGovDealsProperties("AD", 3).catch(() => []),
     scrapeHudHomes().catch(() => []),
-    scrapeHomePath().catch(() => []),
     scrapeHomeSteps().catch(() => []),
     scrapeAuctionCom().catch(() => []),
     scrapeGsaRealEstate().catch(() => []),
-    scrapeRedfin().catch(() => []), // fleet-only (PerimeterX); [] elsewhere
+    harvestRedfinGis().catch(() => []), // verified open MLS door: gis-csv bbox, no anti-bot
+    harvestHomePath().catch(() => []), // Fannie Mae REO — open JSON, nationwide bank-owned
     scrapePublicSurplusProperties().catch(() => []),
     scrapeMunicibidProperties().catch(() => []),
     scrapeDetroitLandBank().catch(() => []),
@@ -89,15 +98,15 @@ export async function runHousingHarvest(): Promise<HarvestResult> {
     scrapeUsdaResales().catch(() => []), // USDA RD/FSA surplus resales (FIPS state crawling, no auth)
   ]);
 
-  const properties = [
+  let properties = [
     ...gd,
     ...ad,
     ...hud,
-    ...homepath,
     ...homesteps,
     ...auctioncom,
     ...gsare,
     ...redfin,
+    ...homepath,
     ...psre,
     ...mbre,
     ...dlb,
@@ -114,7 +123,25 @@ export async function runHousingHarvest(): Promise<HarvestResult> {
     ...b4a,
     ...usda,
   ];
+
+  // Opt-in per-listing enrichment (REDFIN_ENRICH=1, fleet-only): pull listing remarks/photos for the
+  // hottest Redfin leads so the distress scorer + rehab inference read real wording. Bounded + safe — every
+  // fetch returns null off-fleet, leaving leads untouched.
+  if (process.env.REDFIN_ENRICH === "1") {
+    properties = await enrichRedfinProperties(properties).catch(
+      () => properties,
+    );
+  }
+
   const written = await upsertProperties(properties);
+
+  // Refresh the market-temperature half of the live index (active count / DOM / asking $/sqft) from the
+  // listings we just pulled — no extra fetch, feeds the user-facing "market temp" (never ARV).
+  if (written > 0) await refreshMarketTemp(properties).catch(() => 0);
+
+  // Freshness: retire listings not re-seen in 21 days (sold/delisted) so counts stay truthful. Only after a
+  // healthy harvest (written > 0) — never prune on an empty/failed run that could wrongly retire everything.
+  if (written > 0) await reconcileStaleProperties(21).catch(() => 0);
 
   return {
     ok: true,
@@ -125,11 +152,11 @@ export async function runHousingHarvest(): Promise<HarvestResult> {
       govdeals: gd.length,
       allsurplus: ad.length,
       hud: hud.length,
-      homepath: homepath.length,
       homesteps: homesteps.length,
       auctioncom: auctioncom.length,
       gsa_realestate: gsare.length,
       redfin: redfin.length,
+      fannie_homepath: homepath.length,
       publicsurplus: psre.length,
       municibid: mbre.length,
       detroit_landbank: dlb.length,

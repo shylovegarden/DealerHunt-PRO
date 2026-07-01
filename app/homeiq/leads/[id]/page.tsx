@@ -4,7 +4,12 @@ import { use, useState } from "react";
 import dynamic from "next/dynamic";
 import useSWR from "swr";
 import Link from "next/link";
+import { motion } from "framer-motion";
+import { toast } from "sonner";
+import { ImageGallery } from "@/components/shared/ImageGallery";
 import { housingPriceTerms } from "@/lib/housing/price-semantics";
+import { ValuationBasis } from "@/components/home/ValuationBasis";
+import { OfferSolver } from "@/components/home/OfferSolver";
 
 const DealerMap = dynamic(() => import("@/components/map/DealerMap"), {
   ssr: false,
@@ -13,7 +18,7 @@ const DealerMap = dynamic(() => import("@/components/map/DealerMap"), {
   ),
 });
 
-const ACCENT = "#2dd4bf";
+const ACCENT = "var(--home)";
 const fetcher = (u: string) => fetch(u).then((r) => r.json());
 
 const TIER_COLOR: Record<string, string> = {
@@ -26,6 +31,13 @@ const VERDICT_COLOR: Record<string, string> = {
   fair: ACCENT,
   tight: "var(--amber)",
   pass: "var(--red)",
+};
+
+const CASHFLOW_COLOR: Record<string, string> = {
+  strong: "var(--green)",
+  decent: ACCENT,
+  thin: "var(--amber)",
+  negative: "var(--red)",
 };
 
 const money = (n?: number | null) =>
@@ -46,7 +58,15 @@ export default function LeadDetailPage({
   if (isLoading)
     return (
       <Shell>
-        <p className="text-[var(--t4)] py-20 text-center">Loading lead…</p>
+        <div className="grid lg:grid-cols-[1fr_minmax(320px,40%)] gap-6">
+          <div className="space-y-4">
+            <div className="h-7 w-2/3 rounded shimmer" />
+            <div className="h-64 w-full rounded-[var(--r3)] shimmer" />
+            <div className="h-28 w-full rounded-[var(--r3)] shimmer" />
+            <div className="h-28 w-full rounded-[var(--r3)] shimmer" />
+          </div>
+          <div className="h-72 rounded-[var(--r3)] shimmer" />
+        </div>
       </Shell>
     );
   if (!lead)
@@ -58,6 +78,7 @@ export default function LeadDetailPage({
 
   const tierColor = TIER_COLOR[lead.tier] || "var(--blue)";
   const a = lead.analysis || {};
+  const cf = lead.cashflow;
   const points =
     lead.lat != null && lead.lng != null
       ? [
@@ -83,7 +104,10 @@ export default function LeadDetailPage({
             <div className="flex items-center gap-2 mb-2">
               <span
                 className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full"
-                style={{ background: `${tierColor}22`, color: tierColor }}
+                style={{
+                  background: `color-mix(in srgb, ${tierColor} 16%, transparent)`,
+                  color: tierColor,
+                }}
               >
                 {lead.tier}
               </span>
@@ -121,15 +145,89 @@ export default function LeadDetailPage({
                 ? ` · ${lead.bid_count} bids`
                 : ""}
             </p>
+            {/* Self-detected price drop — the "seller is softening" tell, tracked across our own harvests. */}
+            {lead.priceDrops > 0 && lead.prevPrice > lead.price && (
+              <span
+                className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-bold px-2 py-1 rounded-full"
+                style={{
+                  background: "color-mix(in srgb, var(--red) 13%, transparent)",
+                  color: "var(--red)",
+                }}
+                title={`Was ${money(lead.prevPrice)}${lead.priceChangedAt ? ` · last cut ${new Date(lead.priceChangedAt).toLocaleDateString()}` : ""}`}
+              >
+                ↓ Reduced from {money(lead.prevPrice)}
+                {lead.priceDrops > 1 ? ` · ${lead.priceDrops} cuts` : ""}
+              </span>
+            )}
+            {/* FEMA flood zone — a Special Flood Hazard Area materially hurts a hold. */}
+            {lead.flood && (
+              <span
+                className="mt-2 ml-2 inline-flex items-center gap-1.5 text-[11px] font-bold px-2 py-1 rounded-full"
+                style={
+                  lead.flood.high
+                    ? {
+                        background:
+                          "color-mix(in srgb, var(--blue) 16%, transparent)",
+                        color: "var(--blue)",
+                      }
+                    : { background: "var(--s2)", color: "var(--t4)" }
+                }
+                title={lead.flood.label}
+              >
+                🌊{" "}
+                {lead.flood.high
+                  ? `Flood zone ${lead.flood.zone}`
+                  : "Low flood risk"}
+              </span>
+            )}
+            {/* Quick-facts strip — the physical specs, hoisted to the top (were buried at the bottom). */}
+            {(lead.beds != null ||
+              lead.baths != null ||
+              lead.sqft != null ||
+              lead.year_built != null ||
+              lead.listing?.pricePerSqft ||
+              lead.listing?.daysOnMarket != null) && (
+              <div className="mt-2 flex items-center gap-2 flex-wrap text-sm font-semibold text-[var(--t2)]">
+                {lead.beds != null && <span>{lead.beds} bd</span>}
+                {lead.baths != null && <span>· {lead.baths} ba</span>}
+                {lead.sqft != null && (
+                  <span>· {lead.sqft.toLocaleString()} sqft</span>
+                )}
+                {lead.listing?.pricePerSqft && (
+                  <span className="text-[var(--t4)]">
+                    · ${lead.listing.pricePerSqft}/sqft
+                  </span>
+                )}
+                {lead.year_built != null && (
+                  <span className="text-[var(--t4)]">
+                    · built {lead.year_built}
+                  </span>
+                )}
+                {lead.lot_size_acres != null && (
+                  <span className="text-[var(--t4)]">
+                    · {lead.lot_size_acres} ac lot
+                  </span>
+                )}
+                {lead.listing?.daysOnMarket != null &&
+                  lead.listing.daysOnMarket >= 30 && (
+                    <span style={{ color: "var(--amber)" }}>
+                      · {lead.listing.daysOnMarket}d on market
+                    </span>
+                  )}
+              </div>
+            )}
           </div>
 
-          {lead.image && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={lead.image}
-              alt={lead.title}
-              className="w-full max-h-72 object-cover rounded-[var(--r3)] border border-[var(--b1)]"
-            />
+          {(lead.images?.length || lead.image) && (
+            <div className="rounded-[var(--r3)] overflow-hidden border border-[var(--b1)]">
+              <ImageGallery
+                images={
+                  lead.images?.length
+                    ? lead.images
+                    : [lead.image].filter(Boolean)
+                }
+              />
+            </div>
           )}
 
           {/* Lead score */}
@@ -148,6 +246,41 @@ export default function LeadDetailPage({
               </div>
             </div>
           </Card>
+
+          {/* Listing identity — MLS#/brokerage/agent + REO occupancy (collected but never shown before). */}
+          {lead.listing && (
+            <Card title="Listing details">
+              <div className="flex flex-wrap gap-2 text-sm">
+                {lead.listing.mls && (
+                  <Fact label="MLS #" value={String(lead.listing.mls)} />
+                )}
+                {lead.listing.brokerage && (
+                  <Fact
+                    label="Brokerage"
+                    value={String(lead.listing.brokerage)}
+                  />
+                )}
+                {lead.listing.agent && (
+                  <Fact label="Agent" value={String(lead.listing.agent)} />
+                )}
+                {lead.listing.occupancy && (
+                  <Fact
+                    label="Occupancy"
+                    value={String(lead.listing.occupancy)}
+                  />
+                )}
+                {lead.listing.tenantOccupied && (
+                  <Fact label="Tenant" value="Occupied" />
+                )}
+              </div>
+              {lead.listing.firstLook && (
+                <p className="mt-2 text-[11px] text-[var(--amber)] font-semibold">
+                  ⏳ First Look — owner-occupants/nonprofits only right now;
+                  investors must wait for the window to close.
+                </p>
+              )}
+            </Card>
+          )}
 
           {/* Owner & contact — public-record owner + mailing address (direct-mail ready). Phone/email is
               NOT scraped; it requires a licensed, compliant skip-trace provider (TCPA/DNC rules apply). */}
@@ -236,6 +369,7 @@ export default function LeadDetailPage({
                 {lead.distress.vacant && (
                   <Fact label="Occupancy" value="Vacant" />
                 )}
+                {lead.distress.reo && <Fact label="REO" value="Bank-owned" />}
               </div>
             </Card>
           )}
@@ -243,32 +377,32 @@ export default function LeadDetailPage({
           {/* Deal analysis — the 70% rule */}
           <Card title="Flip analysis (70% rule)">
             {a.mao != null ? (
-              <div className="space-y-3">
-                <div className="grid grid-cols-3 gap-3">
-                  <Metric
-                    label="ARV (est.)"
-                    value={money(a.arv)}
-                    sub={a.arvConfidence}
+              <div className="space-y-4">
+                {/* The decision, up top — verdict + how much to trust it. */}
+                <DecisionHeader
+                  verdict={a.verdict}
+                  confidence={a.arvConfidence}
+                  mao={a.mao}
+                  ask={lead.price}
+                />
+                <FlipWaterfall
+                  price={lead.price}
+                  repairs={a.repairEstimate}
+                  arv={a.arv}
+                  mao={a.mao}
+                  equity={a.equitySpread}
+                />
+                {/* How we got every number — real comps vs labeled assumption. */}
+                <ValuationBasis analysis={a} sqft={lead.sqft} />
+                {/* Tune the assumption yourself — repairs/margin recompute the offer live. */}
+                {lead.sqft && a.arv != null && (
+                  <OfferSolver
+                    arv={a.arv}
+                    sqft={lead.sqft}
+                    askPrice={lead.price || 0}
+                    arvConfidence={a.arvConfidence}
+                    defaultRehab={a.rehabLevel}
                   />
-                  <Metric
-                    label="Repairs (est.)"
-                    value={money(a.repairEstimate)}
-                    sub={a.rehabLevel}
-                  />
-                  <Metric
-                    label="Max offer"
-                    value={money(a.mao)}
-                    accent={VERDICT_COLOR[a.verdict] || ACCENT}
-                    sub={a.verdict}
-                  />
-                </div>
-                {a.equitySpread != null && (
-                  <p className="text-sm text-[var(--t3)]">
-                    Gross equity potential:{" "}
-                    <span className="font-black text-[var(--t1)]">
-                      {money(a.equitySpread)}
-                    </span>
-                  </p>
                 )}
               </div>
             ) : (
@@ -285,6 +419,216 @@ export default function LeadDetailPage({
               </ul>
             )}
           </Card>
+
+          {/* Holding cost — the time cost of the flip, and the real margin after carry. */}
+          {lead.holding && (
+            <Card title="Holding cost (time to flip)">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <Metric
+                  label="Per month"
+                  value={`${money(lead.holding.perMonth)}/mo`}
+                  accent="var(--amber)"
+                />
+                <Metric
+                  label={`Over ${lead.holding.months} mo`}
+                  value={money(lead.holding.total)}
+                  accent="var(--amber)"
+                  sub="taxes+ins+utils+interest"
+                />
+                {a.equitySpread != null && (
+                  <Metric
+                    label="Net after carry"
+                    value={money(a.equitySpread - lead.holding.total)}
+                    accent={
+                      a.equitySpread - lead.holding.total > 0
+                        ? "var(--green)"
+                        : "var(--red)"
+                    }
+                    sub="gross equity − holding"
+                  />
+                )}
+              </div>
+              <div className="mt-2 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-[var(--t4)]">
+                <span>Taxes {money(lead.holding.breakdown.taxes)}/mo</span>
+                <span>
+                  · Insurance {money(lead.holding.breakdown.insurance)}/mo
+                </span>
+                <span>
+                  · Utilities {money(lead.holding.breakdown.utilities)}/mo
+                </span>
+                <span>
+                  · Interest {money(lead.holding.breakdown.financing)}/mo
+                </span>
+              </div>
+              <p className="mt-2 text-[11px] text-[var(--t4)] leading-snug">
+                {lead.holding.taxesEstimated
+                  ? "Rates are estimates (no live tax/insurance feed) — a planning figure, not a quote."
+                  : "Taxes from county record; other rates are estimates."}
+              </p>
+            </Card>
+          )}
+
+          {/* AI deal brief — grounded plain-English verdict, on demand */}
+          <AIBrief id={lead.id} />
+
+          {/* Rental cashflow — the buy-and-hold lens */}
+          {cf && (
+            <Card title="Rental cashflow (buy & hold)">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <Metric
+                  label="Rent (est.)"
+                  value={`${money(cf.monthlyRent)}/mo`}
+                />
+                <Metric
+                  label="Cap rate"
+                  value={`${cf.capRatePct}%`}
+                  accent={CASHFLOW_COLOR[cf.rating] || ACCENT}
+                  sub={
+                    cf.grossYieldPct != null
+                      ? `${cf.grossYieldPct}% gross yield`
+                      : cf.rating
+                  }
+                />
+                <Metric
+                  label="Cashflow"
+                  value={`${money(cf.monthlyCashflow)}/mo`}
+                  sub="50% rule, all-cash"
+                />
+              </div>
+              <p className="mt-3 text-xs text-[var(--t4)]">{cf.note}</p>
+            </Card>
+          )}
+
+          {/* BRRRR — refinance & hold: how much capital comes back out, and the return on what stays in. */}
+          {lead.brrrr && (
+            <Card title="BRRRR (refinance & hold)">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <Metric
+                  label="Cash left in"
+                  value={money(lead.brrrr.cashLeftIn)}
+                  accent={lead.brrrr.fullBrrrr ? "var(--green)" : "var(--t1)"}
+                  sub={`from ${money(lead.brrrr.allIn)} all-in`}
+                />
+                <Metric
+                  label="Cashflow"
+                  value={`${money(lead.brrrr.monthlyCashflow)}/mo`}
+                  accent={
+                    lead.brrrr.monthlyCashflow >= 0
+                      ? "var(--green)"
+                      : "var(--red)"
+                  }
+                  sub="after refi debt"
+                />
+                <Metric
+                  label="Cash-on-cash"
+                  value={
+                    lead.brrrr.fullBrrrr
+                      ? "∞"
+                      : lead.brrrr.cashOnCashPct != null
+                        ? `${lead.brrrr.cashOnCashPct}%`
+                        : "—"
+                  }
+                  accent={
+                    lead.brrrr.fullBrrrr
+                      ? "var(--green)"
+                      : CASHFLOW_COLOR.decent
+                  }
+                  sub={
+                    lead.brrrr.fullBrrrr ? "all capital recovered" : "annual"
+                  }
+                />
+              </div>
+              <p className="mt-3 text-[11px] text-[var(--t4)] leading-snug">
+                {lead.brrrr.fullBrrrr
+                  ? "Full BRRRR — the refi pulls back everything you put in; the return on $0 left in is effectively infinite. "
+                  : ""}
+                Pulls {money(lead.brrrr.cashOut)} out at refi (
+                {lead.brrrr.notes[0]}). Estimates — no live lender feed.
+              </p>
+            </Card>
+          )}
+
+          {/* Market temperature — live from our own harvest of this ZIP (context, not ARV). */}
+          {lead.market &&
+            (lead.market.activeCount ||
+              lead.market.medianDom != null ||
+              lead.market.listPsf) && (
+              <Card title={`Market temperature · ${lead.zip || ""}`}>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {lead.market.activeCount != null && (
+                    <Metric
+                      label="Active listings"
+                      value={String(lead.market.activeCount)}
+                    />
+                  )}
+                  {lead.market.medianDom != null && (
+                    <Metric
+                      label="Median days on mkt"
+                      value={`${lead.market.medianDom}d`}
+                      accent={
+                        lead.market.medianDom >= 60 ? "var(--green)" : undefined
+                      }
+                      sub={
+                        lead.market.medianDom >= 60
+                          ? "slow — buyer's market"
+                          : lead.market.medianDom <= 21
+                            ? "hot — moves fast"
+                            : undefined
+                      }
+                    />
+                  )}
+                  {lead.market.listPsf != null && (
+                    <Metric
+                      label="Asking $/sqft"
+                      value={`$${lead.market.listPsf}`}
+                      sub="median (asking)"
+                    />
+                  )}
+                </div>
+                <p className="mt-2 text-[11px] text-[var(--t4)]">
+                  Live from our harvest of this ZIP. Asking $/sqft is context —
+                  ARV uses sold comps.
+                </p>
+              </Card>
+            )}
+
+          {/* Neighborhood trajectory — Census ACS (rising vs declining area). */}
+          {lead.neighborhood && (
+            <Card title="Neighborhood trajectory">
+              <div className="flex items-center gap-4">
+                <ScoreRing
+                  score={lead.neighborhood.score}
+                  color={
+                    lead.neighborhood.trajectory === "rising"
+                      ? "var(--green)"
+                      : lead.neighborhood.trajectory === "declining"
+                        ? "var(--red)"
+                        : "var(--amber)"
+                  }
+                />
+                <div>
+                  <div className="text-sm font-black text-[var(--t1)]">
+                    {lead.neighborhood.label}
+                  </div>
+                  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-[var(--t4)]">
+                    {lead.neighborhood.income != null && (
+                      <span>
+                        Median income $
+                        {lead.neighborhood.income.toLocaleString()}
+                      </span>
+                    )}
+                    {lead.neighborhood.vacancyPct != null && (
+                      <span>· {lead.neighborhood.vacancyPct}% vacant</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <p className="mt-2 text-[11px] text-[var(--t4)]">
+                US Census ACS 5-year — income/population/vacancy growth. Context
+                for appreciation, not a guarantee.
+              </p>
+            </Card>
+          )}
 
           {/* Facts */}
           {(lead.beds ||
@@ -316,26 +660,10 @@ export default function LeadDetailPage({
             </Card>
           )}
 
-          {/* Actions */}
-          <div className="flex flex-wrap gap-3">
-            <SaveButton listingId={lead.id} />
-            {lead.url && (
-              <a
-                href={lead.url}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-black text-sm"
-                style={{ background: ACCENT }}
-              >
-                View original listing ↗
-              </a>
-            )}
-            {lead.auction_end && (
-              <span className="inline-flex items-center px-4 py-2.5 rounded-full text-sm font-semibold text-[var(--t2)] bg-[var(--s2)] border border-[var(--b1)]">
-                Ends {new Date(lead.auction_end).toLocaleDateString()}
-              </span>
-            )}
-          </div>
+          {/* Similar leads nearby */}
+          <SimilarLeads state={lead.state} excludeId={lead.id} zip={lead.zip} />
+          {/* spacer so neither the action bar nor the mobile bottom-nav covers the last card */}
+          <div className="h-28 md:h-16" />
         </div>
 
         {/* Right: map */}
@@ -346,6 +674,30 @@ export default function LeadDetailPage({
             <div className="w-full h-full grid place-items-center rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] text-[var(--t4)] text-sm">
               No precise location yet
             </div>
+          )}
+        </div>
+      </div>
+
+      {/* Sticky action bar — always-reachable Save + View. Sits ABOVE the mobile bottom-nav (56px) so its
+          buttons aren't hidden behind it on phones; flush to the bottom on desktop (no bottom-nav there). */}
+      <div className="fixed left-0 right-0 bottom-[calc(56px+env(safe-area-inset-bottom))] md:bottom-0 z-40 border-t border-[var(--b1)] bg-[var(--s0)]/95 backdrop-blur">
+        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-end gap-2 flex-wrap">
+          {lead.auction_end && (
+            <span className="mr-auto text-sm font-semibold text-[var(--t3)]">
+              Ends {new Date(lead.auction_end).toLocaleDateString()}
+            </span>
+          )}
+          <SaveButton listingId={lead.id} />
+          {lead.url && (
+            <a
+              href={lead.url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-black text-sm"
+              style={{ background: ACCENT }}
+            >
+              View listing ↗
+            </a>
           )}
         </div>
       </div>
@@ -370,8 +722,12 @@ function SaveButton({ listingId }: { listingId: string }) {
       setState("auth");
       return;
     }
-    if (res.ok) setState("saved");
-    else setState("idle");
+    if (res.ok) {
+      toast.success("Saved to pipeline 📋", {
+        description: "Track it on your pipeline board.",
+      });
+      setState("saved");
+    } else setState("idle");
   };
   if (state === "auth") {
     return (
@@ -406,34 +762,9 @@ function SaveButton({ listingId }: { listingId: string }) {
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <main className="min-h-screen bg-[var(--s1)] text-[var(--t1)]">
-      <header className="max-w-6xl mx-auto px-4 sm:px-6 pt-6 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <span
-            className="w-8 h-8 rounded-[10px] grid place-items-center text-black font-black"
-            style={{ background: ACCENT }}
-          >
-            H
-          </span>
-          <span className="font-black text-lg">HomeIQ</span>
-        </div>
-        <div className="flex items-center gap-4">
-          <Link
-            href="/homeiq/saved"
-            className="text-sm font-semibold text-[var(--t3)] hover:text-[var(--t1)]"
-          >
-            Pipeline
-          </Link>
-          <Link
-            href="/homeiq/leads"
-            className="text-sm font-semibold text-[var(--t3)] hover:text-[var(--t1)]"
-          >
-            ← All leads
-          </Link>
-        </div>
-      </header>
+    <div className="bg-transparent text-[var(--t1)]">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-5">{children}</div>
-    </main>
+    </div>
   );
 }
 
@@ -445,11 +776,362 @@ function Card({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] p-4">
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35 }}
+      className="glass-panel"
+    >
       <h2 className="text-[11px] font-black uppercase tracking-widest text-[var(--t4)] mb-3">
         {title}
       </h2>
       {children}
+    </motion.div>
+  );
+}
+
+// The verdict, made the headline — GO/FAIR/TIGHT/PASS with a confidence chip so the user reads "how good"
+// AND "how sure" at a glance, instead of hunting for a tiny sub-label. The confidence chip is the honest
+// guardrail: a coarse-ARV deal can never show as a confident "strong".
+function DecisionHeader({
+  verdict,
+  confidence,
+  mao,
+  ask,
+}: {
+  verdict: string;
+  confidence: string;
+  mao?: number | null;
+  ask?: number | null;
+}) {
+  const color = VERDICT_COLOR[verdict] || ACCENT;
+  const headline: Record<string, string> = {
+    strong: "Strong buy",
+    fair: "Fair deal",
+    tight: "Tight — thin margin",
+    pass: "Pass",
+    unknown: "Not enough data",
+  };
+  const confMeta: Record<string, { label: string; color: string }> = {
+    high: { label: "High confidence", color: "var(--green)" },
+    medium: { label: "Medium confidence", color: ACCENT },
+    low: { label: "Estimate only", color: "var(--amber)" },
+    none: { label: "Not computable", color: "var(--t4)" },
+  };
+  const cm = confMeta[confidence] || confMeta.none;
+  const delta = mao != null && ask != null ? mao - ask : null;
+  return (
+    <div
+      className="rounded-[var(--r3)] p-3.5"
+      style={{
+        background: `color-mix(in srgb, ${color} 10%, var(--s0))`,
+        border: `1px solid color-mix(in srgb, ${color} 35%, transparent)`,
+      }}
+    >
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <span className="text-2xl font-black" style={{ color }}>
+          {headline[verdict] || "—"}
+        </span>
+        <span
+          className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider px-2 py-1 rounded-full"
+          style={{
+            background: `color-mix(in srgb, ${cm.color} 16%, transparent)`,
+            color: cm.color,
+          }}
+        >
+          <span
+            className="inline-block w-1.5 h-1.5 rounded-full"
+            style={{ background: cm.color }}
+          />
+          {cm.label}
+        </span>
+      </div>
+      {delta != null && (
+        <p className="mt-1 text-[13px] text-[var(--t3)]">
+          Max offer{" "}
+          <span className="font-black text-[var(--t1)]">{money(mao)}</span> ·
+          asking{" "}
+          <span className="font-bold text-[var(--t2)]">{money(ask)}</span>
+          {delta >= 0 ? (
+            <span className="text-[var(--green)] font-bold">
+              {" "}
+              · {money(delta)} under max
+            </span>
+          ) : (
+            <span className="text-[var(--red)] font-bold">
+              {" "}
+              · {money(-delta)} over max
+            </span>
+          )}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// Flip economics as a single stacked bar: ARV is the full width; the all-in basis (ask + repairs) fills
+// from the left, the rest is the equity spread (green) or overpay (red). A marker shows the 70%-rule MAO
+// ceiling. Pure inline SVG/flex — no chart lib, animates with framer-motion.
+function FlipWaterfall({
+  price,
+  repairs,
+  arv,
+  mao,
+  equity,
+}: {
+  price?: number | null;
+  repairs?: number | null;
+  arv?: number | null;
+  mao?: number | null;
+  equity?: number | null;
+}) {
+  if (!arv || arv <= 0) return null;
+  const ask = Math.max(0, price || 0);
+  const rep = Math.max(0, repairs || 0);
+  const spread = equity ?? arv - ask - rep;
+  const overpay = spread < 0;
+  // Scale by the bar's true total: ARV when there's equity, the all-in basis (ask+repairs) when overpaying
+  // — so the red overpay segment can't overflow the ARV-width bar and silently vanish (it used to, which
+  // made a money-loser look like a full healthy bar).
+  const total = Math.max(arv, ask + rep, 1);
+  const w = (n: number) => `${Math.max(0, (n / total) * 100)}%`;
+  // Three honest segments that always sum to ≤100%.
+  const segs = overpay
+    ? [
+        { width: w(ask), bg: "var(--blue)", t: `Ask ${money(ask)}` },
+        {
+          width: w(Math.max(0, arv - ask)),
+          bg: "var(--amber)",
+          t: `Repairs (up to ARV) ${money(Math.max(0, arv - ask))}`,
+        },
+        {
+          width: w(ask + rep - arv),
+          bg: "var(--red)",
+          t: `Overpay ${money(ask + rep - arv)}`,
+        },
+      ]
+    : [
+        { width: w(ask), bg: "var(--blue)", t: `Ask ${money(ask)}` },
+        { width: w(rep), bg: "var(--amber)", t: `Repairs ${money(rep)}` },
+        { width: w(spread), bg: "var(--green)", t: `Equity ${money(spread)}` },
+      ];
+  const maoPct =
+    mao != null ? Math.max(0, Math.min(100, (mao / total) * 100)) : null;
+  const fmt = money;
+  return (
+    <div>
+      <div className="relative h-7 w-full rounded-md overflow-hidden bg-[var(--s2)] border border-[var(--b1)]">
+        <motion.div
+          className="absolute inset-y-0 left-0 flex"
+          initial={{ width: 0 }}
+          animate={{ width: "100%" }}
+          transition={{ duration: 0.7, ease: "easeOut" }}
+        >
+          {segs.map((s, i) => (
+            <div
+              key={i}
+              style={{ width: s.width, background: s.bg }}
+              className="h-full"
+              title={s.t}
+            />
+          ))}
+        </motion.div>
+        {maoPct != null && (
+          <div
+            className="absolute inset-y-0 w-0.5 bg-[var(--t1)]"
+            style={{ left: `${maoPct}%` }}
+            title={`Max offer ${fmt(mao)}`}
+          >
+            <span className="absolute -top-0 left-1 text-[8px] font-black text-[var(--t1)] whitespace-nowrap">
+              MAO
+            </span>
+          </div>
+        )}
+      </div>
+      <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] font-bold">
+        <span style={{ color: "var(--blue)" }}>■ Ask {fmt(ask)}</span>
+        <span style={{ color: "var(--amber)" }}>■ Repairs {fmt(rep)}</span>
+        <span style={{ color: overpay ? "var(--red)" : "var(--green)" }}>
+          ■ {overpay ? "Overpay" : "Equity"} {fmt(Math.abs(spread))}
+        </span>
+        <span className="text-[var(--t4)]">ARV {fmt(arv)}</span>
+      </div>
+    </div>
+  );
+}
+
+// Similar leads — a scroll rail of other hot/warm deals in the same state (closest by ZIP first). Self-
+// fetches the state-scoped list and filters out the current lead. Returns null when there's nothing nearby.
+function SimilarLeads({
+  state,
+  excludeId,
+  zip,
+}: {
+  state?: string;
+  excludeId: string;
+  zip?: string;
+}) {
+  const { data } = useSWR(
+    state ? `/api/homeiq/leads?state=${state}` : null,
+    fetcher,
+  );
+  if (!state || !data?.leads) return null;
+  const z = (zip || "").slice(0, 3);
+  const near = (data.leads as any[])
+    .filter(
+      (l) => l.id !== excludeId && (l.tier === "hot" || l.tier === "warm"),
+    )
+    .sort((a, b) => {
+      // ZIP-3 proximity first, then score.
+      const az = String(a.zip || "").slice(0, 3) === z ? 1 : 0;
+      const bz = String(b.zip || "").slice(0, 3) === z ? 1 : 0;
+      return bz - az || (b.score || 0) - (a.score || 0);
+    })
+    .slice(0, 8);
+  if (!near.length) return null;
+  return (
+    <Card title="Similar leads nearby">
+      <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1 snap-x">
+        {near.map((l) => (
+          <Link
+            key={l.id}
+            href={`/homeiq/leads/${encodeURIComponent(l.id)}`}
+            className="snap-start shrink-0 w-44 rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s0)] overflow-hidden hover:border-[var(--home-bd)] transition-colors"
+          >
+            <div className="h-24 bg-[var(--s2)] relative">
+              {l.image ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={l.image}
+                  alt={l.title}
+                  className="w-full h-full object-cover"
+                  loading="lazy"
+                />
+              ) : (
+                <div className="w-full h-full grid place-items-center text-[var(--t4)] text-[10px]">
+                  No photo
+                </div>
+              )}
+              <span
+                className="absolute top-1 left-1 text-[10px] font-black px-1.5 py-0.5 rounded text-white"
+                style={{ background: TIER_COLOR[l.tier] || "var(--blue)" }}
+              >
+                {l.score}
+              </span>
+            </div>
+            <div className="p-2">
+              <div className="font-black text-sm text-[var(--t1)]">
+                {money(l.price)}
+              </div>
+              <div className="text-[11px] text-[var(--t3)] truncate">
+                {l.city ? `${l.city}, ${l.state}` : l.state}
+              </div>
+              {l.mao != null && (
+                <div
+                  className="text-[10px] font-bold mt-0.5"
+                  style={{ color: VERDICT_COLOR[l.verdict] || ACCENT }}
+                >
+                  🔨 {money(l.mao)} · {l.verdict}
+                </div>
+              )}
+            </div>
+          </Link>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+// Minimal markdown → JSX (bold + bullets + paragraphs) so the AI brief renders cleanly with no dependency.
+function renderBrief(md: string): React.ReactNode {
+  const boldify = (s: string) =>
+    s.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
+      part.startsWith("**") && part.endsWith("**") ? (
+        <strong key={i} className="text-[var(--t1)] font-black">
+          {part.slice(2, -2)}
+        </strong>
+      ) : (
+        <span key={i}>{part}</span>
+      ),
+    );
+  return md
+    .split(/\n+/)
+    .filter((l) => l.trim())
+    .map((line, i) => {
+      const t = line.trim();
+      if (/^[-*•]\s+/.test(t))
+        return (
+          <li key={i} className="ml-4 list-disc text-[var(--t2)]">
+            {boldify(t.replace(/^[-*•]\s+/, ""))}
+          </li>
+        );
+      return (
+        <p key={i} className="text-[var(--t2)] leading-relaxed">
+          {boldify(t)}
+        </p>
+      );
+    });
+}
+
+// AI deal brief — lazy-loads on click so we only spend tokens when the user actually wants it. Hides
+// itself when no model is configured (free core stays intact).
+function AIBrief({ id }: { id: string }) {
+  const [state, setState] = useState<
+    "idle" | "loading" | "done" | "hidden" | "error"
+  >("idle");
+  const [brief, setBrief] = useState<string>("");
+
+  if (state === "hidden") return null;
+
+  async function go() {
+    setState("loading");
+    try {
+      const r = await fetch(
+        `/api/homeiq/leads/${encodeURIComponent(id)}/brief`,
+      ).then((x) => x.json());
+      if (r.available && r.brief) {
+        setBrief(r.brief);
+        setState("done");
+      } else {
+        setState("hidden"); // no model key → don't show a dead feature
+      }
+    } catch {
+      setState("error");
+    }
+  }
+
+  return (
+    <div className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-[11px] font-black uppercase tracking-widest text-[var(--t4)]">
+          🧠 AI Deal Brief
+        </h2>
+        {state === "done" && (
+          <span className="text-[10px] text-[var(--t4)]">
+            grounded in the numbers above
+          </span>
+        )}
+      </div>
+      {state === "idle" && (
+        <button
+          onClick={go}
+          className="w-full py-2.5 rounded-[var(--r2)] text-sm font-bold text-black"
+          style={{ background: ACCENT }}
+        >
+          Generate AI deal brief
+        </button>
+      )}
+      {state === "loading" && (
+        <p className="text-sm text-[var(--t4)] py-2">Analyzing the deal…</p>
+      )}
+      {state === "error" && (
+        <button onClick={go} className="text-sm text-[var(--t3)] underline">
+          Something went wrong — retry
+        </button>
+      )}
+      {state === "done" && (
+        <div className="space-y-2 text-sm">{renderBrief(brief)}</div>
+      )}
     </div>
   );
 }
@@ -524,7 +1206,7 @@ function ScoreRing({ score, color }: { score: number; color: string }) {
           stroke="var(--b1)"
           strokeWidth="5"
         />
-        <circle
+        <motion.circle
           cx="28"
           cy="28"
           r={r}
@@ -533,7 +1215,10 @@ function ScoreRing({ score, color }: { score: number; color: string }) {
           strokeWidth="5"
           strokeLinecap="round"
           strokeDasharray={c}
-          strokeDashoffset={off}
+          initial={{ strokeDashoffset: c }}
+          animate={{ strokeDashoffset: off }}
+          transition={{ duration: 0.9, ease: "easeOut" }}
+          style={{ filter: `drop-shadow(0 0 4px ${color}66)` }}
         />
       </svg>
       <span

@@ -141,4 +141,33 @@ describe("summarizeMarket", () => {
   it("is pure — same input yields a deeply equal summary", () => {
     expect(summarizeMarket(leads)).toEqual(s);
   });
+
+  it("builds the price-vs-sqft scatter from leads with real sqft + price only", () => {
+    const withSqft: MarketLead[] = [
+      { tier: "hot", price: 100000, sqft: 1500 },
+      { tier: "warm", price: 200000, sqft: 2000 },
+      { tier: "standard", price: 50000, sqft: null }, // no sqft → excluded
+      { tier: "standard", sqft: 1200 }, // no price → excluded
+    ];
+    const r = summarizeMarket(withSqft);
+    expect(r.scatter).toEqual([
+      { x: 1500, y: 100000 },
+      { x: 2000, y: 200000 },
+    ]);
+  });
+
+  it("medians equity by type (≥4 values) and buckets cashflow ratings", () => {
+    const many: MarketLead[] = [
+      ...Array.from({ length: 4 }, (_, i) => ({
+        tier: "hot",
+        property_type: "single_family",
+        equity: 10000 + i * 1000, // median 11500
+        cashflowRating: "strong",
+      })),
+      { tier: "warm", property_type: "condo", equity: 5000 }, // only 1 → excluded from waterfall
+    ];
+    const r = summarizeMarket(many);
+    expect(r.equityByType).toEqual([{ label: "Single-family", value: 11500 }]);
+    expect(r.byCashflow).toEqual({ strong: 4 });
+  });
 });

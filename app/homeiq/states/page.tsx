@@ -4,13 +4,15 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import Link from "next/link";
+import { toast } from "sonner";
 import { US_STATES as STATES, nearestState } from "@/lib/housing/us-states";
+import { HomeIQSearch } from "@/components/home/HomeIQSearch";
 
 // Full-country view — every state with its live lead count, heat-colored, click into one. "Detect my
 // state" uses the browser's location → nearest state centroid (free, no API) so a user in Missouri lands
 // on MO instantly, and can pick any other state. This is the map of the whole market.
 
-const ACCENT = "#2dd4bf";
+const ACCENT = "var(--home)";
 const fetcher = (u: string) => fetch(u).then((r) => r.json());
 
 export default function StatesPage() {
@@ -34,52 +36,26 @@ export default function StatesPage() {
   );
 
   const detect = () => {
-    if (!navigator.geolocation) return;
+    if (!navigator.geolocation) {
+      toast.error("Location isn't available — pick a state below.");
+      return;
+    }
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
       (pos) =>
         router.push(
           `/homeiq/leads?state=${nearestState(pos.coords.latitude, pos.coords.longitude)}`,
         ),
-      () => setLocating(false),
+      () => {
+        setLocating(false);
+        toast.error("Couldn't detect your location — pick a state below.");
+      },
       { timeout: 8000 },
     );
   };
 
   return (
-    <main className="min-h-screen bg-[var(--s1)] text-[var(--t1)]">
-      <header className="max-w-6xl mx-auto px-4 sm:px-6 pt-6 flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-2.5">
-          <span
-            className="w-8 h-8 rounded-[10px] grid place-items-center text-black font-black"
-            style={{ background: ACCENT }}
-          >
-            H
-          </span>
-          <span className="font-black text-lg">HomeIQ</span>
-          <span
-            className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full"
-            style={{ background: `${ACCENT}22`, color: ACCENT }}
-          >
-            Markets
-          </span>
-        </div>
-        <div className="flex items-center gap-3">
-          <Link
-            href="/homeiq/leads"
-            className="text-sm font-semibold text-[var(--t3)] hover:text-[var(--t1)]"
-          >
-            All leads →
-          </Link>
-          <Link
-            href="/welcome"
-            className="text-sm font-semibold text-[var(--t3)] hover:text-[var(--t1)]"
-          >
-            ← Switch
-          </Link>
-        </div>
-      </header>
-
+    <div className="bg-transparent text-[var(--t1)]">
       <section className="max-w-6xl mx-auto px-4 sm:px-6 pt-8">
         <h1 className="text-[clamp(28px,5vw,52px)] font-black leading-tight">
           The whole market, by state
@@ -88,13 +64,20 @@ export default function StatesPage() {
           <span className="font-black text-[var(--t1)]">
             {total.toLocaleString()}
           </span>{" "}
-          live leads across the country. Pick your state — or let us find it.
+          live leads across the country. Search a city or ZIP — or pick your
+          state below.
         </p>
+        <div className="mt-4">
+          <HomeIQSearch />
+        </div>
         <button
           onClick={detect}
           disabled={locating}
-          className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-black text-sm disabled:opacity-60"
-          style={{ background: ACCENT }}
+          className="mt-3 inline-flex items-center gap-2 px-6 py-3 rounded-full font-bold text-black text-sm disabled:opacity-60"
+          style={{
+            background: "var(--grad-home)",
+            boxShadow: "0 8px 30px var(--home-bd)",
+          }}
         >
           📍 {locating ? "Locating…" : "Detect my state"}
         </button>
@@ -111,7 +94,7 @@ export default function StatesPage() {
               className="rounded-[var(--r3)] border border-[var(--b1)] p-3 hover:border-[var(--b3)] transition-colors"
               style={{
                 background: count
-                  ? `rgba(45,212,191,${intensity})`
+                  ? `color-mix(in srgb, var(--home) ${Math.round(intensity * 100)}%, transparent)`
                   : "var(--s0)",
               }}
             >
@@ -121,7 +104,7 @@ export default function StatesPage() {
               <div className="flex items-baseline gap-1.5 mt-1">
                 <span
                   className="text-2xl font-black"
-                  style={{ color: count ? "#062" : "var(--t4)" }}
+                  style={{ color: count ? "var(--t1)" : "var(--t4)" }}
                 >
                   {count}
                 </span>
@@ -133,6 +116,6 @@ export default function StatesPage() {
           );
         })}
       </section>
-    </main>
+    </div>
   );
 }

@@ -5,6 +5,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { harvestGovDealsProperties } from "@/lib/housing/sources/govdeals-property";
 import { scoreHousingLead } from "@/lib/housing/lead-score";
 import { analyzeHousingDeal } from "@/lib/housing/deal-analyzer";
+import { rentCashflow } from "@/lib/housing/rent";
+import { loadLivePsf } from "@/lib/housing/live-psf";
+import { loadCalibration } from "@/lib/housing/calibration";
+import { flagPriceAnomalies } from "@/lib/housing/anomaly";
 import {
   queryProperties,
   countByState,
@@ -64,6 +68,9 @@ interface Lead {
   state?: string;
   zip?: string;
   image?: string;
+  // Public-record owner of record + mailing address (direct-mail ready when a county feed supplies it).
+  owner?: string;
+  ownerMailing?: string;
   // Cross-source list-stacking: # of distinct distress lists this property sits on (1 = single list).
   stack?: number;
   // Compact distress detail (amount owed, years, sheriff sale, below-market…) for card/detail badges.
@@ -71,6 +78,19 @@ interface Lead {
   beds?: number;
   baths?: number;
   sqft?: number;
+  year_built?: number;
+  // Glance metrics (from signals where the source carries them — Redfin/MLS).
+  daysOnMarket?: number;
+  pricePerSqft?: number;
+  mlsNumber?: string;
+  brokerage?: string;
+  // Price-drop tracking (our own harvest-over-harvest detection).
+  priceDrops?: number | null;
+  prevPrice?: number | null;
+  priceChangedAt?: string | null;
+  // Statistical underpricing flag (vs same-state/type $/sqft peers).
+  anomaly?: boolean;
+  anomalyPct?: number;
   auction_end?: string;
   bid_count?: number;
   lat?: number;
@@ -83,6 +103,10 @@ interface Lead {
   arv?: number | null;
   verdict?: string;
   equity?: number | null;
+  // Buy-and-hold math (rent → cap rate) — present only when the ZIP has rent data.
+  capRate?: number | null;
+  cashflowMo?: number | null;
+  cashflowRating?: string;
 }
 
 // Distill the raw `signals` blob into a compact, UI-renderable distress object. The connectors harvest
@@ -106,7 +130,24 @@ function distressFrom(p: Property): Record<string, unknown> | undefined {
   return Object.keys(d).length ? d : undefined;
 }
 
-// Attach the 70%-rule flip math to a lead, from its property fields.
+// Per-listing glance metrics carried in `signals` by the source (Redfin/MLS) — surfaced on the card.
+function glanceFrom(p: Property): Partial<Lead> {
+  const s = (p.signals as any) || {};
+  const ppsf =
+    s.price_per_sqft ??
+    (p.sqft && p.price ? Math.round(p.price / p.sqft) : undefined);
+  return {
+    year_built: p.year_built ?? undefined,
+    daysOnMarket:
+      typeof s.days_on_market === "number" ? s.days_on_market : undefined,
+    pricePerSqft: ppsf ? Math.round(Number(ppsf)) : undefined,
+    mlsNumber: s.mls_number ? String(s.mls_number) : undefined,
+    brokerage: s.brokerage ? String(s.brokerage) : undefined,
+  };
+}
+
+// Attach the two money lenses to a lead: the 70%-rule FLIP math and the rental HOLD math (cap rate /
+// cashflow on the all-in basis = ask + estimated repairs). Each lights up only when its inputs exist.
 function withAnalysis<T extends Lead>(lead: T, p: Property): T {
   const a = analyzeHousingDeal(p);
   if (a.mao != null) {
@@ -114,6 +155,17 @@ function withAnalysis<T extends Lead>(lead: T, p: Property): T {
     lead.arv = a.arv;
     lead.verdict = a.verdict;
     lead.equity = a.equitySpread;
+  }
+  const cf = rentCashflow(p.price, p.zip, {
+    basis:
+      p.price && a.repairEstimate != null
+        ? p.price + a.repairEstimate
+        : undefined,
+  });
+  if (cf) {
+    lead.capRate = cf.capRatePct;
+    lead.cashflowMo = cf.monthlyCashflow;
+    lead.cashflowRating = cf.rating;
   }
   return lead;
 }
@@ -158,6 +210,8 @@ function fromStored(r: StoredProperty): Lead {
       property_type: r.property_type,
       address: r.address,
       distress: distressFrom(r),
+      owner: (r.signals as any)?.owner,
+      ownerMailing: (r.signals as any)?.owner_mailing,
       city: r.city,
       state: r.state,
       zip: r.zip,
@@ -165,10 +219,14 @@ function fromStored(r: StoredProperty): Lead {
       beds: r.beds,
       baths: r.baths,
       sqft: r.sqft,
+      ...glanceFrom(r),
       auction_end: r.auction_end,
       bid_count: r.bid_count,
       lat: r.lat,
       lng: r.lng,
+      priceDrops: r.price_drops,
+      prevPrice: r.prev_price,
+      priceChangedAt: r.price_changed_at,
       score: ls.score,
       tier: ls.tier,
       signals: ls.signals,
@@ -190,6 +248,8 @@ function fromLive(p: Property): Lead {
       property_type: p.property_type,
       address: p.address,
       distress: distressFrom(p),
+      owner: (p.signals as any)?.owner,
+      ownerMailing: (p.signals as any)?.owner_mailing,
       city: p.city,
       state: p.state,
       zip: p.zip,
@@ -197,6 +257,7 @@ function fromLive(p: Property): Lead {
       beds: p.beds,
       baths: p.baths,
       sqft: p.sqft,
+      ...glanceFrom(p),
       auction_end: p.auction_end,
       bid_count: p.bid_count,
       lat: p.lat,
@@ -231,6 +292,11 @@ async function cachedCountByState(): Promise<Record<string, number>> {
 }
 
 export async function GET(req: NextRequest) {
+  // Inject the freshest comps (live sold $/sqft) AND the learned tier calibration BEFORE any (re)scoring,
+  // so every served lead's score matches the harvest + detail paths deterministically (fromStored
+  // recomputes the score, so without this the list could use a stale TIER_CAL left on a warm worker).
+  await loadLivePsf().catch(() => {});
+  await loadCalibration().catch(() => {});
   const sp = new URL(req.url).searchParams;
   const state = (sp.get("state") || "").toUpperCase();
   const statesParam = (sp.get("states") || "")
@@ -257,6 +323,20 @@ export async function GET(req: NextRequest) {
           : await liveHarvest();
     all.sort((a, b) => b.score - a.score);
     applyStacking(all); // cross-source list-stacking → each lead's `stack` count
+    // Statistical underpricing flag ("🎯 priced N% below comps") — robust MAD test vs same state+type
+    // $/sqft peers, independent of the distress scorer. Display + filter only (score already rewards equity).
+    const anomalies = flagPriceAnomalies(all);
+    for (const l of all) {
+      const a = anomalies.get(l.id);
+      if (a) {
+        l.anomaly = true;
+        l.anomalyPct = a.pctBelow;
+        l.signals = [
+          ...(l.signals || []),
+          `🎯 Priced ${a.pctBelow}% below comps`,
+        ];
+      }
+    }
   } catch (e) {
     return NextResponse.json(
       { error: (e as Error).message, leads: [], points: [] },

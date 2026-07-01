@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import useSWR from "swr";
 import { stateName } from "@/lib/housing/us-states";
@@ -11,6 +11,8 @@ import {
   BarList,
   Donut,
   SegmentBar,
+  Scatter,
+  Waterfall,
 } from "@/components/home/HousingCharts";
 import { HousingHeatmap } from "@/components/home/HousingHeatmap";
 import { summarizeMarket, type MarketLead } from "@/lib/housing/market-stats";
@@ -78,14 +80,43 @@ const fmtMoney = (n: number) =>
       : `$${n}`;
 
 export default function MarketIntelligence() {
-  const { data, isLoading } = useSWR(`/api/homeiq/leads?limit=2000`, fetcher, {
-    revalidateOnFocus: false,
-  });
+  const { data, isLoading, error } = useSWR(
+    `/api/homeiq/leads?limit=2000`,
+    fetcher,
+    { revalidateOnFocus: false },
+  );
   const leads: Lead[] = data?.leads ?? [];
 
-  const f = useMemo(() => summarizeMarket(leads), [leads]);
+  // Interactive slicing — the cars market page is a sourcing tool, not a static dashboard. Filter by state
+  // / source / type and the WHOLE dashboard (KPIs, heatmap, every chart) re-slices over the filtered set.
+  const [fState, setFState] = useState("");
+  const [fSource, setFSource] = useState("");
+  const [fType, setFType] = useState("");
+  const hasFilter = !!(fState || fSource || fType);
 
-  const total = leads.length;
+  // Options come from the FULL set (so a filter never hides the other options); charts use the filtered set.
+  const fullF = useMemo(() => summarizeMarket(leads), [leads]);
+  const filtered = useMemo(
+    () =>
+      leads.filter(
+        (l) =>
+          (!fState || l.state === fState) &&
+          (!fSource || l.source === fSource) &&
+          (!fType || l.property_type === fType),
+      ),
+    [leads, fState, fSource, fType],
+  );
+  const f = useMemo(() => summarizeMarket(filtered), [filtered]);
+
+  const opt = (m: Record<string, number>, lbl: (k: string) => string) =>
+    Object.entries(m)
+      .sort((a, b) => b[1] - a[1])
+      .map(([k, n]) => ({ key: k, label: `${lbl(k)} (${n})` }));
+  const stateOpts = opt(fullF.byState, stateName);
+  const sourceOpts = opt(fullF.bySource, sourceLabel);
+  const typeOpts = opt(fullF.byType, typeLabel);
+
+  const total = filtered.length;
   const sourceItems = Object.entries(f.bySource)
     .sort((a, b) => b[1] - a[1])
     .map(([s, n], i) => ({
@@ -140,34 +171,26 @@ export default function MarketIntelligence() {
     color: v.color,
   })).filter((v) => v.value > 0);
 
-  return (
-    <main className="min-h-screen bg-[var(--s1)] text-[var(--t1)]">
-      <header className="max-w-6xl mx-auto px-4 sm:px-6 pt-6 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <Link href="/homeiq" className="flex items-center gap-2.5">
-            <span
-              className="w-8 h-8 rounded-[10px] grid place-items-center text-black font-black"
-              style={{ background: ACCENT }}
-            >
-              H
-            </span>
-            <span className="font-black text-lg">HomeIQ</span>
-          </Link>
-          <span
-            className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full"
-            style={{ background: `${ACCENT}22`, color: ACCENT }}
-          >
-            Market
-          </span>
-        </div>
-        <Link
-          href="/homeiq/leads"
-          className="text-sm font-semibold text-[var(--t3)] hover:text-[var(--t1)]"
-        >
-          Browse leads →
-        </Link>
-      </header>
+  // Rental-yield buckets (the hold lens). Order strong→negative; deep-link into the leads view.
+  const CASHFLOW = [
+    { key: "strong", label: "Strong (≥8%)", color: "var(--green)" },
+    { key: "decent", label: "Decent (≥6%)", color: ACCENT },
+    { key: "thin", label: "Thin (≥4%)", color: "var(--amber)" },
+    { key: "negative", label: "Negative", color: "var(--red)" },
+  ];
+  const cashflowItems = CASHFLOW.map((c) => ({
+    label: c.label,
+    value: f.byCashflow[c.key] || 0,
+    color: c.color,
+  })).filter((c) => c.value > 0);
 
+  const equityItems = f.equityByType.map((e) => ({
+    label: e.label,
+    value: e.value,
+  }));
+
+  return (
+    <div className="bg-transparent text-[var(--t1)]">
       <section className="max-w-6xl mx-auto px-4 sm:px-6 pt-8">
         <h1 className="text-[clamp(26px,4vw,40px)] font-black leading-tight">
           Market intelligence
@@ -176,6 +199,46 @@ export default function MarketIntelligence() {
           The whole scored housing market at a glance — pricing, supply, and
           flip opportunity across every free source.
         </p>
+
+        {/* Filter bar — slice the whole dashboard by state / source / type. */}
+        {total + (hasFilter ? 1 : 0) > 0 && (
+          <div className="mt-5 flex flex-wrap items-center gap-2">
+            <Sel
+              value={fState}
+              onChange={setFState}
+              placeholder="All states"
+              options={stateOpts}
+            />
+            <Sel
+              value={fSource}
+              onChange={setFSource}
+              placeholder="All sources"
+              options={sourceOpts}
+            />
+            <Sel
+              value={fType}
+              onChange={setFType}
+              placeholder="All types"
+              options={typeOpts}
+            />
+            {hasFilter && (
+              <button
+                onClick={() => {
+                  setFState("");
+                  setFSource("");
+                  setFType("");
+                }}
+                className="px-3 py-2 rounded-[var(--r3)] bg-[var(--s2)] border border-[var(--b1)] text-xs font-bold text-[var(--t3)] hover:text-[var(--t1)]"
+              >
+                ✕ Reset
+              </button>
+            )}
+            <span className="ml-auto text-xs font-bold text-[var(--t4)]">
+              {total.toLocaleString()}
+              {hasFilter ? ` of ${leads.length.toLocaleString()}` : ""} leads
+            </span>
+          </div>
+        )}
 
         {/* KPI row */}
         <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -213,17 +276,71 @@ export default function MarketIntelligence() {
           </div>
         ) : !total ? (
           <div className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] p-10 text-center text-[var(--t4)]">
-            No market data yet.
+            {error
+              ? "Couldn't load market data — try again."
+              : hasFilter
+                ? "No leads match these filters."
+                : "No market data yet."}
           </div>
         ) : (
           <div className="flex flex-col gap-4">
             <HousingHeatmap byState={f.byState} byStateHot={f.byStateHot} />
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {/* Underpricing finder — price vs size with the $/sqft trend; green dots = below the curve. */}
+              <ChartCard
+                title="Price vs size"
+                hint={`${f.scatter.length.toLocaleString()} with sqft`}
+                className="md:col-span-2"
+              >
+                <Scatter points={f.scatter} xLabel="sqft" yLabel="price" />
+              </ChartCard>
+
+              <ChartCard title="Lead quality">
+                <SegmentBar segments={tierSegs} />
+              </ChartCard>
+
               <ChartCard
                 title="Price distribution"
                 hint={`${f.priced.length.toLocaleString()} priced`}
               >
                 <Histogram bins={f.bins} />
+              </ChartCard>
+
+              {/* Where the equity is — median gross equity by property type (some types lose money). */}
+              <ChartCard
+                title="Median equity by type"
+                hint="ARV − ask − repairs"
+              >
+                {equityItems.length ? (
+                  <Waterfall items={equityItems} valueFmt={fmtMoney} />
+                ) : (
+                  <div className="h-full grid place-items-center text-xs text-[var(--t5)] text-center px-4">
+                    Needs square-footage to compute equity.
+                  </div>
+                )}
+              </ChartCard>
+
+              <ChartCard
+                title="Flip opportunity"
+                hint="70% rule, where ARV is known"
+              >
+                {verdictItems.length ? (
+                  <BarList items={verdictItems} />
+                ) : (
+                  <div className="h-full grid place-items-center text-xs text-[var(--t5)] text-center px-4">
+                    No flip math yet — needs square-footage to compute ARV.
+                  </div>
+                )}
+              </ChartCard>
+
+              <ChartCard title="Rental yield" hint="cap rate, buy & hold">
+                {cashflowItems.length ? (
+                  <BarList items={cashflowItems} />
+                ) : (
+                  <div className="h-full grid place-items-center text-xs text-[var(--t5)] text-center px-4">
+                    Rent data lights up where we have ZORI coverage.
+                  </div>
+                )}
               </ChartCard>
 
               <ChartCard title="Inventory by source">
@@ -241,28 +358,39 @@ export default function MarketIntelligence() {
               <ChartCard title="Top markets" hint="by listings">
                 <BarList items={stateItems} barColor="var(--blue)" />
               </ChartCard>
-
-              <ChartCard title="Lead quality">
-                <SegmentBar segments={tierSegs} />
-              </ChartCard>
-
-              <ChartCard
-                title="Flip opportunity"
-                hint="70% rule, where ARV is known"
-              >
-                {verdictItems.length ? (
-                  <BarList items={verdictItems} />
-                ) : (
-                  <div className="h-full grid place-items-center text-xs text-[var(--t5)] text-center px-4">
-                    No flip math yet — needs square-footage to compute ARV.
-                  </div>
-                )}
-              </ChartCard>
             </div>
           </div>
         )}
       </section>
-    </main>
+    </div>
+  );
+}
+
+function Sel({
+  value,
+  onChange,
+  placeholder,
+  options,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+  options: { key: string; label: string }[];
+}) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="px-3 py-2 rounded-[var(--r3)] bg-[var(--s0)] border text-xs font-bold text-[var(--t2)] focus:outline-none cursor-pointer"
+      style={{ borderColor: value ? "var(--home)" : "var(--b1)" }}
+    >
+      <option value="">{placeholder}</option>
+      {options.map((o) => (
+        <option key={o.key} value={o.key}>
+          {o.label}
+        </option>
+      ))}
+    </select>
   );
 }
 

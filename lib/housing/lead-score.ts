@@ -11,8 +11,19 @@
 
 import type { Property } from "./types";
 import { analyzeHousingDeal } from "./deal-analyzer";
+import { rentCashflow } from "./rent";
+import { neighborhoodScore } from "./neighborhood";
+import type { TierCalibration } from "./outcomes";
 
 export type LeadTier = "hot" | "warm" | "standard";
+
+// LEARNED calibration (injectable, like the live-psf map). Computed from realized pipeline outcomes
+// (calibrationFromOutcomes) and set once per harvest/request; null until there's enough real resolved data,
+// so today this is a transparent no-op — the score only starts bending once users actually close/kill deals.
+let TIER_CAL: TierCalibration | null = null;
+export function setTierCalibration(c: TierCalibration | null): void {
+  TIER_CAL = c;
+}
 
 export interface LeadScore {
   score: number; // 0–100
@@ -152,15 +163,53 @@ export function scoreHousingLead(p: Property): LeadScore {
   if (/reduc|price\s*drop|price\s*cut/.test(status))
     add(14, "Price reduced — seller is actively dropping the ask", "pricecut");
 
-  // 6c) DAYS ON MARKET — a stale listing is a softening seller (created_at ≈ first-seen lower bound).
+  // 6b-ii) COMING SOON / PRE-MARKET — a listing not yet fully public is an early-access lane: reach the
+  // seller before the open-market bidding war. The wholesaler's edge, straight off the MLS status.
+  if (/coming\s*soon|pre[-\s]*on[-\s]*market|pre[-\s]*market/.test(status))
+    add(
+      9,
+      "Coming soon / pre-market — early access, low competition",
+      "timing",
+    );
+
+  // 6b-iii) SELF-DETECTED PRICE DROP — we watched the price fall across our OWN harvests (DB trigger),
+  // independent of whether the source tagged a reduction. A recent cut is a strong "seller will deal" tell;
+  // repeated cuts = a softening, motivated seller. Recency-weighted; skipped when the source already tags a
+  // reduction (the block above) so we never double-count the same concept.
+  const priceDrops = Number(p.price_drops) || 0;
+  if (priceDrops > 0 && !/reduc|price\s*drop|price\s*cut/.test(status)) {
+    const daysSinceCut = p.price_changed_at
+      ? (Date.now() - Date.parse(p.price_changed_at)) / 86_400_000
+      : NaN;
+    const fresh = Number.isFinite(daysSinceCut) && daysSinceCut <= 45;
+    const cutPct =
+      p.prev_price && p.price && p.prev_price > 0
+        ? Math.round((1 - p.price / p.prev_price) * 100)
+        : 0;
+    let pts = priceDrops >= 3 ? 16 : priceDrops === 2 ? 12 : 8;
+    if (!fresh) pts = Math.round(pts * 0.6); // a stale one-time cut is weaker motivation
+    add(
+      pts,
+      `Price cut ${priceDrops}×${cutPct > 0 ? ` (−${cutPct}% latest)` : ""} — seller softening`,
+      "pricecut",
+    );
+  }
+
+  // 6c) DAYS ON MARKET — a stale listing is a softening seller. Prefer the REAL days-on-market the MLS feed
+  // carries (signals.days_on_market); fall back to created_at (first-seen) only when it's absent.
+  const realDom = Number((p.signals as any)?.days_on_market);
   const firstSeen = (p as any).created_at as string | undefined;
-  if (firstSeen) {
-    const days = (Date.now() - Date.parse(firstSeen)) / 86_400_000;
-    if (Number.isFinite(days)) {
-      if (days >= 90)
-        add(10, `On market ${Math.round(days)}d — stale, negotiable`, "dom");
-      else if (days >= 45) add(6, "On market 45d+ — softening", "dom");
-    }
+  const days = Number.isFinite(realDom)
+    ? realDom
+    : firstSeen
+      ? (Date.now() - Date.parse(firstSeen)) / 86_400_000
+      : NaN;
+  if (Number.isFinite(days)) {
+    if (days >= 180)
+      add(14, `On market ${Math.round(days)}d — very stale, motivated`, "dom");
+    else if (days >= 90)
+      add(10, `On market ${Math.round(days)}d — stale, negotiable`, "dom");
+    else if (days >= 45) add(6, "On market 45d+ — softening", "dom");
   }
 
   // 6d) OWNER DISTRESS (parcel/county data) — the high-value off-market signals the paid platforms sell,
@@ -246,6 +295,37 @@ export function scoreHousingLead(p: Property): LeadScore {
     else if (room >= 0) add(5, "At/near the max offer");
   }
 
+  // 7b) RENTAL CASHFLOW — the buy-and-hold lens. A strong cap rate (ZIP market rent vs the all-in basis,
+  // 50% rule) is its own reason to buy, independent of flip equity. Basis = ask + estimated repairs when
+  // known so the yield isn't flattered. A property that both flips AND cashflows stacks higher.
+  const cf = rentCashflow(p.price, p.zip, {
+    basis:
+      p.price && deal.repairEstimate != null
+        ? p.price + deal.repairEstimate
+        : undefined,
+  });
+  if (cf) {
+    if (cf.rating === "strong")
+      add(
+        16,
+        `Strong rental cashflow — ${cf.capRatePct}% cap rate`,
+        "cashflow",
+      );
+    else if (cf.rating === "decent")
+      add(9, `Decent rental cashflow — ${cf.capRatePct}% cap rate`, "cashflow");
+  }
+
+  // 7c) NEIGHBORHOOD TRAJECTORY (Census ACS) — a ZIP with rising incomes/population appreciates (lifts the
+  // real ARV over the hold); a declining one is a warning even on a cheap price. Modest weight, NOT a
+  // stacking group (it's context, not a distress list). No-op until `npm run data:acs` populates the
+  // snapshot — so today it never moves the score.
+  const hood = neighborhoodScore(p.zip);
+  if (hood?.trajectory === "rising") add(6, `Rising area — ${hood.label}`);
+  else if (hood?.trajectory === "declining") {
+    score -= 5;
+    signals.push({ pts: 0.01, text: `Declining area (−) — ${hood.label}` });
+  }
+
   // ── STACKING BONUS — the super-linear payoff to overlap that the commercial scorers are built on.
   if (groups.size >= 3) {
     const bonus = Math.round(score * 0.25);
@@ -267,14 +347,34 @@ export function scoreHousingLead(p: Property): LeadScore {
   let tier: LeadTier = score >= 70 ? "hot" : score >= 45 ? "warm" : "standard";
   if (overpriced && tier === "hot") tier = "warm";
 
+  // LEARNED CALIBRATION — nudge by how the predicted tier ACTUALLY converts in the pipeline. No-op until
+  // there's enough real resolved data (TIER_CAL stays null), so this never bends the score on a guess.
+  const bonusSignals: string[] = [];
+  if (TIER_CAL) {
+    const f = TIER_CAL.byTier[tier];
+    if (typeof f === "number" && f !== 1) {
+      score = Math.max(0, Math.min(100, Math.round(score * f)));
+      tier = score >= 70 ? "hot" : score >= 45 ? "warm" : "standard";
+      if (overpriced && tier === "hot") tier = "warm";
+      bonusSignals.push(
+        `Calibrated from ${TIER_CAL.basis} closed/dead deals (${f > 1 ? "+" : ""}${Math.round(
+          (f - 1) * 100,
+        )}%)`,
+      );
+    }
+  }
+
   return {
     score,
     tier,
     grade: gradeFor(score),
-    signals: signals
-      .filter((s) => s.pts >= 1)
-      .sort((a, b) => b.pts - a.pts)
-      .map((s) => s.text),
+    signals: [
+      ...signals
+        .filter((s) => s.pts >= 1)
+        .sort((a, b) => b.pts - a.pts)
+        .map((s) => s.text),
+      ...bonusSignals,
+    ],
   };
 }
 

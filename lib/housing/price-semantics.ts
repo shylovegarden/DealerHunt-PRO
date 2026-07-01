@@ -30,13 +30,16 @@ export function housingPriceTerms(
   // Off-market owner lead (tax-delinquent etc.) — not for sale; the number shown is the assessed value.
   if (s === "absentee_owner")
     return { priceLabel: "Assessed value", kind: "list", isAuction: false };
-  if (s === "mls")
+  if (s === "mls" || s === "redfin")
     return { priceLabel: "List price", kind: "list", isAuction: false };
-  if (s === "hud_reo")
+  // Sold comps (Redfin gis past-sales) — the number is a CLOSED sale price, valuation anchor not a deal.
+  if (s === "redfin_sold")
+    return { priceLabel: "Sold price", kind: "list", isAuction: false };
+  if (s === "hud_reo" || s === "fannie_homepath")
     return { priceLabel: "REO — bank-owned", kind: "list", isAuction: false };
   if (s === "foreclosure")
     return { priceLabel: "Foreclosure", kind: "list", isAuction: false };
-  if (s === "dangerous_building")
+  if (s === "dangerous_building" || s === "vacant_building")
     return { priceLabel: "Off-market", kind: "list", isAuction: false };
   if (
     s === "tax_delinquent" ||

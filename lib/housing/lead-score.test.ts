@@ -1,5 +1,9 @@
-import { describe, it, expect } from "vitest";
-import { scoreHousingLead, scoreAndRank } from "./lead-score";
+import { describe, it, expect, afterEach } from "vitest";
+import {
+  scoreHousingLead,
+  scoreAndRank,
+  setTierCalibration,
+} from "./lead-score";
 import type { Property } from "./types";
 
 const base: Property = {
@@ -128,6 +132,57 @@ describe("listing-signal coverage (price cut + days on market)", () => {
     } as any);
     expect(stale.signals.join(" ")).toMatch(/on market/i);
   });
+
+  it("prefers the REAL days-on-market from the MLS feed over the created_at proxy", () => {
+    // Fresh first-seen (created today) but the feed says it's been listed 200 days → still scores stale.
+    const today = new Date().toISOString();
+    const veryStale = scoreHousingLead({
+      ...base,
+      title: "House",
+      price: 90000,
+      created_at: today,
+      signals: { days_on_market: 200 },
+    } as any);
+    expect(veryStale.signals.join(" ")).toMatch(/200d.*motivated/i);
+  });
+
+  it("rewards a coming-soon / pre-market listing (early-access edge)", () => {
+    const coming = scoreHousingLead({
+      ...base,
+      title: "House",
+      price: 90000,
+      signals: { status: "Coming Soon" },
+    } as any);
+    const plain = scoreHousingLead({ ...base, title: "House", price: 90000 });
+    expect(coming.score).toBeGreaterThan(plain.score);
+    expect(coming.signals.join(" ")).toMatch(
+      /early access|pre-market|coming soon/i,
+    );
+  });
+});
+
+describe("rental cashflow signal (buy-and-hold lens)", () => {
+  it("rewards a strong-cap-rate buy in a ZIP with known rent", () => {
+    // 30303 (Atlanta) is in the ZORI snapshot; a low price → high cap rate → cashflow signal fires.
+    const strong = scoreHousingLead({
+      ...base,
+      title: "Rental",
+      property_type: "single_family",
+      zip: "30303",
+      price: 60000,
+    } as any);
+    expect(strong.signals.join(" ")).toMatch(/rental cashflow|cap rate/i);
+  });
+
+  it("does not fire for a ZIP with no rent data", () => {
+    const none = scoreHousingLead({
+      ...base,
+      title: "Rental",
+      zip: "00000",
+      price: 60000,
+    } as any);
+    expect(none.signals.join(" ")).not.toMatch(/cashflow/i);
+  });
 });
 
 describe("top-grade scoring: keywords, negatives, stacking, grade", () => {
@@ -217,6 +272,65 @@ describe("money gate (verified verdict overrides distress vibes)", () => {
       price: 40000,
     });
     expect(r.signals.join(" ")).not.toMatch(/Verified flip/i);
+  });
+});
+
+describe("self-detected price drop", () => {
+  it("scores a fresh price cut we tracked ourselves (no source tag needed)", () => {
+    const now = new Date().toISOString();
+    const r = scoreHousingLead({
+      ...base,
+      title: "house",
+      price: 80000,
+      prev_price: 100000,
+      price_drops: 2,
+      price_changed_at: now,
+    });
+    expect(r.signals.join(" ")).toMatch(/Price cut 2×.*−20%/);
+  });
+
+  it("does not fire without a recorded drop", () => {
+    const r = scoreHousingLead({ ...base, title: "house", price: 80000 });
+    expect(r.signals.join(" ")).not.toMatch(/Price cut/);
+  });
+
+  it("does not double-count when the source already tags a reduction", () => {
+    const r = scoreHousingLead({
+      ...base,
+      title: "house",
+      price: 80000,
+      prev_price: 100000,
+      price_drops: 1,
+      signals: { status: "Price Reduced" },
+    });
+    // Only the source-tagged 'Price reduced' reason, not a second self-detected one.
+    const cuts = r.signals.filter((s) => /Price (cut|reduced)/i.test(s));
+    expect(cuts).toHaveLength(1);
+  });
+});
+
+describe("learned tier calibration", () => {
+  afterEach(() => setTierCalibration(null)); // never leak into other tests
+
+  const fixer: Property = {
+    ...base,
+    title: "Deeply Discounted Rehab Fixer",
+    price: 18000,
+    bid_count: 0,
+  };
+
+  it("is a no-op when no calibration is set (the default — learns only from real data)", () => {
+    setTierCalibration(null);
+    const before = scoreHousingLead(fixer).score;
+    expect(scoreHousingLead(fixer).score).toBe(before);
+  });
+
+  it("bends the score by the predicted tier's learned factor + discloses it", () => {
+    const base0 = scoreHousingLead(fixer);
+    setTierCalibration({ byTier: { [base0.tier]: 0.85 }, basis: 60 });
+    const after = scoreHousingLead(fixer);
+    expect(after.score).toBe(Math.round(base0.score * 0.85));
+    expect(after.signals.join(" ")).toMatch(/Calibrated from 60/);
   });
 });
 

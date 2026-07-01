@@ -154,6 +154,63 @@ export async function sendAlertMatchEmail(options: {
 }
 
 /**
+ * Send a HomeIQ property-match alert email — N new deals matched a saved search.
+ */
+export async function sendPropertyMatchEmail(options: {
+  to: string;
+  searchName: string;
+  properties: Array<{
+    title: string;
+    price?: number | null;
+    city?: string | null;
+    state?: string | null;
+    score: number;
+    tier: string;
+    mao?: number | null;
+    verdict?: string | null;
+    capRate?: number | null;
+    url: string;
+  }>;
+  manageUrl: string;
+}) {
+  const cards = options.properties
+    .slice(0, 10)
+    .map(
+      (p) => `
+      <div class="deal-card">
+        <h2 style="margin:0 0 6px">${p.title}</h2>
+        <p class="price">${p.price != null ? `$${p.price.toLocaleString()}` : ""}${p.city ? ` · ${p.city}, ${p.state || ""}` : ""}</p>
+        <p style="margin:6px 0"><span style="background:#0f172a;color:#fff;border-radius:6px;padding:2px 8px;font-weight:bold">${p.tier.toUpperCase()} · ${p.score}</span>
+        ${p.mao != null ? ` &nbsp; 🔨 Max offer $${p.mao.toLocaleString()} (${p.verdict})` : ""}
+        ${p.capRate != null ? ` &nbsp; 🏦 ${p.capRate}% cap` : ""}</p>
+        <a href="${p.url}" class="cta" style="padding:8px 16px;margin-top:8px">View deal</a>
+      </div>`,
+    )
+    .join("");
+  const html = `
+    <!DOCTYPE html><html><head><meta charset="utf-8"><style>
+      body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#333;max-width:600px;margin:0 auto;padding:20px}
+      .header{background:linear-gradient(135deg,#0f766e,#2dd4bf);color:#fff;padding:28px;border-radius:8px 8px 0 0;text-align:center}
+      .content{background:#f9fafb;padding:24px;border-radius:0 0 8px 8px}
+      .deal-card{background:#fff;border:2px solid #e5e7eb;border-radius:8px;padding:16px;margin:14px 0}
+      .price{color:#6b7280;font-size:16px;margin:0}
+      .cta{display:inline-block;background:#0f766e;color:#fff;padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:bold}
+    </style></head><body>
+      <div class="header"><h1 style="margin:0">🏠 ${options.properties.length} new deal${options.properties.length > 1 ? "s" : ""} matched</h1>
+      <p style="margin:6px 0 0">Saved search: <strong>${options.searchName}</strong></p></div>
+      <div class="content">
+        ${cards}
+        <p style="margin-top:24px;color:#6b7280;font-size:13px">Automated HomeIQ alert. <a href="${options.manageUrl}">Manage your alerts</a>.</p>
+      </div>
+    </body></html>`;
+  return sendEmail({
+    to: options.to,
+    subject: `🏠 ${options.properties.length} new ${options.searchName} deal${options.properties.length > 1 ? "s" : ""}`,
+    html,
+  });
+}
+
+/**
  * Send price drop notification email
  */
 export async function sendPriceDropEmail(options: {

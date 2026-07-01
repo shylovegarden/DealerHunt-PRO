@@ -14,6 +14,7 @@
 import { smartFetch } from "../../scrapers/smart-fetch";
 import { genericExtractProperties } from "../extract-property";
 import { stableId } from "../../db/stable-id";
+import { configuredAreas } from "./redfin-gis";
 import type { Property } from "../types";
 
 interface Portal {
@@ -29,6 +30,49 @@ const PORTALS: Portal[] = [
   { source: "movoto", env: "MOVOTO_SEARCH_URLS" },
   { source: "trulia", env: "TRULIA_SEARCH_URLS" },
 ];
+
+// {city, state} for the top metros (reuses the Redfin nationwide seed — "Atlanta GA" → Atlanta, GA).
+function metros(limit: number): { city: string; state: string }[] {
+  return configuredAreas()
+    .slice(0, limit)
+    .map((a) => {
+      const parts = a.name.trim().split(/\s+/);
+      const state = parts.pop() || "";
+      return { city: parts.join(" "), state };
+    })
+    .filter((m) => m.city && m.state);
+}
+
+const dash = (c: string) =>
+  c.toLowerCase().replace(/\./g, "").replace(/\s+/g, "-");
+const under = (c: string) => c.replace(/\./g, "").replace(/\s+/g, "-");
+
+// Standard per-portal metro search-URL patterns (verified to resolve). Deterministic — NOT guessed IDs.
+function defaultUrls(source: string): string[] {
+  const max = Math.max(
+    0,
+    parseInt(process.env.PORTAL_MAX_METROS || "10", 10) || 10,
+  );
+  return metros(max)
+    .map(({ city, state }) => {
+      const s = state.toLowerCase();
+      switch (source) {
+        case "zillow":
+          return `https://www.zillow.com/${dash(city)}-${s}/`;
+        case "realtor":
+          return `https://www.realtor.com/realestateandhomes-search/${under(city)}_${state}`;
+        case "homes":
+          return `https://www.homes.com/${dash(city)}-${s}/`;
+        case "movoto":
+          return `https://www.movoto.com/${dash(city)}-${s}/`;
+        case "trulia":
+          return `https://www.trulia.com/${state}/${under(city)}/`;
+        default:
+          return "";
+      }
+    })
+    .filter(Boolean);
+}
 
 // Stable id from the listing's own URL (or address) so upserts dedupe across runs.
 function listingId(source: string, p: Property): string | null {
@@ -86,10 +130,22 @@ export async function harvestPortal(
   return properties;
 }
 
-/** Harvest every configured listing portal. Each degrades to [] when unconfigured or anti-bot-blocked. */
+/**
+ * Harvest every listing portal. Uses hand-configured URLs (PORTAL env vars) when set, otherwise
+ * auto-generates nationwide metro search URLs from the seed so portals go LIVE on the fleet with zero
+ * config. Each degrades to [] when anti-bot-blocked (smartFetch cools a host after the first block, so an
+ * off-fleet run fails fast rather than hammering). Catches the same MLS as Redfin PLUS portal-only stock
+ * (Zillow FSBO, Realtor exclusives) that the gis-csv door doesn't carry.
+ */
 export async function harvestPortals(): Promise<Property[]> {
   const results = await Promise.all(
-    PORTALS.map((p) => harvestPortal(p.source, urlsFor(p.env)).catch(() => [])),
+    PORTALS.map((p) => {
+      const urls = urlsFor(p.env);
+      return harvestPortal(
+        p.source,
+        urls.length ? urls : defaultUrls(p.source),
+      ).catch(() => []);
+    }),
   );
   return results.flat();
 }

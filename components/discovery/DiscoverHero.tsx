@@ -1,36 +1,15 @@
 "use client";
 
-import React from "react";
 import useSWR from "swr";
 import Link from "next/link";
 import { Mono } from "@/components/shared/Mono";
 import { Ico } from "@/components/shared/Ico";
+import { useCountUp } from "@/hooks/useCountUp";
 
 // The money, the instant the app opens. A count-up of total profit on the table + the single best
 // flip right now. This is what makes the masterpiece VISIBLE — the value hits before you scroll.
 const fetcher = (u: string) => fetch(u).then((r) => r.json());
 const money = (n: number) => `$${Math.round(n).toLocaleString()}`;
-
-function useCountUp(target: number, ms = 1000) {
-  const [v, setV] = React.useState(0);
-  React.useEffect(() => {
-    if (!target) {
-      setV(0);
-      return;
-    }
-    let raf = 0;
-    let start = 0;
-    const tick = (now: number) => {
-      if (!start) start = now;
-      const p = Math.min(1, (now - start) / ms);
-      setV(Math.round(target * (1 - Math.pow(1 - p, 3)))); // ease-out cubic
-      if (p < 1) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [target, ms]);
-  return v;
-}
 
 export function DiscoverHero({ state }: { state?: string }) {
   const { data } = useSWR(

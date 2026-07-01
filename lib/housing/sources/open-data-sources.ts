@@ -254,6 +254,95 @@ const numStr = (v: unknown) => {
 // ── MORE OPEN CITY/COUNTY FEEDS (foreclosure + code violations) — verified live, no-auth ─────
 export const CITY_FEED_SOURCES: OpenDataSource[] = [
   {
+    // Los Angeles — Building & Safety vacant-building abatement cases. An open code case on a VACANT
+    // building = a carrying-cost-bleeding, often-absentee owner under city pressure (a PropStream-grade
+    // distress lead). Residential only (drop commercial/warehouse/hotel); current cases only. No geo/owner
+    // in the feed → geocoded by address on upsert. building_size is lot dims, NOT sqft → no ARV.
+    source: "vacant_building",
+    api: "socrata",
+    url: "https://data.lacity.org/resource/q3ak-s5hy.json",
+    state: "CA",
+    city: "Los Angeles",
+    where:
+      "(approved_use IN('SFD','DUPLEX','APT','MIXED USE') OR approved_use IS NULL) AND abate_effective > '2023-01-01'",
+    limit: 5000,
+    map: (a): Property | null => {
+      const address = s(a.address);
+      if (!address) return null;
+      const use = (a.approved_use || "").toUpperCase();
+      const type: Property["property_type"] = /DUPLEX|APT/.test(use)
+        ? "multi_family"
+        : /SFD/.test(use)
+          ? "single_family"
+          : undefined;
+      return {
+        source: "vacant_building",
+        // Key by address so repeat cases on one building collapse to a single lead.
+        source_listing_id: `la-vac-${address.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+        title: `Vacant building · ${address}`,
+        property_type: type,
+        address,
+        city: "Los Angeles",
+        state: "CA",
+        seller_type: "owner",
+        signals: {
+          vacant: true,
+          status: "Vacant — city code abatement",
+          case: s(a.case_num),
+        },
+      };
+    },
+  },
+  {
+    // New York City — the annual tax-lien SALE list (properties whose unpaid taxes/charges are about to be
+    // sold to a lien trust → the owner can lose the property). Severe financial distress in the biggest US
+    // market. Residential building classes (A=1-fam, B=2-fam, C=walk-up apts), recent cycles only. No geo/
+    // owner in the feed → geocoded by address (house # + street + borough) on upsert.
+    source: "tax_delinquent",
+    api: "socrata",
+    url: "https://data.cityofnewyork.us/resource/9rz4-mjek.json",
+    state: "NY",
+    city: "New York",
+    where:
+      "(building_class LIKE 'A%' OR building_class LIKE 'B%' OR building_class LIKE 'C%') AND month > '2024-06-01'",
+    limit: 5000,
+    map: (a): Property | null => {
+      const street = [s(a.house_number), s(a.street_name)]
+        .filter(Boolean)
+        .join(" ");
+      if (!street || !a.block || !a.lot) return null;
+      const boro =
+        (
+          {
+            "1": "Manhattan",
+            "2": "Bronx",
+            "3": "Brooklyn",
+            "4": "Queens",
+            "5": "Staten Island",
+          } as Record<string, string>
+        )[String(a.borough)] || "New York";
+      const cls = String(a.building_class || "");
+      return {
+        source: "tax_delinquent",
+        // Borough-Block-Lot = NYC's parcel id → dedupes a property that recurs across monthly cycles.
+        source_listing_id: `nyc-tl-${a.borough}-${a.block}-${a.lot}`,
+        title: `Tax-lien sale list · ${street}`,
+        property_type: cls.startsWith("A") ? "single_family" : "multi_family",
+        address: street,
+        city: boro,
+        state: "NY",
+        zip: s(a.zip_code),
+        seller_type: "owner",
+        signals: {
+          tax_delinquent: true,
+          status: "On NYC tax-lien sale list",
+          // "water_debt_only = Y" = only a water charge (lesser); N = an actual property-tax lien.
+          water_only: String(a.water_debt_only).toUpperCase() === "Y",
+        },
+      };
+    },
+  },
+  {
     // Bexar County, TX (San Antonio) — mortgage foreclosure filings (Layer 0). Point geometry.
     source: "foreclosure",
     api: "arcgis",
@@ -500,6 +589,37 @@ export const CITY_FEED_SOURCES: OpenDataSource[] = [
     },
   },
   {
+    // New Orleans, LA — Code Enforcement OPEN cases (verified live 2026-07: 7,249 open since 2024). A big
+    // blight market; `geoaddress` + zip, status in `stage`/`keystatus`. Coords ship as LA State Plane (not
+    // WGS84) → we omit them and geocode by address on upsert. Filter out closed cases in the WHERE.
+    source: "code_violation",
+    api: "socrata",
+    url: "https://data.nola.gov/resource/u6yx-v2tw.json",
+    state: "LA",
+    city: "New Orleans",
+    where:
+      "casefiled > '2024-01-01T00:00:00' AND keystatus NOT LIKE '%closed%'",
+    limit: 5000,
+    map: (a): Property | null => {
+      const address = s(a.geoaddress);
+      if (!address) return null;
+      return {
+        source: "code_violation",
+        source_listing_id: `nola-ce-${a.caseid || a.caseno}`,
+        title: `Code violation · ${address}`,
+        address,
+        city: "New Orleans",
+        state: "LA",
+        zip: s(a.zipcode),
+        seller_type: "owner",
+        signals: {
+          code_violation: true,
+          status: s(a.stage) || "Open code case",
+        },
+      };
+    },
+  },
+  {
     // Buffalo, NY — ACTIVE code violations.
     source: "code_violation",
     api: "socrata",
@@ -613,6 +733,98 @@ export const NATIONAL_SOURCES: OpenDataSource[] = [
             a.MAIL_ZIP,
           ),
           status: `Absentee (${s(a.MAIL_STATE)})`,
+        },
+      };
+    },
+  },
+  {
+    // Montana STATEWIDE cadastral (gisservicemt.gov) — out-of-state absentee owners of improved
+    // residential parcels. Verified live 2026-07: 31,192 out-of-state-owned improved homes, rich owner +
+    // mailing + assessed value (MT has heavy out-of-state second-home ownership). One config = the whole
+    // state. City/zip parse out of the combined `CityStateZip` situs field.
+    source: "absentee_owner",
+    api: "arcgis",
+    url: "https://gisservicemt.gov/arcgis/rest/services/MSDI_Framework/Parcels/MapServer/0",
+    state: "MT",
+    where:
+      "OwnerState <> 'MT' AND OwnerState IS NOT NULL AND PropType = 'Improved Property' AND TotalBuildingValue > 30000",
+    limit: 6000,
+    map: (a, g): Property | null => {
+      const address = s(a.AddressLine1);
+      if (!address) return null;
+      const csz = String(a.CityStateZip || ""); // "LIBBY, MT 59923"
+      const city = csz.split(",")[0]?.trim() || undefined;
+      const zip = (csz.match(/\b(\d{5})\b/) || [])[1];
+      return {
+        source: "absentee_owner",
+        source_listing_id: `mt-${a.PARCELID || a.OBJECTID}`,
+        title: `Absentee owner · ${address}`,
+        property_type: "single_family",
+        address,
+        city,
+        state: "MT",
+        zip,
+        lat: g.lat,
+        lng: g.lng,
+        price: n(a.TotalValue), // assessed value (off-market — no list price)
+        seller_type: "owner",
+        signals: {
+          absentee: true,
+          out_of_state_owner: true,
+          owner: s(a.OwnerName),
+          owner_state: s(a.OwnerState),
+          owner_mailing: mailing(
+            a.OwnerAddress1,
+            a.OwnerCity,
+            a.OwnerState,
+            a.OwnerZipCode,
+          ),
+          status: `Absentee (${s(a.OwnerState)})`,
+        },
+      };
+    },
+  },
+  {
+    // Massachusetts STATEWIDE (MassGIS L3 standardized assessor parcels) — out-of-state absentee single-
+    // family owners. Verified live 2026-07: 44,167 out-of-state-owned SFHs, each with owner + FULL mailing
+    // (OWN_ADDR/CITY/STATE/ZIP) + assessed value + living sqft (RES_AREA) → real flip/ARV math. USE_CODE
+    // '101' = single family (MA state class code). One config = the whole state, money-grade.
+    source: "absentee_owner",
+    api: "arcgis",
+    url: "https://services1.arcgis.com/hGdibHYSPO59RG1h/arcgis/rest/services/Massachusetts_Property_Tax_Parcels/FeatureServer/0",
+    state: "MA",
+    where:
+      "OWN_STATE<>'MA' AND OWN_STATE IS NOT NULL AND USE_CODE LIKE '101%' AND RES_AREA>500 AND TOTAL_VAL>60000",
+    limit: 6000,
+    map: (a, g): Property | null => {
+      const address = s(a.SITE_ADDR);
+      if (!address) return null;
+      return {
+        source: "absentee_owner",
+        source_listing_id: `ma-${a.LOC_ID || a.OBJECTID}`,
+        title: `Absentee owner · ${address}`,
+        property_type: "single_family",
+        address,
+        city: s(a.CITY),
+        state: "MA",
+        zip: s(a.ZIP),
+        lat: g.lat,
+        lng: g.lng,
+        price: n(a.TOTAL_VAL), // assessed value (off-market — no list price)
+        sqft: n(a.RES_AREA),
+        seller_type: "owner",
+        signals: {
+          absentee: true,
+          out_of_state_owner: true,
+          owner: s(a.OWNER1),
+          owner_state: s(a.OWN_STATE),
+          owner_mailing: mailing(
+            a.OWN_ADDR,
+            a.OWN_CITY,
+            a.OWN_STATE,
+            a.OWN_ZIP,
+          ),
+          status: `Absentee (${s(a.OWN_STATE)})`,
         },
       };
     },

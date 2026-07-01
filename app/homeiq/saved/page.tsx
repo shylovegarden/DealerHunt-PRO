@@ -3,11 +3,12 @@
 import { useState } from "react";
 import useSWR from "swr";
 import Link from "next/link";
+import { CalibrationCard } from "@/components/home/CalibrationCard";
 
 // HomeIQ pipeline — the saved-leads board. Move a lead through the flip stages, jot notes, remove. Each
 // saved row carries a snapshot so it survives even if the source listing is pruned.
 
-const ACCENT = "#2dd4bf";
+const ACCENT = "var(--home)";
 const fetcher = (u: string) => fetch(u).then((r) => r.json());
 
 const STAGES: { key: string; label: string }[] = [
@@ -40,6 +41,8 @@ export default function SavedPipelinePage() {
   );
   const unauth = !Array.isArray(data) && (data as any)?.error;
   const rows: Saved[] = Array.isArray(data) ? data : [];
+  // On mobile a 6-column board is a sideways-scrolling mess — show one stage at a time via a chip selector.
+  const [mobileStage, setMobileStage] = useState("new");
 
   const move = async (id: string, status: string) => {
     mutate(
@@ -94,31 +97,7 @@ export default function SavedPipelinePage() {
   };
 
   return (
-    <main className="min-h-screen bg-[var(--s1)] text-[var(--t1)]">
-      <header className="max-w-7xl mx-auto px-4 sm:px-6 pt-6 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <span
-            className="w-8 h-8 rounded-[10px] grid place-items-center text-black font-black"
-            style={{ background: ACCENT }}
-          >
-            H
-          </span>
-          <span className="font-black text-lg">HomeIQ</span>
-          <span
-            className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full"
-            style={{ background: `${ACCENT}22`, color: ACCENT }}
-          >
-            Pipeline
-          </span>
-        </div>
-        <Link
-          href="/homeiq/leads"
-          className="text-sm font-semibold text-[var(--t3)] hover:text-[var(--t1)]"
-        >
-          ← Leads
-        </Link>
-      </header>
-
+    <div className="bg-transparent text-[var(--t1)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
         {isLoading && (
           <p className="text-[var(--t4)] text-sm py-10 text-center">
@@ -152,39 +131,88 @@ export default function SavedPipelinePage() {
           </div>
         )}
         {!isLoading && !unauth && rows.length > 0 && (
-          <div className="flex gap-3 overflow-x-auto pb-4">
-            {STAGES.map((st) => {
-              const col = rows.filter((r) => r.status === st.key);
-              return (
-                <div key={st.key} className="min-w-[260px] flex-1">
-                  <div className="text-xs font-black uppercase tracking-widest text-[var(--t4)] mb-2 px-1 flex items-center justify-between">
-                    <span>{st.label}</span>
-                    <span>{col.length}</span>
+          <>
+            {/* The learning loop, made visible — calibrates the score against deals you actually close. */}
+            <CalibrationCard />
+
+            {/* Mobile: stage chip selector + a single full-width column. */}
+            <div className="md:hidden">
+              <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-1 -mx-1 px-1">
+                {STAGES.map((st) => {
+                  const n = rows.filter((r) => r.status === st.key).length;
+                  const active = mobileStage === st.key;
+                  return (
+                    <button
+                      key={st.key}
+                      onClick={() => setMobileStage(st.key)}
+                      className="shrink-0 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors border"
+                      style={{
+                        background: active ? ACCENT : "var(--s2)",
+                        color: active ? "#000" : "var(--t3)",
+                        borderColor: active ? ACCENT : "var(--b1)",
+                      }}
+                    >
+                      {st.label} <span style={{ opacity: 0.7 }}>{n}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="space-y-2 mt-3">
+                {rows
+                  .filter((r) => r.status === mobileStage)
+                  .map((r) => (
+                    <Card
+                      key={r.id}
+                      row={r}
+                      onMove={move}
+                      onRemove={remove}
+                      onNotes={saveNotes}
+                      onOutcome={recordOutcome}
+                    />
+                  ))}
+                {rows.filter((r) => r.status === mobileStage).length === 0 && (
+                  <div className="rounded-[var(--r3)] border border-dashed border-[var(--b1)] py-10 text-center text-xs text-[var(--t4)]">
+                    Nothing in this stage yet.
                   </div>
-                  <div className="space-y-2">
-                    {col.map((r) => (
-                      <Card
-                        key={r.id}
-                        row={r}
-                        onMove={move}
-                        onRemove={remove}
-                        onNotes={saveNotes}
-                        onOutcome={recordOutcome}
-                      />
-                    ))}
-                    {col.length === 0 && (
-                      <div className="rounded-[var(--r3)] border border-dashed border-[var(--b1)] py-6 text-center text-[11px] text-[var(--t4)]">
-                        —
-                      </div>
-                    )}
+                )}
+              </div>
+            </div>
+
+            {/* Desktop: the full kanban board. */}
+            <div className="hidden md:flex gap-3 overflow-x-auto pb-4">
+              {STAGES.map((st) => {
+                const col = rows.filter((r) => r.status === st.key);
+                return (
+                  <div key={st.key} className="min-w-[260px] flex-1">
+                    <div className="text-xs font-black uppercase tracking-widest text-[var(--t4)] mb-2 px-1 flex items-center justify-between">
+                      <span>{st.label}</span>
+                      <span>{col.length}</span>
+                    </div>
+                    <div className="space-y-2">
+                      {col.map((r) => (
+                        <Card
+                          key={r.id}
+                          row={r}
+                          onMove={move}
+                          onRemove={remove}
+                          onNotes={saveNotes}
+                          onOutcome={recordOutcome}
+                        />
+                      ))}
+                      {col.length === 0 && (
+                        <div className="rounded-[var(--r3)] border border-dashed border-[var(--b1)] py-6 text-center text-[11px] text-[var(--t4)]">
+                          —
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          </>
         )}
       </div>
-    </main>
+    </div>
   );
 }
 
@@ -260,7 +288,8 @@ function Card({
         </select>
         <button
           onClick={() => onRemove(row.id)}
-          className="text-[11px] text-[var(--t4)] hover:text-[var(--red)] px-1"
+          aria-label="Remove from pipeline"
+          className="shrink-0 w-7 h-7 grid place-items-center rounded-[var(--r2)] text-[var(--t4)] hover:text-[var(--red)] hover:bg-[var(--s2)]"
         >
           ✕
         </button>

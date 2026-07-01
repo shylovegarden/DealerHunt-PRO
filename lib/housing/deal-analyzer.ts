@@ -18,11 +18,25 @@ import { marketPsfDetailed } from "./arv-psf";
 export type RehabLevel = "light" | "medium" | "heavy" | "gut";
 
 // Industry rule-of-thumb rehab cost per sqft (cosmetic → full gut). Real reference figures flippers use.
-const REPAIR_PSF: Record<RehabLevel, number> = {
+// Exported so the client-side offer solver recomputes repairs from the SAME table (one source of truth, no
+// drift) when the user dials the rehab level up/down. These are an ASSUMPTION, not harvested data — always
+// labeled as such in the UI.
+export const REPAIR_PSF: Record<RehabLevel, number> = {
   light: 18, // paint, carpet, fixtures
   medium: 38, // kitchen/bath refresh, some systems
   heavy: 60, // major systems + layout
   gut: 90, // down to studs
+};
+
+// The 70%-rule discount — Max Allowable Offer = ARV × MAO_RULE − repairs. Exported for the solver.
+export const MAO_RULE = 0.7;
+
+// Human label for each rehab level, for the solver + UI.
+export const REHAB_LABEL: Record<RehabLevel, string> = {
+  light: "Cosmetic",
+  medium: "Kitchen/bath refresh",
+  heavy: "Major systems",
+  gut: "Full gut",
 };
 
 // Approximate regional median $/sqft (public reference, ~2024-25). FALLBACK ONLY — used when a state is
@@ -89,17 +103,48 @@ const HEAVY_RE =
   /rehab|fixer|handyman|distress|investor special|needs work|tlc|as-?is|major/i;
 const LIGHT_RE = /cosmetic|updated|move-?in|turnkey|renovated|like new/i;
 
+export type FlipVerdict = "strong" | "fair" | "tight" | "pass" | "unknown";
+
 export interface HousingAnalysis {
   askPrice: number;
   rehabLevel: RehabLevel;
   repairEstimate: number | null;
+  repairPsf: number | null; // the $/sqft used for repairs (so the UI can show "× $X/sqft")
   arv: number | null;
   arvBasis: "regional_psf" | "market_psf" | "comps" | "unknown";
   arvConfidence: "high" | "medium" | "low" | "none";
+  arvPsf: number | null; // the median sale $/sqft ARV was built from
+  // How the ARV $/sqft was sourced: our own fresh harvested sold comps ("live"), the committed Redfin
+  // snapshot ("snapshot"), a coarse hardcoded regional reference ("regional"), or a caller-provided true
+  // ARV ("provided"). This is the backbone of the "learning, not fabricating" disclosure.
+  arvSource: "live" | "snapshot" | "regional" | "provided" | null;
+  arvComps: number | null; // real closed-comp count behind a live median (when known)
   mao: number | null; // Max Allowable Offer = ARV*0.70 - repairs
   equitySpread: number | null; // ARV - ask - repairs (gross potential)
-  verdict: "strong" | "fair" | "tight" | "pass" | "unknown";
+  verdict: FlipVerdict;
   notes: string[];
+}
+
+/**
+ * The 70%-rule verdict from a fully-computed deal. Pure + exported so the client offer-solver reaches the
+ * SAME conclusion when the user tweaks rehab/margin. A coarse (low-confidence) ARV is capped at "tight" —
+ * never presented as a verified "strong"/"fair" flip on a guessed $/sqft.
+ */
+export function flipVerdict(
+  askPrice: number,
+  arv: number,
+  mao: number,
+  equitySpread: number,
+  arvConfidence: HousingAnalysis["arvConfidence"],
+): FlipVerdict {
+  let verdict: FlipVerdict;
+  if (askPrice <= mao * 0.85) verdict = "strong";
+  else if (askPrice <= mao) verdict = "fair";
+  else if (askPrice <= arv * 0.75 && equitySpread > 0) verdict = "tight";
+  else verdict = "pass";
+  if (arvConfidence === "low" && (verdict === "strong" || verdict === "fair"))
+    verdict = "tight";
+  return verdict;
 }
 
 /** Infer the rehab level from the listing language + distress signals (distressed shells skew gut/heavy). */
@@ -137,13 +182,15 @@ export function analyzeHousingDeal(
 
   // Repairs: sqft × $/sqft by level. Land has no structure to repair.
   let repairEstimate: number | null = null;
+  let repairPsf: number | null = null;
   if (p.property_type === "land") {
     repairEstimate = 0;
     notes.push("Land — no structure to rehab");
   } else if (p.sqft && p.sqft > 100) {
-    repairEstimate = Math.round(p.sqft * REPAIR_PSF[rehabLevel]);
+    repairPsf = REPAIR_PSF[rehabLevel];
+    repairEstimate = Math.round(p.sqft * repairPsf);
     notes.push(
-      `Repairs ≈ ${p.sqft.toLocaleString()} sqft × $${REPAIR_PSF[rehabLevel]}/sqft (${rehabLevel})`,
+      `Repairs ≈ ${p.sqft.toLocaleString()} sqft × $${repairPsf}/sqft (${rehabLevel})`,
     );
   } else {
     notes.push("Repair estimate needs square footage");
@@ -155,31 +202,52 @@ export function analyzeHousingDeal(
   let arv: number | null = null;
   let arvBasis: HousingAnalysis["arvBasis"] = "unknown";
   let arvConfidence: HousingAnalysis["arvConfidence"] = "none";
+  let arvPsf: number | null = null;
+  let arvSource: HousingAnalysis["arvSource"] = null;
+  let arvComps: number | null = null;
   if (opts.arv && opts.arv > 0) {
     arv = Math.round(opts.arv);
     arvBasis = "comps";
     arvConfidence = "high";
+    arvSource = "provided";
     notes.push("ARV provided");
   } else if (p.property_type !== "land" && p.sqft && p.sqft > 100) {
     const stateCode = (p.state || "").toUpperCase();
     const detail =
       opts.psf && opts.psf > 0
-        ? { psf: opts.psf, level: "county" as const } // injected = treat as comp-grade
+        ? {
+            psf: opts.psf,
+            level: "county" as const,
+            source: "snapshot" as const,
+          } // injected = treat as comp-grade
         : marketPsfDetailed(stateCode, p.property_type, p.zip);
     if (detail != null && detail.psf > 0) {
       arv = Math.round(p.sqft * detail.psf);
-      arvBasis = "market_psf";
-      // County median = comp-grade (medium). STATE median is a coarse regional guess (low) — a derelict
-      // land-bank shell and a metro home share one statewide number, so don't over-trust it.
-      arvConfidence = detail.level === "county" ? "medium" : "low";
+      arvPsf = detail.psf;
+      arvSource = detail.source;
+      arvComps = ("comps" in detail ? detail.comps : undefined) ?? null;
+      arvBasis = detail.level === "zip" ? "comps" : "market_psf";
+      // ZIP median = tightest free comp (street-level) → high. County median = comp-grade (medium). STATE
+      // median is a coarse regional guess (low) — a derelict land-bank shell and a metro home share one
+      // statewide number, so don't over-trust it.
+      arvConfidence =
+        detail.level === "zip"
+          ? "high"
+          : detail.level === "county"
+            ? "medium"
+            : "low";
       notes.push(
-        detail.level === "county"
-          ? `ARV ≈ ${p.sqft.toLocaleString()} sqft × $${detail.psf}/sqft (county median sale $/sqft — confirm with comps)`
-          : `ARV ≈ ${p.sqft.toLocaleString()} sqft × $${detail.psf}/sqft (${stateCode || "US"} STATEWIDE median — coarse, needs local comps)`,
+        detail.level === "zip"
+          ? `ARV ≈ ${p.sqft.toLocaleString()} sqft × $${detail.psf}/sqft (ZIP ${p.zip} median sale $/sqft — comp-grade)`
+          : detail.level === "county"
+            ? `ARV ≈ ${p.sqft.toLocaleString()} sqft × $${detail.psf}/sqft (county median sale $/sqft — confirm with comps)`
+            : `ARV ≈ ${p.sqft.toLocaleString()} sqft × $${detail.psf}/sqft (${stateCode || "US"} STATEWIDE median — coarse, needs local comps)`,
       );
     } else {
       const psf = STATE_PSF[stateCode] || NATIONAL_PSF;
       arv = Math.round(p.sqft * psf);
+      arvPsf = psf;
+      arvSource = "regional";
       arvBasis = "regional_psf";
       arvConfidence = "low";
       notes.push(
@@ -202,30 +270,27 @@ export function analyzeHousingDeal(
       );
   }
 
-  // 70% rule.
+  // 70% rule — MAO + equity, then the shared verdict (also used by the client solver).
   let mao: number | null = null;
   let equitySpread: number | null = null;
-  let verdict: HousingAnalysis["verdict"] = "unknown";
+  let verdict: FlipVerdict = "unknown";
   if (arv != null && repairEstimate != null) {
-    mao = Math.round(arv * 0.7 - repairEstimate);
+    mao = Math.round(arv * MAO_RULE - repairEstimate);
     equitySpread = Math.round(arv - askPrice - repairEstimate);
-    if (askPrice <= mao * 0.85) verdict = "strong";
-    else if (askPrice <= mao) verdict = "fair";
-    else if (askPrice <= arv * 0.75) verdict = "tight";
-    else verdict = "pass";
-    // 0-margin-for-error: a coarse STATEWIDE-median ARV is not a verified flip. Never present low-confidence
-    // ARV as "strong"/"fair" — cap at "tight" so it ranks on distress, not a fabricated equity number.
-    if (arvConfidence === "low" && (verdict === "strong" || verdict === "fair"))
-      verdict = "tight";
+    verdict = flipVerdict(askPrice, arv, mao, equitySpread, arvConfidence);
   }
 
   return {
     askPrice,
     rehabLevel,
     repairEstimate,
+    repairPsf,
     arv,
     arvBasis,
     arvConfidence,
+    arvPsf,
+    arvSource,
+    arvComps,
     mao,
     equitySpread,
     verdict,

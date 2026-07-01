@@ -53,5 +53,11 @@ export interface Property {
   signals?: Record<string, unknown>;
   lead_score?: number;
 
+  // Price-drop tracking (DB trigger-managed; see the price-history migration). Undefined until a property
+  // has changed price at least once — so the self-detected price-cut signal simply doesn't fire until then.
+  prev_price?: number | null;
+  price_changed_at?: string | null;
+  price_drops?: number | null;
+
   scraped_at?: string;
 }

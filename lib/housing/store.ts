@@ -10,7 +10,73 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Property } from "./types";
 import { scoreHousingLead } from "./lead-score";
 import { resolvePlaces, placeKey } from "@/lib/geo/geocode";
+import { normalizeAddress } from "./address-normalize";
 import { fetchAllRows } from "@/lib/db/paginate";
+
+/**
+ * Cross-source structural enrichment — the "no data wasted" merge. The SAME physical house arrives from
+ * multiple sources in one harvest: a Redfin listing (sqft/beds/baths/year/geo), a tax-delinquent record
+ * (owner, amount owed), a vacant-building report (vacancy). Each carries facts the others lack. Before
+ * scoring, we fill each row's MISSING structural fields from a sibling at the same address — so a distress
+ * lead that had no sqft borrows it from its MLS twin and becomes flip-analyzable (gets ARV + equity), and a
+ * bare MLS listing inherits the distress flags. Mutates in place. Rows stay separate (each is its own lead);
+ * only the facts are shared. This is what turns "we harvested it somewhere" into "every lead benefits."
+ */
+export function crossEnrich(props: Property[]): number {
+  const byAddr = new Map<string, Property[]>();
+  for (const p of props) {
+    const key = normalizeAddress(p.address, p.city, p.state, p.zip);
+    if (!key) continue;
+    const g = byAddr.get(key);
+    if (g) g.push(p);
+    else byAddr.set(key, [p]);
+  }
+  let enriched = 0;
+  const first = <T>(
+    g: Property[],
+    pick: (p: Property) => T | null | undefined,
+  ) => g.map(pick).find((v) => v != null && v !== "");
+  for (const g of Array.from(byAddr.values())) {
+    if (g.length < 2) continue;
+    const best = {
+      sqft: first(g, (p) => p.sqft),
+      beds: first(g, (p) => p.beds),
+      baths: first(g, (p) => p.baths),
+      year_built: first(g, (p) => p.year_built),
+      lot_size_acres: first(g, (p) => p.lot_size_acres),
+      lat: first(g, (p) => p.lat),
+      lng: first(g, (p) => p.lng),
+      // Distress signals worth sharing onto a bare listing of the same house.
+      owner: first(g, (p) => (p.signals as any)?.owner),
+    };
+    for (const p of g) {
+      let touched = false;
+      const fill = <K extends keyof Property>(
+        k: K,
+        v: Property[K] | undefined,
+      ) => {
+        if (p[k] == null && v != null) {
+          p[k] = v as Property[K];
+          touched = true;
+        }
+      };
+      if (p.property_type !== "land") {
+        fill("sqft", best.sqft as number | undefined);
+        fill("beds", best.beds as number | undefined);
+        fill("baths", best.baths as number | undefined);
+        fill("year_built", best.year_built as number | undefined);
+      }
+      fill("lot_size_acres", best.lot_size_acres as number | undefined);
+      fill("lat", best.lat as number | undefined);
+      fill("lng", best.lng as number | undefined);
+      if (touched) {
+        p.signals = { ...(p.signals || {}), cross_enriched: true };
+        enriched++;
+      }
+    }
+  }
+  return enriched;
+}
 
 function service(): SupabaseClient {
   return createClient(
@@ -51,8 +117,41 @@ function toRow(p: Property): Record<string, unknown> {
     lead_tier: lead.tier,
     signals: { ...(p.signals || {}), reasons: lead.signals },
     active: true,
+    // last_seen_at advances on EVERY harvest so the prune can tell live from delisted; scraped_at keeps the
+    // first-content timestamp where available. (Self-heals if the column predates the freshness migration.)
+    last_seen_at: new Date().toISOString(),
     scraped_at: p.scraped_at || new Date().toISOString(),
   };
+}
+
+/**
+ * Reconcile freshness: mark anything not re-seen in `staleDays` inactive (the read paths filter active=true,
+ * so it vanishes from counts + leads). Mirrors the cars 30-day prune. Best-effort + isolated — a missing
+ * `last_seen_at` column (pre-migration) or any error just no-ops, never breaking the harvest.
+ */
+export async function reconcileStaleProperties(
+  staleDays = 21,
+): Promise<number> {
+  try {
+    const sb = service();
+    const cutoff = new Date(Date.now() - staleDays * 86_400_000).toISOString();
+    const { data, error } = await sb
+      .from("properties")
+      .update({ active: false, updated_at: new Date().toISOString() })
+      .eq("active", true)
+      .lt("last_seen_at", cutoff)
+      .select("id");
+    if (error) {
+      console.warn("[reconcileStale] skipped:", error.message);
+      return 0;
+    }
+    const n = data?.length || 0;
+    if (n) console.log(`[reconcileStale] marked ${n} stale listings inactive`);
+    return n;
+  } catch (e) {
+    console.warn("[reconcileStale] skipped:", (e as Error).message);
+    return 0;
+  }
 }
 
 /**
@@ -64,6 +163,11 @@ export async function upsertProperties(
 ): Promise<number> {
   if (!properties.length) return 0;
   const sb = service();
+  // Share facts across sources at the same address BEFORE scoring, so distress leads inherit MLS sqft (and
+  // gain ARV/equity) and listings inherit distress flags. Nothing harvested is wasted.
+  const enriched = crossEnrich(properties);
+  if (enriched)
+    console.log(`[upsertProperties] cross-enriched ${enriched} rows`);
   let rows = properties.filter((p) => p.source_listing_id).map(toRow);
   if (!rows.length) return 0;
 
@@ -140,6 +244,20 @@ export async function upsertProperties(
       }
       console.warn("[upsertProperties] batch failed:", error.message);
       break;
+    }
+  }
+
+  // Instant deal alerts: match the just-harvested properties against saved searches and notify on NEW
+  // hot/warm matches. Best-effort + isolated (lazy-imported so it never weighs on the hot read path).
+  if (written > 0) {
+    try {
+      const { matchHousingSearches } = await import("./match-searches");
+      await matchHousingSearches(properties);
+    } catch (e) {
+      console.warn(
+        "[upsertProperties] alert match skipped:",
+        (e as Error).message,
+      );
     }
   }
   return written;

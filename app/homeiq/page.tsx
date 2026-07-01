@@ -5,11 +5,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import { stateName, nearestState } from "@/lib/housing/us-states";
+import { HomeIQSearch } from "@/components/home/HomeIQSearch";
+import { HousingTicker } from "@/components/home/HousingTicker";
+import { useCountUp } from "@/hooks/useCountUp";
 
 // HomeIQ command center — the live, location-aware home. Real totals, the hottest markets, and featured
 // hot leads, with one-tap "find leads near me". Same engine as DealerHunt Pro, pointed at houses, all free.
 
-const ACCENT = "#2dd4bf";
+const ACCENT = "var(--home)";
 const fetcher = (u: string) => fetch(u).then((r) => r.json());
 const TIER_COLOR: Record<string, string> = {
   hot: "var(--red)",
@@ -67,32 +70,18 @@ export default function HomeIQHome() {
   };
 
   return (
-    <main className="min-h-screen bg-[var(--s1)] text-[var(--t1)]">
-      <header className="max-w-6xl mx-auto px-4 sm:px-6 pt-6 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <span
-            className="w-8 h-8 rounded-[10px] grid place-items-center text-black font-black"
-            style={{ background: ACCENT }}
-          >
-            H
-          </span>
-          <span className="font-black text-lg">HomeIQ</span>
-          <span
-            className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full"
-            style={{ background: `${ACCENT}22`, color: ACCENT }}
-          >
-            Beta
-          </span>
-        </div>
-        <Link
-          href="/welcome"
-          className="text-sm font-semibold text-[var(--t3)] hover:text-[var(--t1)]"
-        >
-          ← Switch hunt
-        </Link>
-      </header>
-
-      <section className="max-w-6xl mx-auto px-4 sm:px-6 pt-12">
+    <div className="bg-transparent text-[var(--t1)]">
+      <section className="relative max-w-6xl mx-auto px-4 sm:px-6 pt-8">
+        {/* Ambient money-glow behind the headline — the value hits before you scroll. */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -top-10 -left-10 w-[36rem] h-[22rem] -z-10 opacity-70"
+          style={{
+            background:
+              "radial-gradient(closest-side, color-mix(in srgb, var(--home) 22%, transparent), transparent)",
+            filter: "blur(20px)",
+          }}
+        />
         <span
           className="text-[11px] font-black uppercase tracking-[0.3em]"
           style={{ color: ACCENT }}
@@ -112,27 +101,42 @@ export default function HomeIQHome() {
           </span>
         </p>
 
-        {/* Live stats */}
-        <div className="mt-7 grid grid-cols-3 gap-3 max-w-xl">
+        {/* Live stats — count up from 0 the instant the totals land. */}
+        <div className="mt-7 grid grid-cols-3 gap-2 sm:gap-3 max-w-xl">
           <Stat
             label="Live leads"
-            value={total.toLocaleString()}
+            value={total}
             accent="var(--t1)"
+            loading={!data}
           />
-          <Stat label="🔥 Hot" value={byTier.hot ?? "—"} accent="var(--red)" />
           <Stat
-            label="Markets"
-            value={Object.keys(byState).length || "—"}
+            label="🔥 Hot"
+            value={byTier.hot ?? 0}
+            accent="var(--red)"
+            loading={!data}
+          />
+          <Stat
+            label="States"
+            value={Object.keys(byState).length}
             accent={ACCENT}
+            loading={!data}
           />
         </div>
 
-        <div className="mt-6 flex flex-wrap gap-3">
+        {/* City / ZIP front door — type exactly where you want instead of picking a whole state. */}
+        <div className="mt-6">
+          <HomeIQSearch big />
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-3">
           <button
             onClick={detect}
             disabled={locating}
             className="inline-flex items-center gap-2 px-6 py-3 rounded-full font-bold text-black text-sm disabled:opacity-60"
-            style={{ background: ACCENT, boxShadow: `0 8px 30px ${ACCENT}55` }}
+            style={{
+              background: "var(--grad-home)",
+              boxShadow: "0 8px 30px var(--home-bd)",
+            }}
           >
             📍 {locating ? "Locating…" : "Find leads near me"}
           </button>
@@ -157,6 +161,13 @@ export default function HomeIQHome() {
         </div>
       </section>
 
+      {/* Live ticker — hottest leads scrolling by, derived from the data already loaded. */}
+      {leads.length > 0 && (
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 mt-7">
+          <HousingTicker leads={leads} />
+        </div>
+      )}
+
       {/* Top markets */}
       {topMarkets.length > 0 && (
         <section className="max-w-6xl mx-auto px-4 sm:px-6 pt-12">
@@ -175,7 +186,7 @@ export default function HomeIQHome() {
                 </span>
                 <span
                   className="text-xs font-black px-1.5 py-0.5 rounded-full"
-                  style={{ background: `${ACCENT}22`, color: ACCENT }}
+                  style={{ background: "var(--home-lo)", color: ACCENT }}
                 >
                   {count}
                 </span>
@@ -247,7 +258,7 @@ export default function HomeIQHome() {
           </div>
         </section>
       )}
-    </main>
+    </div>
   );
 }
 
@@ -255,17 +266,23 @@ function Stat({
   label,
   value,
   accent,
+  loading,
 }: {
   label: string;
-  value: any;
+  value: number;
   accent: string;
+  loading?: boolean;
 }) {
+  const n = useCountUp(value, 900);
   return (
-    <div className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] px-4 py-3">
-      <div className="text-2xl font-black" style={{ color: accent }}>
-        {value}
+    <div className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] px-3 sm:px-4 py-3">
+      <div
+        className="text-xl sm:text-2xl font-black tabular-nums"
+        style={{ color: accent }}
+      >
+        {loading ? "—" : n.toLocaleString()}
       </div>
-      <div className="text-[11px] font-bold uppercase tracking-widest text-[var(--t4)]">
+      <div className="text-[10px] sm:text-[11px] font-bold uppercase tracking-widest text-[var(--t4)]">
         {label}
       </div>
     </div>
