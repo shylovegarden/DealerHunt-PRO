@@ -589,6 +589,37 @@ export const CITY_FEED_SOURCES: OpenDataSource[] = [
     },
   },
   {
+    // New Orleans, LA — Code Enforcement OPEN cases (verified live 2026-07: 7,249 open since 2024). A big
+    // blight market; `geoaddress` + zip, status in `stage`/`keystatus`. Coords ship as LA State Plane (not
+    // WGS84) → we omit them and geocode by address on upsert. Filter out closed cases in the WHERE.
+    source: "code_violation",
+    api: "socrata",
+    url: "https://data.nola.gov/resource/u6yx-v2tw.json",
+    state: "LA",
+    city: "New Orleans",
+    where:
+      "casefiled > '2024-01-01T00:00:00' AND keystatus NOT LIKE '%closed%'",
+    limit: 5000,
+    map: (a): Property | null => {
+      const address = s(a.geoaddress);
+      if (!address) return null;
+      return {
+        source: "code_violation",
+        source_listing_id: `nola-ce-${a.caseid || a.caseno}`,
+        title: `Code violation · ${address}`,
+        address,
+        city: "New Orleans",
+        state: "LA",
+        zip: s(a.zipcode),
+        seller_type: "owner",
+        signals: {
+          code_violation: true,
+          status: s(a.stage) || "Open code case",
+        },
+      };
+    },
+  },
+  {
     // Buffalo, NY — ACTIVE code violations.
     source: "code_violation",
     api: "socrata",
