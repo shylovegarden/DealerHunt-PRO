@@ -738,6 +738,53 @@ export const NATIONAL_SOURCES: OpenDataSource[] = [
     },
   },
   {
+    // Montana STATEWIDE cadastral (gisservicemt.gov) — out-of-state absentee owners of improved
+    // residential parcels. Verified live 2026-07: 31,192 out-of-state-owned improved homes, rich owner +
+    // mailing + assessed value (MT has heavy out-of-state second-home ownership). One config = the whole
+    // state. City/zip parse out of the combined `CityStateZip` situs field.
+    source: "absentee_owner",
+    api: "arcgis",
+    url: "https://gisservicemt.gov/arcgis/rest/services/MSDI_Framework/Parcels/MapServer/0",
+    state: "MT",
+    where:
+      "OwnerState <> 'MT' AND OwnerState IS NOT NULL AND PropType = 'Improved Property' AND TotalBuildingValue > 30000",
+    limit: 6000,
+    map: (a, g): Property | null => {
+      const address = s(a.AddressLine1);
+      if (!address) return null;
+      const csz = String(a.CityStateZip || ""); // "LIBBY, MT 59923"
+      const city = csz.split(",")[0]?.trim() || undefined;
+      const zip = (csz.match(/\b(\d{5})\b/) || [])[1];
+      return {
+        source: "absentee_owner",
+        source_listing_id: `mt-${a.PARCELID || a.OBJECTID}`,
+        title: `Absentee owner · ${address}`,
+        property_type: "single_family",
+        address,
+        city,
+        state: "MT",
+        zip,
+        lat: g.lat,
+        lng: g.lng,
+        price: n(a.TotalValue), // assessed value (off-market — no list price)
+        seller_type: "owner",
+        signals: {
+          absentee: true,
+          out_of_state_owner: true,
+          owner: s(a.OwnerName),
+          owner_state: s(a.OwnerState),
+          owner_mailing: mailing(
+            a.OwnerAddress1,
+            a.OwnerCity,
+            a.OwnerState,
+            a.OwnerZipCode,
+          ),
+          status: `Absentee (${s(a.OwnerState)})`,
+        },
+      };
+    },
+  },
+  {
     // Maricopa County AZ (Phoenix metro) — out-of-state absentee. Numbers ship as formatted strings;
     // map parses them and requires a living-space value (residential filter).
     source: "absentee_owner",
