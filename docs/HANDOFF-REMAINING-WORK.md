@@ -79,11 +79,17 @@ Risk is honest; ignore any "2-hour" estimates from prior handoffs.
 
 ### P1 — biggest volume, lowest risk (scale the engine we already have)
 
-1. **Scale open-data configs to top ~50 metros** — `lib/housing/sources/open-data-sources.ts`.
-   Add tax-delinquent / code-violation / vacant / absentee feeds for Cook, Harris, LA, Miami-Dade,
-   Dallas, King, Maricopa, Philadelphia, etc. Same engine, copy-paste config. **Verify each feed**
-   (recent + has street address + residential) before adding — the bar is set in the file's header.
-   Risk: low.
+1. **Scale open-data configs** — `lib/housing/sources/open-data-sources.ts`. **In progress.** Added +3
+   verified live (2026-07, ~82k leads): New Orleans code-enforcement (7,249), **Montana statewide absentee**
+   (31,192), **Massachusetts statewide absentee / MassGIS L3** (44,167). Clean statewide absentee layers
+   (MT/MA/NY/AZ) are the high-leverage adds >> address-only city code feeds.
+   **METHODOLOGY**: discover URLs via `https://www.arcgis.com/sharing/rest/search?q=...&f=json` (guessing
+   org-hash URLs = ~0% hit); probe `{url}/0?f=json`; **require a clean owner-STATE field** (`OWN_STATE`/
+   `MAIL_STATE`) + street address + recency before adding.
+   **LARGELY TAPPED**: a 53-service sweep found 0 _new_ usable statewide layers (hits were NY-dupes or tiny
+   counties); Wisconsin-schema states (`STATE` = property state, no owner-state) can't do clean absentee.
+   **Unresolved big-market candidate**: NJ MOD-IV (huge market, non-standard field names, exact service URL
+   not yet found — worth a deeper hunt). Diminishing returns per probe from here.
 2. **Expand FSBO metros** — `lib/housing/sources/fsbo.ts` `METRO_QUERIES` array. Config-only. Risk: zero.
 3. **More land banks** — new `lib/housing/sources/*-landbank.ts` (4 built, ~200 exist). Patterns known:
    embedded JS var (best), Framer `data-framer-name`, WordPress markers, ASP (fleet). Risk: low, per-site effort.
