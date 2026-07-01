@@ -205,6 +205,10 @@ interface Lead {
   owner?: string;
   ownerMailing?: string;
   stack?: number;
+  priceDrops?: number | null;
+  prevPrice?: number | null;
+  anomaly?: boolean;
+  anomalyPct?: number;
   distress?: {
     totalDue?: number;
     yearsOwed?: number;
@@ -841,6 +845,33 @@ function LeadCard({ lead, index = 0 }: { lead: Lead; index?: number }) {
                 📚 {lead.stack} lists
               </span>
             )}
+            {/* Statistical underpricing flag (vs same-type $/sqft comps). */}
+            {lead.anomaly && (
+              <span
+                className="text-[10px] font-black px-1.5 py-0.5 rounded-full"
+                style={{
+                  color: "var(--green)",
+                  border: "1px solid var(--green)",
+                }}
+                title="Priced below comparable listings in this market"
+              >
+                🎯 {lead.anomalyPct}% below comps
+              </span>
+            )}
+            {/* Self-detected price cut — seller softening. */}
+            {(lead.priceDrops || 0) > 0 &&
+              (lead.prevPrice || 0) > (lead.price || 0) && (
+                <span
+                  className="text-[10px] font-black px-1.5 py-0.5 rounded-full"
+                  style={{
+                    color: "var(--red)",
+                    border: "1px solid var(--red)",
+                  }}
+                  title={`Was $${(lead.prevPrice || 0).toLocaleString()}`}
+                >
+                  ↓ Cut{lead.priceDrops! > 1 ? ` ${lead.priceDrops}×` : ""}
+                </span>
+              )}
             {/* Distress magnitudes (amount owed, foreclosure, below-market) — the PropStream-grade detail. */}
             {(lead.distress?.sheriffSale || lead.distress?.foreclosure) && (
               <span
