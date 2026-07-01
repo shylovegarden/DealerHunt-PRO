@@ -96,6 +96,20 @@ async function main() {
   if (n < 5000)
     throw new Error(`[acs] only ${n} ZIPs — refusing partial write`);
 
+  // National-median baseline per metric. Growth must be judged RELATIVE to this (2017→2022 NOMINAL income
+  // rose ~28% everywhere from inflation — an absolute +28% is average, not "rising"). Stored so the scorer
+  // self-calibrates and stays correct across future vintages/inflation levels.
+  const median = (xs: (number | null)[]): number => {
+    const srt = xs.filter((x): x is number => x != null).sort((a, b) => a - b);
+    return srt.length ? srt[Math.floor(srt.length / 2)] : 0;
+  };
+  const vals = Object.values(byZip) as Record<string, number | null>[];
+  const baseline = {
+    incomeGrowthPct: median(vals.map((v) => v.incomeGrowthPct)),
+    popGrowthPct: median(vals.map((v) => v.popGrowthPct)),
+    vacancyDeltaPct: median(vals.map((v) => v.vacancyDeltaPct)),
+  };
+
   const outDir = join(process.cwd(), "lib", "housing", "data");
   mkdirSync(outDir, { recursive: true });
   writeFileSync(
@@ -104,13 +118,16 @@ async function main() {
       {
         source: `US Census ACS 5-year (${PRIOR}→${LATEST}) — income/population/vacancy + growth`,
         updated: new Date().toISOString().slice(0, 10),
+        baseline,
         byZip,
       },
       null,
       0,
     ),
   );
-  console.log(`[acs] wrote ${n} ZIPs → lib/housing/data/zip-acs.json`);
+  console.log(
+    `[acs] wrote ${n} ZIPs (baseline income +${baseline.incomeGrowthPct}% / pop ${baseline.popGrowthPct}%) → zip-acs.json`,
+  );
 }
 
 main().catch((e) => {

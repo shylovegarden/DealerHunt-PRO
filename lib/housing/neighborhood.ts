@@ -10,18 +10,38 @@
 import acs from "./data/zip-acs.json";
 
 export interface AcsZip {
-  income?: number; // latest median household income
-  pop?: number; // latest population
-  vacancyPct?: number; // latest residential vacancy %
-  incomeGrowthPct?: number; // vs the prior vintage
-  popGrowthPct?: number;
-  vacancyDeltaPct?: number; // change in vacancy (negative = improving)
+  income?: number | null; // latest median household income
+  pop?: number | null; // latest population
+  vacancyPct?: number | null; // latest residential vacancy %
+  incomeGrowthPct?: number | null; // vs the prior vintage
+  popGrowthPct?: number | null;
+  vacancyDeltaPct?: number | null; // change in vacancy (negative = improving)
 }
 
-const BY_ZIP: Record<string, AcsZip> =
-  (acs as { byZip?: Record<string, AcsZip> }).byZip || {};
+// The committed JSON has a huge precise inferred type; cast via `unknown` to our shape.
+const DATA = acs as unknown as {
+  byZip?: Record<string, AcsZip>;
+  baseline?: Record<string, number>;
+  updated?: string;
+};
 
-export const ACS_UPDATED: string = (acs as { updated?: string }).updated || "";
+const BY_ZIP: Record<string, AcsZip> = DATA.byZip || {};
+
+// National-median baseline per metric (from the snapshot). Growth is judged RELATIVE to this — a ZIP whose
+// nominal income "grew 28%" only kept pace with inflation, so absolute growth means nothing; out/under-
+// performing the national median is the real signal.
+const BASE: {
+  incomeGrowthPct: number;
+  popGrowthPct: number;
+  vacancyDeltaPct: number;
+} = {
+  incomeGrowthPct: 0,
+  popGrowthPct: 0,
+  vacancyDeltaPct: 0,
+  ...(DATA.baseline || {}),
+};
+
+export const ACS_UPDATED: string = DATA.updated || "";
 
 export type Trajectory = "rising" | "stable" | "declining";
 
@@ -55,22 +75,28 @@ export function neighborhoodScore(
   const vac = d.vacancyPct ?? null;
   const vd = d.vacancyDeltaPct ?? null;
 
-  // Sub-scores, each 0–100, centered at 50 (flat). Income growth weighted most.
-  const incomeSub = ig == null ? 50 : clamp(50 + ig * 3, 0, 100); // +17% → 100
-  const popSub = pg == null ? 50 : clamp(50 + pg * 5, 0, 100); // +10% → 100
+  // Sub-scores, each 0–100, centered at 50 = the NATIONAL MEDIAN (not zero) so inflation-driven nominal
+  // growth doesn't rate every ZIP "rising". A ZIP outperforming the median rises above 50, underperforming
+  // falls below. Population is the cleanest signal (not inflation-distorted) so it's weighted like income.
+  const incomeSub =
+    ig == null ? 50 : clamp(50 + (ig - BASE.incomeGrowthPct) * 1.2, 0, 100);
+  const popSub =
+    pg == null ? 50 : clamp(50 + (pg - BASE.popGrowthPct) * 1.2, 0, 100);
   const vacSub =
-    vd == null
-      ? vac == null
-        ? 50
-        : clamp(70 - vac * 2, 0, 100) // static: low vacancy = better
-      : clamp(50 - vd * 6, 0, 100); // improving (−) vacancy = better
+    vd == null ? 50 : clamp(50 - (vd - BASE.vacancyDeltaPct) * 4, 0, 100); // falling vacancy vs baseline = better
 
-  const score = Math.round(incomeSub * 0.5 + popSub * 0.3 + vacSub * 0.2);
+  // Population weighted highest — it's the least inflation-distorted signal of real neighborhood demand
+  // (income % off a low base can overstate a collapsing area).
+  const score = Math.round(incomeSub * 0.35 + popSub * 0.45 + vacSub * 0.2);
   const trajectory: Trajectory =
     score >= 62 ? "rising" : score <= 42 ? "declining" : "stable";
 
   const parts: string[] = [];
-  if (ig != null) parts.push(`incomes ${ig >= 0 ? "+" : ""}${ig}%`);
+  if (ig != null) {
+    // Show income growth RELATIVE to the national median (raw nominal % is mostly inflation, misleading).
+    const rel = Math.round(ig - BASE.incomeGrowthPct);
+    parts.push(`incomes ${rel >= 0 ? "+" : ""}${rel}% vs avg`);
+  }
   if (pg != null) parts.push(`population ${pg >= 0 ? "+" : ""}${pg}%`);
   const cap = trajectory[0].toUpperCase() + trajectory.slice(1);
   const label = parts.length ? `${cap} — ${parts.join(", ")}` : cap;

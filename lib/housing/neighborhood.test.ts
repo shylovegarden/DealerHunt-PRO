@@ -3,33 +3,36 @@ import { neighborhoodScore } from "./neighborhood";
 
 // The snapshot ships empty (populated by `npm run data:acs`), so we mock the data module (vi.mock is
 // hoisted above the import) to exercise the pure scoring logic against known inputs.
+// Baseline = national medians; growth is scored RELATIVE to it. 30303 outperforms on every metric,
+// 44105 underperforms on every metric, 63101 sits at the baseline.
 vi.mock("./data/zip-acs.json", () => ({
   default: {
     updated: "2026-07-01",
+    baseline: { incomeGrowthPct: 28, popGrowthPct: 0, vacancyDeltaPct: -1 },
     byZip: {
       "30303": {
         income: 80000,
         pop: 20000,
         vacancyPct: 6,
-        incomeGrowthPct: 12,
-        popGrowthPct: 8,
-        vacancyDeltaPct: -2,
+        incomeGrowthPct: 55, // +27 vs baseline
+        popGrowthPct: 15, // +15 vs baseline
+        vacancyDeltaPct: -8, // falling faster than baseline
       },
       "44105": {
         income: 28000,
         pop: 15000,
         vacancyPct: 22,
-        incomeGrowthPct: -6,
-        popGrowthPct: -4,
-        vacancyDeltaPct: 3,
+        incomeGrowthPct: 5, // −23 vs baseline (lost to inflation)
+        popGrowthPct: -20, // −20 vs baseline
+        vacancyDeltaPct: 8, // rising vacancy
       },
       "63101": {
         income: 45000,
         pop: 8000,
         vacancyPct: 12,
-        incomeGrowthPct: 1,
+        incomeGrowthPct: 28, // at baseline
         popGrowthPct: 0,
-        vacancyDeltaPct: 0,
+        vacancyDeltaPct: -1,
       },
     },
   },
@@ -45,7 +48,7 @@ describe("neighborhoodScore", () => {
     const r = neighborhoodScore("30303")!;
     expect(r.trajectory).toBe("rising");
     expect(r.score).toBeGreaterThan(62);
-    expect(r.label).toMatch(/Rising.*incomes \+12%/);
+    expect(r.label).toMatch(/Rising.*incomes \+27% vs avg.*population \+15%/);
     expect(r.income).toBe(80000);
   });
 
