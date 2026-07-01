@@ -171,6 +171,26 @@ export async function scrapeAuctionComState(
         const city = item.seller_property?.municipality;
         const zip = item.seller_property?.postal_code;
 
+        // Distinguish PRE-foreclosure (a trustee/foreclosure sale — the owner STILL OWNS and is being
+        // foreclosed = the #1 motivated seller) from bank-owned REO. Auction.com flags a trustee sale on
+        // the event; asset_type/status carry the rest. This turns ~17k generic "auction" rows into scored,
+        // filterable pre-foreclosure leads.
+        const assetType = String(
+          item.listing_configuration?.asset_type || "",
+        ).toLowerCase();
+        const statusGroup = String(
+          item.listing_status_group || "",
+        ).toUpperCase();
+        const trusteeSale = !!item.event?.trustee_sale;
+        const isForeclosure =
+          trusteeSale ||
+          /foreclos|trustee|pre[-_ ]?foreclos/.test(assetType) ||
+          statusGroup.includes("FORECLOS");
+        const isReo =
+          !isForeclosure &&
+          (/bank[-_ ]?owned|reo/.test(assetType) ||
+            statusGroup.includes("REO"));
+
         properties.push({
           source: "auctioncom",
           source_listing_id: `auc-${item.listing_id}`,
@@ -193,7 +213,13 @@ export async function scrapeAuctionComState(
           seller: "Auction.com",
           seller_type: "auction",
           signals: {
-            channel: "reo",
+            channel: isReo ? "reo" : isForeclosure ? "foreclosure" : "reo",
+            // The high-value flags the scorer + "Pre-foreclosure" / "REO" filters read.
+            ...(isForeclosure ? { foreclosure: true } : {}),
+            ...(isReo ? { reo: true } : {}),
+            asset_type: item.listing_configuration?.asset_type,
+            trustee_sale: trusteeSale || undefined,
+            occupancy: item.listing_configuration?.occupancy_status,
             status: item.listing_status,
             auction_start: auction.start_date,
             auction_end: auction.end_date,
