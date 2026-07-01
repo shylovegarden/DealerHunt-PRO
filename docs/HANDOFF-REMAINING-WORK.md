@@ -101,9 +101,10 @@ Risk is honest; ignore any "2-hour" estimates from prior handoffs.
    `npm run data:acs` on a networked box** to populate `lib/housing/data/zip-acs.json` (seeded empty; the
    whole feature no-ops until then). This dev sandbox proxy-blocks census.gov.
    ✅ **DONE — BRRRR (refinance & hold)** — `lib/housing/brrrr.ts` + detail card. Pure, live now.
-5. **FEMA flood-zone flag** — new `lib/housing/sources/fema-flood.ts`. One call per lat/lng; flag Zone
-   AE/VE (kills buy-and-hold ROI). Surface as a risk chip. Risk: low. ⚠️ Network-blocked in this sandbox
-   (FEMA returns a WebSEAL auth page) — build as a runtime lookup w/ cache + graceful null, run on the box.
+5. ✅ **DONE — FEMA flood-zone flag** — `lib/housing/sources/fema-flood.ts` (`floodZone(lat,lng)` → NFHL,
+   best-effort/cached/graceful-null) + detail "🌊 Flood zone" chip. VERIFIED LIVE (Miami→AE, Denver→X).
+   Note: network works when the Bash sandbox is disabled — the earlier "WebSEAL/blocked" note was the
+   _sandboxed_ result; keyless public APIs (FEMA/Socrata/ArcGIS) are reachable unsandboxed.
 6. ✅ **DONE — Holding-cost calculator** — `lib/housing/holding-cost.ts` (taxes+insurance+utilities+
    hard-money interest, months ≈ 3 + ZIP DOM/30); detail-page "Holding cost" card w/ net-after-carry.
 7. **Owner → queryable columns** **[migration]** — add `owner_name/owner_mailing/owner_state` cols to
