@@ -93,16 +93,17 @@ Risk is honest; ignore any "2-hour" estimates from prior handoffs.
 4. **Census ACS neighborhood-trajectory score** — new `lib/housing/sources/census.ts`. Free API
    (`api.census.gov`), one cached call per ZIP/tract: income/population/vacancy trend → a labeled
    trajectory badge + a transparent scorer signal. Risk: low. **Label as an estimate.**
+   ⚠️ Needs network — build/run on the fleet/box (this dev sandbox proxies-blocks census.gov + FEMA), or
+   snapshot to JSON like `zip-ppsf`/`zip-rent` via a `scripts/fetch-census-acs.ts` run there.
 5. **FEMA flood-zone flag** — new `lib/housing/sources/fema-flood.ts`. One call per lat/lng; flag Zone
-   AE/VE (kills buy-and-hold ROI). Surface as a risk chip. Risk: low.
-6. **Holding-cost calculator** — extend `lib/housing/deal-analyzer.ts` (or new `holding-cost.ts`). Uses
-   data we already scrape (property taxes) + insurance/utilities/financing assumptions → "$X/mo to hold"
-   folded into true ROI. Pure math, no new source. Risk: low.
+   AE/VE (kills buy-and-hold ROI). Surface as a risk chip. Risk: low. ⚠️ Same network caveat as #4.
+6. ✅ **DONE — Holding-cost calculator** — `lib/housing/holding-cost.ts` (taxes+insurance+utilities+
+   hard-money interest, months ≈ 3 + ZIP DOM/30); detail-page "Holding cost" card w/ net-after-carry.
 7. **Owner → queryable columns** **[migration]** — add `owner_name/owner_mailing/owner_state` cols to
    `properties`, populate in `store.ts` from `signals`. Enables cross-owner (portfolio-landlord) queries.
    Export already works without this; it's a nice-to-have. Risk: low.
-8. **Anomaly detection** (both verticals) — flag price > ~2σ below the make/model/ZIP mean. Statistical,
-   honest, cheap. New `lib/housing/anomaly.ts` (+ cars equivalent). Risk: low.
+8. ✅ **DONE — Anomaly detection** — `lib/housing/anomaly.ts` (robust MAD outlier vs same-state/type
+   $/sqft peers) → "🎯 N% below comps" signal + "🎯 Underpriced" category + card/detail badges.
 
 ### P3 — genuinely new sources (high value, HARD — not "1-2 days")
 
