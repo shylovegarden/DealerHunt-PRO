@@ -30,8 +30,15 @@ interface Row {
 // Fetch one ACS vintage → map ZIP → {income, pop, vacancyPct}. Parses the 2D-array by HEADER name (robust
 // to column reordering), not fixed index.
 async function fetchYear(year: number): Promise<Record<string, Row>> {
-  const url = `https://api.census.gov/data/${year}/acs/acs5?get=${VARS}&for=zip%20code%20tabulation%20area:*`;
-  console.log(`[acs] ${year}: ${url}`);
+  // The ACS API requires a FREE key (despite the common "keyless" claim — a keyless request 302s to a
+  // "Missing Key" page). Grab one at https://api.census.gov/data/key_signup.html and set CENSUS_API_KEY.
+  const key = process.env.CENSUS_API_KEY;
+  if (!key)
+    throw new Error(
+      "[acs] set CENSUS_API_KEY (free: https://api.census.gov/data/key_signup.html)",
+    );
+  const url = `https://api.census.gov/data/${year}/acs/acs5?get=${VARS}&for=zip%20code%20tabulation%20area:*&key=${key}`;
+  console.log(`[acs] ${year}: fetching all ZCTAs…`);
   const res = await fetch(url);
   if (!res.ok) throw new Error(`[acs] ${year} HTTP ${res.status}`);
   const rows = (await res.json()) as string[][];

@@ -159,6 +159,27 @@ export default function LeadDetailPage({
                 {lead.priceDrops > 1 ? ` · ${lead.priceDrops} cuts` : ""}
               </span>
             )}
+            {/* FEMA flood zone — a Special Flood Hazard Area materially hurts a hold. */}
+            {lead.flood && (
+              <span
+                className="mt-2 ml-2 inline-flex items-center gap-1.5 text-[11px] font-bold px-2 py-1 rounded-full"
+                style={
+                  lead.flood.high
+                    ? {
+                        background:
+                          "color-mix(in srgb, var(--blue) 16%, transparent)",
+                        color: "var(--blue)",
+                      }
+                    : { background: "var(--s2)", color: "var(--t4)" }
+                }
+                title={lead.flood.label}
+              >
+                🌊{" "}
+                {lead.flood.high
+                  ? `Flood zone ${lead.flood.zone}`
+                  : "Low flood risk"}
+              </span>
+            )}
             {/* Quick-facts strip — the physical specs, hoisted to the top (were buried at the bottom). */}
             {(lead.beds != null ||
               lead.baths != null ||

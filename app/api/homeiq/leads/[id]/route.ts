@@ -8,6 +8,7 @@ import { rentCashflow } from "@/lib/housing/rent";
 import { holdingCost } from "@/lib/housing/holding-cost";
 import { brrrrAnalysis } from "@/lib/housing/brrrr";
 import { neighborhoodScore } from "@/lib/housing/neighborhood";
+import { floodZone } from "@/lib/housing/sources/fema-flood";
 import { loadLivePsf } from "@/lib/housing/live-psf";
 import { loadCalibration } from "@/lib/housing/calibration";
 import type { Property } from "@/lib/housing/types";
@@ -65,6 +66,9 @@ export async function GET(
           monthlyRent: cashflow.monthlyRent,
         })
       : null;
+
+  // FEMA flood zone (best-effort, cached, short timeout) — a Special Flood Hazard Area hits hold ROI hard.
+  const flood = await floodZone(p.lat, p.lng).catch(() => null);
 
   return NextResponse.json({
     lead: {
@@ -156,6 +160,7 @@ export async function GET(
       analysis,
       cashflow,
       brrrr, // refi-and-hold exit: { cashLeftIn, monthlyCashflow, cashOnCashPct, fullBrrrr, … }
+      flood, // FEMA flood zone: { zone, high, label } or null
       holding, // time cost of the flip: { perMonth, months, total, breakdown, notes }
       neighborhood: neighborhoodScore(p.zip), // Census ACS trajectory (null until data:acs is run)
       market, // live ZIP temperature: { activeCount, medianDom, listPsf } — context, not ARV
