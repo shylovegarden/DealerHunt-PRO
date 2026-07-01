@@ -94,6 +94,8 @@ interface Lead {
   anomalyPct?: number;
   // Census ACS neighborhood trajectory ("rising" | "stable" | "declining"), when the ZIP is in the snapshot.
   neighborhood?: string;
+  // FEMA flood zone (pre-enriched). high = Special Flood Hazard Area (mandatory insurance, worse for hold).
+  flood?: { zone: string; high: boolean };
   auction_end?: string;
   bid_count?: number;
   lat?: number;
@@ -202,6 +204,15 @@ function fromStored(r: StoredProperty): Lead {
   // reflected immediately and the tier stays consistent with the verdict — rather than serving the
   // stored score frozen at last harvest. The Docker PC's re-score keeps the stored copy fresh for sort.
   const ls = scoreHousingLead(r as Property);
+  // FEMA flood zone (pre-enriched into signals). Append a signal so the "Flood zone" category can match.
+  const sig = (r.signals as any) || {};
+  const flood = sig.flood_zone
+    ? { zone: String(sig.flood_zone), high: !!sig.flood_high }
+    : undefined;
+  const signals =
+    flood?.high && ls.signals
+      ? [...ls.signals, `🌊 Flood zone ${flood.zone}`]
+      : ls.signals;
   return withAnalysis(
     {
       id: r.source_listing_id || r.title,
@@ -231,9 +242,10 @@ function fromStored(r: StoredProperty): Lead {
       prevPrice: r.prev_price,
       priceChangedAt: r.price_changed_at,
       neighborhood: neighborhoodScore(r.zip)?.trajectory,
+      flood,
       score: ls.score,
       tier: ls.tier,
-      signals: ls.signals,
+      signals,
     },
     r,
   );
