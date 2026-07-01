@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { usePreferences } from "@/hooks/usePreferences";
 import useSWR from "swr";
 import { Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
@@ -87,6 +88,16 @@ function RailSkeleton() {
 
 export default function DiscoverPage() {
   const [state, setState] = useState(""); // '' = nationwide
+
+  // Land on the user's saved default market once (they can still change it — this only sets the initial).
+  const { prefs } = usePreferences();
+  const prefsApplied = useRef(false);
+  useEffect(() => {
+    if (prefsApplied.current || !Object.keys(prefs).length) return;
+    prefsApplied.current = true;
+    if (prefs.carsState) setState(prefs.carsState);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefs]);
 
   const { data, error, isLoading } = useSWR<DiscoverResponse>(
     `/api/discover${state ? `?state=${state}` : ""}`,
