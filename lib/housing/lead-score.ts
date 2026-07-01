@@ -12,6 +12,7 @@
 import type { Property } from "./types";
 import { analyzeHousingDeal } from "./deal-analyzer";
 import { rentCashflow } from "./rent";
+import { neighborhoodScore } from "./neighborhood";
 import type { TierCalibration } from "./outcomes";
 
 export type LeadTier = "hot" | "warm" | "standard";
@@ -312,6 +313,17 @@ export function scoreHousingLead(p: Property): LeadScore {
       );
     else if (cf.rating === "decent")
       add(9, `Decent rental cashflow — ${cf.capRatePct}% cap rate`, "cashflow");
+  }
+
+  // 7c) NEIGHBORHOOD TRAJECTORY (Census ACS) — a ZIP with rising incomes/population appreciates (lifts the
+  // real ARV over the hold); a declining one is a warning even on a cheap price. Modest weight, NOT a
+  // stacking group (it's context, not a distress list). No-op until `npm run data:acs` populates the
+  // snapshot — so today it never moves the score.
+  const hood = neighborhoodScore(p.zip);
+  if (hood?.trajectory === "rising") add(6, `Rising area — ${hood.label}`);
+  else if (hood?.trajectory === "declining") {
+    score -= 5;
+    signals.push({ pts: 0.01, text: `Declining area (−) — ${hood.label}` });
   }
 
   // ── STACKING BONUS — the super-linear payoff to overlap that the commercial scorers are built on.

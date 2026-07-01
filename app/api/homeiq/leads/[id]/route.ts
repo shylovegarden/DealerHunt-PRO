@@ -6,6 +6,7 @@ import { scoreHousingLead } from "@/lib/housing/lead-score";
 import { analyzeHousingDeal } from "@/lib/housing/deal-analyzer";
 import { rentCashflow } from "@/lib/housing/rent";
 import { holdingCost } from "@/lib/housing/holding-cost";
+import { neighborhoodScore } from "@/lib/housing/neighborhood";
 import { loadLivePsf } from "@/lib/housing/live-psf";
 import { loadCalibration } from "@/lib/housing/calibration";
 import type { Property } from "@/lib/housing/types";
@@ -143,6 +144,7 @@ export async function GET(
       analysis,
       cashflow,
       holding, // time cost of the flip: { perMonth, months, total, breakdown, notes }
+      neighborhood: neighborhoodScore(p.zip), // Census ACS trajectory (null until data:acs is run)
       market, // live ZIP temperature: { activeCount, medianDom, listPsf } — context, not ARV
     },
   });

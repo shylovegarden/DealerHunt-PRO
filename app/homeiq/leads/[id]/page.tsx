@@ -522,6 +522,44 @@ export default function LeadDetailPage({
               </Card>
             )}
 
+          {/* Neighborhood trajectory — Census ACS (rising vs declining area). */}
+          {lead.neighborhood && (
+            <Card title="Neighborhood trajectory">
+              <div className="flex items-center gap-4">
+                <ScoreRing
+                  score={lead.neighborhood.score}
+                  color={
+                    lead.neighborhood.trajectory === "rising"
+                      ? "var(--green)"
+                      : lead.neighborhood.trajectory === "declining"
+                        ? "var(--red)"
+                        : "var(--amber)"
+                  }
+                />
+                <div>
+                  <div className="text-sm font-black text-[var(--t1)]">
+                    {lead.neighborhood.label}
+                  </div>
+                  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-[var(--t4)]">
+                    {lead.neighborhood.income != null && (
+                      <span>
+                        Median income $
+                        {lead.neighborhood.income.toLocaleString()}
+                      </span>
+                    )}
+                    {lead.neighborhood.vacancyPct != null && (
+                      <span>· {lead.neighborhood.vacancyPct}% vacant</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <p className="mt-2 text-[11px] text-[var(--t4)]">
+                US Census ACS 5-year — income/population/vacancy growth. Context
+                for appreciation, not a guarantee.
+              </p>
+            </Card>
+          )}
+
           {/* Facts */}
           {(lead.beds ||
             lead.baths ||
