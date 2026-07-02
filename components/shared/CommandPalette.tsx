@@ -117,6 +117,53 @@ export function CommandPalette() {
     );
   }, [commands, search]);
 
+  // LIVE inventory search — type a make/model/city and jump straight to the actual deal (the modern-app
+  // palette, not just nav). Debounced; hits the same /api/scan the Scan page uses.
+  const [dealResults, setDealResults] = useState<Command[]>([]);
+  useEffect(() => {
+    const q = search.trim();
+    if (q.length < 2) {
+      setDealResults([]);
+      return;
+    }
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `/api/scan?q=${encodeURIComponent(q)}&sort=profit`,
+        );
+        const data = await res.json();
+        const items: Command[] = (data.vehicles || data.deals || [])
+          .slice(0, 6)
+          .map((v: any) => {
+            const label = `${v.year || ""} ${v.make || ""} ${v.model || ""}`
+              .replace(/\s+/g, " ")
+              .trim();
+            const money = v.askPrice
+              ? `$${Math.round(v.askPrice).toLocaleString()}`
+              : "";
+            return {
+              id: `deal-${v.id}`,
+              label:
+                [label, money, v.locationState].filter(Boolean).join(" · ") ||
+                "Deal",
+              icon: "car",
+              action: () => router.push(`/deal/${v.id}`),
+            };
+          });
+        setDealResults(items);
+      } catch {
+        setDealResults([]);
+      }
+    }, 250);
+    return () => clearTimeout(t);
+  }, [search, router]);
+
+  // The full navigable list = matching nav commands, then live deal results.
+  const allItems = useMemo(
+    () => [...filteredCommands, ...dealResults],
+    [filteredCommands, dealResults],
+  );
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
@@ -133,16 +180,15 @@ export function CommandPalette() {
         setSearch("");
       } else if (e.key === "ArrowDown") {
         e.preventDefault();
-        setSelected((prev) => (prev + 1) % filteredCommands.length);
+        setSelected((prev) => (prev + 1) % Math.max(1, allItems.length));
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
         setSelected(
-          (prev) =>
-            (prev - 1 + filteredCommands.length) % filteredCommands.length,
+          (prev) => (prev - 1 + allItems.length) % Math.max(1, allItems.length),
         );
       } else if (e.key === "Enter") {
         e.preventDefault();
-        filteredCommands[selected]?.action();
+        allItems[selected]?.action();
         setOpen(false);
         setSearch("");
       }
@@ -150,7 +196,7 @@ export function CommandPalette() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [open, selected, filteredCommands]);
+  }, [open, selected, allItems]);
 
   if (!open) return null;
 
@@ -173,7 +219,7 @@ export function CommandPalette() {
               setSearch(e.target.value);
               setSelected(0);
             }}
-            placeholder="Search commands..."
+            placeholder="Search deals (make, model, city) or jump anywhere…"
             className="flex-1 bg-transparent border-none outline-none text-base text-[var(--t1)] placeholder:text-[var(--t3)]"
             autoFocus
           />
@@ -182,47 +228,54 @@ export function CommandPalette() {
           </kbd>
         </div>
 
-        {/* Commands List */}
+        {/* Commands + live deal results */}
         <div className="max-h-96 overflow-y-auto">
-          {filteredCommands.length === 0 ? (
+          {allItems.length === 0 ? (
             <div className="p-8 text-center text-[var(--t3)]">
-              No commands found
+              {search.trim().length >= 2 ? "No matches" : "No commands found"}
             </div>
           ) : (
-            filteredCommands.map((cmd, idx) => (
-              <button
-                key={cmd.id}
-                onClick={() => {
-                  cmd.action();
-                  setOpen(false);
-                  setSearch("");
-                }}
-                className={cn(
-                  "w-full flex items-center gap-3 p-3 text-left transition-colors",
-                  idx === selected
-                    ? "border-l-2 border-[var(--amber)]"
-                    : "hover:bg-[var(--s1)] border-l-2 border-transparent",
+            allItems.map((cmd, idx) => (
+              <div key={cmd.id}>
+                {/* Section label before the first live deal result. */}
+                {idx === filteredCommands.length && dealResults.length > 0 && (
+                  <div className="px-3 pt-3 pb-1 text-[10px] font-black uppercase tracking-widest text-[var(--t4)]">
+                    Deals
+                  </div>
                 )}
-                style={
-                  idx === selected
-                    ? { background: "var(--amber-lo)" }
-                    : undefined
-                }
-              >
-                <Ico
-                  name={cmd.icon as any}
-                  size={20}
-                  className="text-[var(--t2)]"
-                />
-                <span className="flex-1 text-sm font-medium text-[var(--t1)]">
-                  {cmd.label}
-                </span>
-                {idx === selected && (
-                  <kbd className="px-2 py-1 text-xs bg-[var(--s2)] border border-[var(--b1)] rounded">
-                    ↵
-                  </kbd>
-                )}
-              </button>
+                <button
+                  onClick={() => {
+                    cmd.action();
+                    setOpen(false);
+                    setSearch("");
+                  }}
+                  className={cn(
+                    "w-full flex items-center gap-3 p-3 text-left transition-colors",
+                    idx === selected
+                      ? "border-l-2 border-[var(--amber)]"
+                      : "hover:bg-[var(--s1)] border-l-2 border-transparent",
+                  )}
+                  style={
+                    idx === selected
+                      ? { background: "var(--amber-lo)" }
+                      : undefined
+                  }
+                >
+                  <Ico
+                    name={cmd.icon as any}
+                    size={20}
+                    className="text-[var(--t2)]"
+                  />
+                  <span className="flex-1 text-sm font-medium text-[var(--t1)]">
+                    {cmd.label}
+                  </span>
+                  {idx === selected && (
+                    <kbd className="px-2 py-1 text-xs bg-[var(--s2)] border border-[var(--b1)] rounded">
+                      ↵
+                    </kbd>
+                  )}
+                </button>
+              </div>
             ))
           )}
         </div>
