@@ -649,7 +649,7 @@ function LeadsInner() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 grid lg:grid-cols-[1fr_minmax(320px,38%)] gap-5">
         <div
-          className={`space-y-3 ${mobileView === "map" ? "hidden lg:block" : ""}`}
+          className={`min-w-0 space-y-3 ${mobileView === "map" ? "hidden lg:block" : ""}`}
         >
           {isLoading &&
             Array.from({ length: 6 }).map((_, i) => <CardSkeleton key={i} />)}
@@ -676,7 +676,7 @@ function LeadsInner() {
           )}
         </div>
         <div
-          className={`lg:sticky lg:top-5 h-[70vh] lg:h-[78vh] ${
+          className={`min-w-0 lg:sticky lg:top-5 h-[70vh] lg:h-[78vh] ${
             mobileView === "list" ? "hidden lg:block" : ""
           }`}
         >
