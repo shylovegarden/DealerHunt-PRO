@@ -8,6 +8,7 @@ import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { ImageGallery } from "@/components/shared/ImageGallery";
 import { housingPriceTerms } from "@/lib/housing/price-semantics";
+import { aerialThumb } from "@/lib/housing/property-image";
 import { ValuationBasis } from "@/components/home/ValuationBasis";
 import { OfferSolver } from "@/components/home/OfferSolver";
 
@@ -218,7 +219,7 @@ export default function LeadDetailPage({
             )}
           </div>
 
-          {(lead.images?.length || lead.image) && (
+          {lead.images?.length || lead.image ? (
             <div className="rounded-[var(--r3)] overflow-hidden border border-[var(--b1)]">
               <ImageGallery
                 images={
@@ -228,6 +229,25 @@ export default function LeadDetailPage({
                 }
               />
             </div>
+          ) : (
+            // Off-market record with no listing photo → free aerial of the exact parcel (labeled).
+            (() => {
+              const aerial = aerialThumb(lead.lat, lead.lng, 800, 450);
+              return aerial ? (
+                <div className="relative rounded-[var(--r3)] overflow-hidden border border-[var(--b1)]">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={aerial}
+                    alt="Aerial view of the property"
+                    className="w-full h-56 object-cover"
+                    loading="lazy"
+                  />
+                  <span className="absolute bottom-2 left-2 text-[11px] font-bold px-2 py-0.5 rounded bg-black/60 text-white">
+                    🛰 Aerial view
+                  </span>
+                </div>
+              ) : null;
+            })()
           )}
 
           {/* Lead score */}
