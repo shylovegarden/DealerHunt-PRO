@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { usePreferences } from "@/hooks/usePreferences";
 import { NearbyDeals } from "@/components/discovery/NearbyDeals";
+import { MarketPicker } from "@/components/shared/MarketPicker";
 import useSWR from "swr";
 import { Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
@@ -155,6 +156,15 @@ export default function DiscoverPage() {
           className="w-full bg-[var(--s0)] sm:w-44"
         />
       </div>
+
+      {/* Guided first-run: no market chosen yet → pick it here and the feed personalizes instantly. */}
+      {!state && (
+        <MarketPicker
+          vertical="cars"
+          accent="var(--amber-d)"
+          onPick={(st) => setState(st)}
+        />
+      )}
 
       {/* Deals near you — personalized to the saved home market + surrounding states. */}
       <NearbyDeals />

@@ -16,6 +16,7 @@ import {
 import { LEAD_CATEGORIES, leadCategories } from "@/lib/housing/categories";
 import { usePreferences } from "@/hooks/usePreferences";
 import { aerialThumb } from "@/lib/housing/property-image";
+import { MarketPicker } from "@/components/shared/MarketPicker";
 
 // Market-leading housing browse — Zillow/Redfin split map+list + photo-forward cards + PropStream-style
 // lead signals. LOCATION-FIRST + PROGRESSIVE: scoped to your state shows it IMMEDIATELY, then "Nearby"
@@ -480,6 +481,20 @@ function LeadsInner() {
           </Link>
         </div>
       </div>
+
+      {/* Guided first-run: no market chosen → pick it here and leads personalize instantly. */}
+      {!scopeState && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-3">
+          <MarketPicker
+            vertical="homeiq"
+            accent="var(--home)"
+            onPick={(st) => {
+              setPrefState(st.toUpperCase());
+              setScopeMode("state");
+            }}
+          />
+        </div>
+      )}
 
       {/* Filter bar — search + tier always visible; the rest collapses behind "Filters" on mobile. */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-3 flex items-center gap-2 flex-wrap">
