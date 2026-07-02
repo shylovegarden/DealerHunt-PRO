@@ -456,6 +456,16 @@ input[type="number"] {
   -moz-appearance: textfield;
 }
 
+/* /welcome living-backdrop feed — slow vertical marquee (columns duplicated, so -50% loops seamlessly). */
+@keyframes feedScroll {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-50%);
+  }
+}
+
 /* Hide scrollbar for horizontal scroll areas */
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
