@@ -29,7 +29,14 @@ export function parseCarvanaVehicles(json: any): Partial<Deal>[] {
     const make = s(v.make);
     const model = s(v.parentModel) || s(v.model);
     const trim = s(v.trim) || s(v.kbbTrim);
-    const img = s(v.imageUrl) || s(v.jellyBeanDesktopUrl);
+    // Carvana's `imageUrl` is a RELATIVE path (domain stripped) → renders as a broken image. Prefer any
+    // ABSOLUTE url: the real photo if it's absolute, else the full jellyBean stock image of the same
+    // year/make/model. A correct stock photo beats a broken one. (Was storing the broken relative URL.)
+    const abs = (u?: string) => (u && /^https?:\/\//i.test(u) ? u : "");
+    const img =
+      abs(s(v.imageUrl)) ||
+      abs(s(v.jellyBeanDesktopUrl)) ||
+      abs(s(v.jellyBeanMobileUrl));
     const id = String(v.vehicleId ?? v.stockNumber ?? vin);
     items.push({
       source: "carvana",
