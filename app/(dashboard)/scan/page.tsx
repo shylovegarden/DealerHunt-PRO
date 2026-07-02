@@ -25,6 +25,11 @@ import { US_STATES } from "@/lib/utils/titleRules";
 import { createClientComponentClient } from "@/lib/supabase";
 import { useDealerId } from "@/hooks/useDealerId";
 import { fetcher } from "@/lib/swr-config";
+import {
+  CAR_CATEGORIES,
+  carCategories,
+  type CarLike,
+} from "@/lib/scoring/deal-categories";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -517,6 +522,7 @@ export default function ScanPage() {
   const [sort, setSort] = useState("profit");
   // New: verdict (GO-only), price floor, year ceiling, and an advanced-filters disclosure.
   const [verdict, setVerdict] = useState("all");
+  const [category, setCategory] = useState("all"); // browsable one-tap lead category
   const [minPrice, setMinPrice] = useState("any");
   const [maxYear, setMaxYear] = useState("any");
   const [showMore, setShowMore] = useState(false);
@@ -846,6 +852,11 @@ export default function ScanPage() {
           .includes(q),
       );
     }
+    if (category !== "all") {
+      list = list.filter((r: ScanResult) =>
+        carCategories(r as CarLike).includes(category),
+      );
+    }
     const sorted = [...list];
     if (sort === "score") {
       sorted.sort((a, b) => (b.profitScore ?? 0) - (a.profitScore ?? 0));
@@ -856,7 +867,16 @@ export default function ScanPage() {
       sorted.sort((a, b) => (b.profitEstimate ?? 0) - (a.profitEstimate ?? 0));
     }
     return sorted;
-  }, [results, search, sort]);
+  }, [results, search, sort, category]);
+
+  // Category chip counts (from the fetched result set) — only non-empty chips render.
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const r of results)
+      for (const k of carCategories(r as CarLike))
+        counts[k] = (counts[k] || 0) + 1;
+    return counts;
+  }, [results]);
 
   // Source options for filter
   const sourceOptions = useMemo(() => {
@@ -1156,6 +1176,40 @@ export default function ScanPage() {
             </div>
           )}
         </div>
+
+        {/* Browsable category chips — one-tap money-relevant slices (only non-empty render). */}
+        {CAR_CATEGORIES.some((c) => categoryCounts[c.key]) && (
+          <div className="flex items-center gap-2 overflow-x-auto pt-2 -mx-1 px-1">
+            <button
+              onClick={() => setCategory("all")}
+              className="shrink-0 text-xs font-bold px-3 py-1.5 rounded-full border transition-colors"
+              style={{
+                background: category === "all" ? "var(--t1)" : "var(--s0)",
+                color: category === "all" ? "var(--s0)" : "var(--t3)",
+                borderColor: category === "all" ? "var(--t1)" : "var(--b2)",
+              }}
+            >
+              All
+            </button>
+            {CAR_CATEGORIES.filter((c) => categoryCounts[c.key]).map((c) => {
+              const active = category === c.key;
+              return (
+                <button
+                  key={c.key}
+                  onClick={() => setCategory(active ? "all" : c.key)}
+                  className="shrink-0 text-xs font-bold px-3 py-1.5 rounded-full border transition-colors"
+                  style={{
+                    background: active ? "var(--amber-lo)" : "var(--s0)",
+                    color: active ? "var(--amber-d)" : "var(--t3)",
+                    borderColor: active ? "var(--amber-bd)" : "var(--b2)",
+                  }}
+                >
+                  {c.label} {categoryCounts[c.key]}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* ADVANCED: grouped by what / where / kind / from — intuitive */}
         {showMore && (
