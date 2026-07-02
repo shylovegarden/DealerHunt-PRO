@@ -1047,19 +1047,22 @@ function SimilarLeads({
             className="snap-start shrink-0 w-44 rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s0)] overflow-hidden hover:border-[var(--home-bd)] transition-colors"
           >
             <div className="h-24 bg-[var(--s2)] relative">
-              {l.image ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={l.image}
-                  alt={l.title}
-                  className="w-full h-full object-cover"
-                  loading="lazy"
-                />
-              ) : (
-                <div className="w-full h-full grid place-items-center text-[var(--t4)] text-[10px]">
-                  No photo
-                </div>
-              )}
+              {(() => {
+                const photo = l.image || aerialThumb(l.lat, l.lng, 300, 200);
+                return photo ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={photo}
+                    alt={l.title}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                ) : (
+                  <div className="w-full h-full grid place-items-center text-[var(--t4)] text-[10px]">
+                    No photo
+                  </div>
+                );
+              })()}
               <span
                 className="absolute top-1 left-1 text-[10px] font-black px-1.5 py-0.5 rounded text-white"
                 style={{ background: TIER_COLOR[l.tier] || "var(--blue)" }}
