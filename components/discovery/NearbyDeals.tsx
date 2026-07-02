@@ -43,6 +43,7 @@ export function NearbyDeals() {
   const { data, isLoading } = useSWR(key, fetcher, {
     revalidateOnFocus: false,
     dedupingInterval: 120_000,
+    keepPreviousData: true, // keep deals visible while changing radius — no flash
   });
 
   // No saved location → nudge to Settings instead of showing an empty widget.

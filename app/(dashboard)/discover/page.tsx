@@ -107,6 +107,8 @@ export default function DiscoverPage() {
       revalidateOnFocus: false,
       revalidateOnReconnect: true,
       dedupingInterval: 60_000,
+      // Keep the current feed visible while switching state, instead of flashing to skeletons — seamless.
+      keepPreviousData: true,
     },
   );
 
