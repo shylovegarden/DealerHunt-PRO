@@ -18,6 +18,7 @@ import { usePreferences } from "@/hooks/usePreferences";
 import { aerialThumb } from "@/lib/housing/property-image";
 import { MarketPicker } from "@/components/shared/MarketPicker";
 import { RecentlyViewed } from "@/components/shared/RecentlyViewed";
+import { CompareToggle, CompareBar } from "@/components/shared/CompareControls";
 
 // Market-leading housing browse — Zillow/Redfin split map+list + photo-forward cards + PropStream-style
 // lead signals. LOCATION-FIRST + PROGRESSIVE: scoped to your state shows it IMMEDIATELY, then "Nearby"
@@ -418,6 +419,7 @@ function LeadsInner() {
 
   return (
     <div className="bg-transparent text-[var(--t1)]">
+      <CompareBar kind="home" href="/homeiq/compare" accent="var(--home)" />
       {/* Location scope — progressive: your state → nearby → nationwide */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-4 flex items-center justify-between gap-2 flex-wrap">
         {scopeState ? (
@@ -851,6 +853,9 @@ const LeadCard = memo(function LeadCard({
         className="group relative flex gap-3 rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] p-3 transition-shadow hover:shadow-[var(--shadow)] hover:border-[var(--home-bd)]"
       >
         <QuickSave listingId={lead.id} />
+        <div className="absolute top-1.5 right-10 z-[1]">
+          <CompareToggle id={lead.id} kind="home" accent="var(--home)" />
+        </div>
         <div className="relative shrink-0 w-36 h-28 sm:w-44 sm:h-32 rounded-[var(--r2)] overflow-hidden bg-[var(--s2)]">
           {(() => {
             // Off-market records have no listing photo → fall back to a free aerial of the exact parcel.
