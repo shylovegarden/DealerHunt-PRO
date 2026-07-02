@@ -383,6 +383,17 @@ export function analyzeDeal(deal: Partial<Deal>): DealAnalysis {
       sellEstimate = askCeiling;
       sellBasis = "market"; // ask-anchored (retail listing's own price is the market read)
     }
+    // SYMMETRIC floor: without trustworthy comps, a crude baseline can under-value a retail car far below
+    // its ask (a false "overpriced/pass" — the opposite error, just as inaccurate). The ask is the market
+    // signal in BOTH directions, so with weak comps don't deviate down without evidence. Confident comps
+    // still drive a genuine overpriced read below this floor.
+    if (!trustComp) {
+      const askFloor = Math.round(askPrice * 0.9);
+      if (sellEstimate < askFloor) {
+        sellEstimate = askFloor;
+        sellBasis = "market";
+      }
+    }
   }
 
   // WHOLESALE / MMR-equivalent — the buy-side benchmark (what this unit is worth at auction/wholesale).
