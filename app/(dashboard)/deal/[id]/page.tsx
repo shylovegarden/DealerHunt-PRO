@@ -390,7 +390,7 @@ export default function DealPage({
                       className="px-5 py-3 rounded-[var(--r3)] text-white font-black text-2xl tracking-wide leading-none"
                       style={{ background: vColor }}
                     >
-                      {verdict}
+                      {verdict === "GO" ? "BUY" : verdict}
                     </div>
                     <div>
                       <p className="text-[10px] uppercase tracking-widest text-[var(--t4)] font-bold mb-1">
@@ -664,7 +664,7 @@ export default function DealPage({
                 <div
                   className={`text-4xl font-bold ${engineVerdict === "GO" ? "text-[var(--green)]" : engineVerdict === "HOLD" ? "text-[var(--amber)]" : "text-[var(--red)]"}`}
                 >
-                  {engineVerdict}
+                  {engineVerdict === "GO" ? "BUY" : engineVerdict}
                 </div>
               </div>
             </div>

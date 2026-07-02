@@ -2,7 +2,9 @@ export const VERDICT_STYLES: Record<
   string,
   { label: string; text: string; bg: string }
 > = {
-  go: { label: "GO", text: "var(--green)", bg: "var(--glo)" },
+  // Display label BUY (internal verdict key stays "go" so scoring/stored data are untouched). BUY/HOLD/PASS
+  // reads as a clear action to the user.
+  go: { label: "BUY", text: "var(--green)", bg: "var(--glo)" },
   hold: { label: "HOLD", text: "var(--amber)", bg: "var(--amber-lo)" },
   pass: { label: "PASS", text: "var(--t4)", bg: "var(--s2)" },
 };

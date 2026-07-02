@@ -48,7 +48,7 @@ export function MarketPulse() {
                 >
                   {r.goDeals}
                 </Mono>
-                <p className="text-[10px] text-[var(--t4)]">GO</p>
+                <p className="text-[10px] text-[var(--t4)]">BUY</p>
               </div>
               <div>
                 <Mono
