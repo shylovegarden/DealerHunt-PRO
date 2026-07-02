@@ -60,8 +60,10 @@ export default function WelcomePage() {
   // which is the flicker/"moves opposite" glitch. The clip-path is purely visual; the mouse logic is stable.
   const REST_TOP = 58,
     REST_BOT = 38; // resting seam %, top & bottom edge
-  const seamTop = focus === "car" ? 82 : focus === "house" ? 34 : REST_TOP;
-  const seamBot = focus === "car" ? 62 : focus === "house" ? 14 : REST_BOT;
+  // Hovering a side EXPANDS that side (the seam slides AWAY from it, giving it more room) — intuitive:
+  // move toward houses → the houses panel opens. (Was inverted: focusing a side shrank it.)
+  const seamTop = focus === "house" ? 82 : focus === "car" ? 34 : REST_TOP;
+  const seamBot = focus === "house" ? 62 : focus === "car" ? 14 : REST_BOT;
   const housePanel = `polygon(0 0, ${seamTop}% 0, ${seamBot}% 100%, 0 100%)`;
   const carPanel = `polygon(${seamTop}% 0, 100% 0, 100% 100%, ${seamBot}% 100%)`;
 
@@ -128,6 +130,10 @@ export default function WelcomePage() {
         />
       </div>
 
+      {/* Live scrolling feed of real, current deals + leads — makes the door feel alive. Subtle + behind
+          the foreground titles; pointer-events-none so it never blocks the selector. */}
+      <BackgroundFeed items={stats?.feed} />
+
       {/* Keyboard/screen-reader entries (focusable, but mouse goes through to <main>). */}
       <button
         aria-label="Enter HomeIQ — houses"
@@ -177,6 +183,41 @@ export default function WelcomePage() {
         </p>
       </motion.div>
     </main>
+  );
+}
+
+// Subtle vertical-marquee columns of REAL current items (interleaved houses/cars) — a living backdrop.
+function BackgroundFeed({
+  items,
+}: {
+  items?: { kind: "car" | "house"; text: string; sub: string }[];
+}) {
+  if (!items || items.length < 3) return null;
+  const cols = [items, [...items].slice().reverse(), items];
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden flex justify-around opacity-[0.13]">
+      {cols.map((col, ci) => (
+        <div
+          key={ci}
+          className="flex flex-col gap-7 py-6 will-change-transform"
+          style={{
+            animation: `feedScroll ${46 + ci * 10}s linear infinite`,
+            animationDirection: ci % 2 ? "reverse" : "normal",
+          }}
+        >
+          {[...col, ...col].map((it, i) => (
+            <div
+              key={i}
+              className="whitespace-nowrap text-white text-[13px] font-semibold"
+            >
+              {it.kind === "car" ? "🚗 " : "🏠 "}
+              {it.text}
+              <span className="opacity-50"> · {it.sub}</span>
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
   );
 }
 
