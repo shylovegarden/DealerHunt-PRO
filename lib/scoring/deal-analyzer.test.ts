@@ -84,6 +84,22 @@ describe("analyzeDeal reality gate", () => {
     expect(a.sellEstimate).toBeLessThanOrEqual(Math.round(5000 * 1.15));
   });
 
+  it("does not UNDER-value a retail listing far below its ask on a crude baseline (symmetric anchor)", () => {
+    // Old, cheap-baseline car with a moderate retail ask + no comps: the sell estimate must not collapse
+    // to the crude baseline (a false "overpriced") — it's floored near the ask (the market signal).
+    const a = analyzeDeal({
+      year: 2005,
+      make: "Honda",
+      model: "Civic",
+      ask_price: 8000,
+      mileage: 120000,
+      condition: "clean",
+      title: "2005 Honda Civic EX",
+      source: "cargurus",
+    } as any);
+    expect(a.sellEstimate).toBeGreaterThanOrEqual(Math.round(8000 * 0.9) - 1);
+  });
+
   it("does NOT ask-anchor an AUCTION listing — retail sell above the bid is real arbitrage", () => {
     // Identical car from Copart: the bid IS below retail, so the sell estimate should rise to the car's
     // real value, NOT be clamped to the bid.
