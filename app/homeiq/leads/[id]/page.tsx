@@ -99,8 +99,9 @@ export default function LeadDetailPage({
   return (
     <Shell>
       <div className="grid lg:grid-cols-[1fr_minmax(320px,40%)] gap-6">
-        {/* Left: details */}
-        <div className="space-y-5">
+        {/* Left: details — min-w-0 lets the 1fr column shrink so wide content (gallery/tables/long
+            strings) can't push the grid past the viewport (horizontal overflow). */}
+        <div className="space-y-5 min-w-0">
           <div>
             <div className="flex items-center gap-2 mb-2">
               <span
@@ -715,7 +716,7 @@ export default function LeadDetailPage({
         </div>
 
         {/* Right: map */}
-        <div className="lg:sticky lg:top-5 h-[40vh] lg:h-[70vh]">
+        <div className="min-w-0 lg:sticky lg:top-5 h-[40vh] lg:h-[70vh]">
           {points.length ? (
             <DealerMap points={points} />
           ) : (
