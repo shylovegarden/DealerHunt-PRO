@@ -15,6 +15,7 @@ import {
 } from "@/lib/housing/condition";
 import { LEAD_CATEGORIES, leadCategories } from "@/lib/housing/categories";
 import { usePreferences } from "@/hooks/usePreferences";
+import { aerialThumb } from "@/lib/housing/property-image";
 
 // Market-leading housing browse — Zillow/Redfin split map+list + photo-forward cards + PropStream-style
 // lead signals. LOCATION-FIRST + PROGRESSIVE: scoped to your state shows it IMMEDIATELY, then "Nearby"
@@ -212,6 +213,8 @@ interface Lead {
   anomalyPct?: number;
   neighborhood?: string;
   flood?: { zone: string; high: boolean };
+  lat?: number | null;
+  lng?: number | null;
   distress?: {
     totalDue?: number;
     yearsOwed?: number;
@@ -821,19 +824,31 @@ function LeadCard({ lead, index = 0 }: { lead: Lead; index?: number }) {
       >
         <QuickSave listingId={lead.id} />
         <div className="relative shrink-0 w-36 h-28 sm:w-44 sm:h-32 rounded-[var(--r2)] overflow-hidden bg-[var(--s2)]">
-          {lead.image ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={lead.image}
-              alt={lead.title}
-              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-              loading="lazy"
-            />
-          ) : (
-            <div className="w-full h-full grid place-items-center text-[var(--t4)] text-[10px]">
-              No photo
-            </div>
-          )}
+          {(() => {
+            // Off-market records have no listing photo → fall back to a free aerial of the exact parcel.
+            const aerial = lead.image ? null : aerialThumb(lead.lat, lead.lng);
+            const photo = lead.image || aerial;
+            return photo ? (
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={photo}
+                  alt={lead.title}
+                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                  loading="lazy"
+                />
+                {aerial && (
+                  <span className="absolute bottom-1 left-1 text-[9px] font-bold px-1 py-0.5 rounded bg-black/60 text-white">
+                    🛰 Aerial
+                  </span>
+                )}
+              </>
+            ) : (
+              <div className="w-full h-full grid place-items-center text-[var(--t4)] text-[10px]">
+                No photo
+              </div>
+            );
+          })()}
           <span
             className="absolute top-1 left-1 text-[11px] font-black px-1.5 py-0.5 rounded text-white"
             style={{ background: color }}

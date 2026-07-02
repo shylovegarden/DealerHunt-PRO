@@ -33,6 +33,11 @@ vi.mock("./lead-score", () => ({
   })),
 }));
 
+// Mock instant deal alerts
+vi.mock("./match-searches", () => ({
+  matchHousingSearches: vi.fn(async () => {}),
+}));
+
 describe("upsertProperties", () => {
   beforeEach(() => {
     vi.clearAllMocks();
