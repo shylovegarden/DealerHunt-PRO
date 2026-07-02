@@ -118,11 +118,28 @@ function key(
   return `${(make || "").toLowerCase().trim()}|${normalizeModel(model)}|${yearBucket(year)}`;
 }
 
-function confidenceFor(n: number): MarketComps["confidence"] {
-  if (n >= 12) return "high";
-  if (n >= 6) return "medium";
-  if (n >= MIN_SAMPLES) return "low";
-  return "none";
+// Confidence in a comp bucket. Count sets the base tier, then DISPERSION downgrades it: a bucket with a
+// wide price spread is blending distinct sub-populations (a base trim + a Z06/Raptor, or clean + rough
+// condition), so its median is a blur of two markets, not one dependable value. We measure spread with the
+// quartile coefficient of dispersion (IQR/median — robust, ignores the extremes the median already trims).
+// Conservative by design: this only ever LOWERS confidence, so a mixed bucket gets pulled toward the
+// trim-aware baseline instead of asserting a false, contaminated number.
+function confidenceFor(
+  n: number,
+  prices?: number[],
+): MarketComps["confidence"] {
+  let tier = n >= 12 ? 3 : n >= 6 ? 2 : n >= MIN_SAMPLES ? 1 : 0; // 3 high · 2 med · 1 low · 0 none
+  if (prices && prices.length >= 6 && tier >= 2) {
+    const s = [...prices].sort((a, b) => a - b);
+    const med = s[Math.floor(s.length / 2)];
+    const q1 = s[Math.floor(s.length * 0.25)];
+    const q3 = s[Math.floor(s.length * 0.75)];
+    const qcd = med > 0 ? (q3 - q1) / med : 0;
+    if (qcd > 0.5)
+      tier -= 2; // very bimodal (mixed trims) → two tiers down
+    else if (qcd > 0.32) tier -= 1; // meaningfully mixed → one tier down
+  }
+  return tier >= 3 ? "high" : tier >= 2 ? "medium" : tier >= 1 ? "low" : "none";
 }
 
 function median(prices: number[]): number | null {
@@ -248,7 +265,7 @@ export async function loadMarketIndex(
       nRetail: b.retail.length,
       nWholesale: b.wholesale.length,
       mileageMed: milesMed != null ? Math.round(milesMed) : null,
-      confidence: confidenceFor(b.retail.length),
+      confidence: confidenceFor(b.retail.length, b.retail),
     });
   });
   computed = next;
@@ -431,7 +448,7 @@ function lookupModelAdjusted(
   if (med == null) return null;
 
   // Knock confidence down one notch (never above medium) since it's a cross-year approximation.
-  const raw = confidenceFor(adjusted.length);
+  const raw = confidenceFor(adjusted.length, adjusted);
   const capped: MarketComps["confidence"] =
     raw === "high" ? "medium" : raw === "medium" ? "low" : "low";
   return {
