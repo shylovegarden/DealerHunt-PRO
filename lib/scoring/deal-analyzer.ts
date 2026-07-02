@@ -253,7 +253,7 @@ export function analyzeDeal(deal: Partial<Deal>): DealAnalysis {
   //  2. a market value already attached to the deal (mmr_value, e.g. from MarketCheck/VIN)
   //  3. the nightly market_aggregates rollup — accumulated history that compounds as we scrape
   //  4. a source/condition markup on ask (fallback)
-  const comps = lookupMarketValue(deal.make, deal.model, deal.year);
+  const comps = lookupMarketValue(deal.make, deal.model, deal.year, deal.trim);
   const hasMarket = typeof deal.mmr_value === "number" && deal.mmr_value > 0;
   const aggregate = lookupMarketAggregate(deal.make, deal.model, deal.year);
 
