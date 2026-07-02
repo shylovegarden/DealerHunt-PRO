@@ -31,11 +31,37 @@ const PRIMARY = [
 export function HousingTopNav() {
   const pathname = usePathname() || "";
   const [scrolled, setScrolled] = useState(false);
+  const [alertCount, setAlertCount] = useState(0);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 4);
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Live unread-alert badge on the bell (parity with the cars nav) — refreshes every 2 min.
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const res = await fetch("/api/homeiq/alerts", { cache: "no-store" });
+        const data = await res.json();
+        const unread = Array.isArray(data?.matches)
+          ? data.matches.filter(
+              (m: { status?: string }) => m.status === "unread",
+            ).length
+          : 0;
+        if (!cancelled) setAlertCount(unread);
+      } catch {
+        /* non-fatal */
+      }
+    };
+    load();
+    const t = setInterval(load, 120_000);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+    };
   }, []);
 
   // Open the ⌘K palette by synthesizing the shortcut the palette already listens for — keeps the palette
@@ -140,9 +166,17 @@ export function HousingTopNav() {
           href="/homeiq/alerts"
           title="Alerts"
           aria-label="Alerts"
-          className="h-9 w-9 grid place-items-center rounded-xl text-[var(--t3)] hover:text-[var(--t1)] bg-[var(--s0)] shadow-[var(--shadow2)]"
+          className="relative h-9 w-9 grid place-items-center rounded-xl text-[var(--t3)] hover:text-[var(--t1)] bg-[var(--s0)] shadow-[var(--shadow2)]"
         >
           <Bell style={{ width: 17, height: 17 }} />
+          {alertCount > 0 && (
+            <span
+              className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 grid place-items-center rounded-full text-[10px] font-black text-black"
+              style={{ background: "var(--home)" }}
+            >
+              {alertCount > 9 ? "9+" : alertCount}
+            </span>
+          )}
         </Link>
         <Link
           href="/homeiq/settings"
