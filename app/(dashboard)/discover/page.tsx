@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { usePreferences } from "@/hooks/usePreferences";
+import { NearbyDeals } from "@/components/discovery/NearbyDeals";
 import useSWR from "swr";
 import { Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
@@ -152,6 +153,9 @@ export default function DiscoverPage() {
           className="w-full bg-[var(--s0)] sm:w-44"
         />
       </div>
+
+      {/* Deals near you — personalized to the saved home market + surrounding states. */}
+      <NearbyDeals />
 
       {/* Onboarding nudge — wire up preferences to unlock a personalized feed. */}
       {data && !data.personalized && (
