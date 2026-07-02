@@ -1,6 +1,7 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useState, useEffect } from "react";
+import { recordRecent } from "@/hooks/useRecentlyViewed";
 import dynamic from "next/dynamic";
 import useSWR from "swr";
 import Link from "next/link";
@@ -55,6 +56,28 @@ export default function LeadDetailPage({
     fetcher,
   );
   const lead = data?.lead;
+
+  // Record for "Recently viewed" (jump back from the feed).
+  useEffect(() => {
+    if (!lead) return;
+    recordRecent({
+      id,
+      kind: "home",
+      title: lead.address || lead.title || "Property",
+      sub: [
+        lead.price ? `$${Math.round(lead.price).toLocaleString()}` : "",
+        lead.city,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      image:
+        lead.images?.[0] ||
+        lead.image ||
+        aerialThumb(lead.lat, lead.lng, 300, 200) ||
+        undefined,
+      href: `/homeiq/leads/${encodeURIComponent(id)}`,
+    });
+  }, [lead, id]);
 
   if (isLoading)
     return (
