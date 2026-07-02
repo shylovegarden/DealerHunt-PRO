@@ -37,7 +37,18 @@ describe("upsertProperties", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Default successful chain
-    mockFrom.mockReturnValue({ upsert: mockUpsert });
+    mockFrom.mockImplementation((table) => {
+      if (table === "properties") {
+        return { upsert: mockUpsert };
+      }
+      return {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        in: vi.fn().mockReturnThis(),
+        upsert: vi.fn().mockResolvedValue({ error: null }),
+        then: (resolve: any) => resolve({ data: [], error: null }),
+      };
+    });
     mockUpsert.mockResolvedValue({ error: null });
   });
 
