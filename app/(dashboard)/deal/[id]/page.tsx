@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect } from "react";
+import { recordRecent } from "@/hooks/useRecentlyViewed";
 import useSWR from "swr";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
@@ -185,6 +186,24 @@ export default function DealPage({
   // Authoritative numbers come from the SERVER decision engine (comps + full cost model).
   // Fall back to the client store only when the engine hasn't produced a verdict.
   const serverDeal = dealData?.deal;
+
+  // Record for "Recently viewed".
+  useEffect(() => {
+    const title = [store.year, store.make, store.model]
+      .filter(Boolean)
+      .join(" ");
+    if (!id || !title) return;
+    const ask = serverDeal?.ask_price;
+    recordRecent({
+      id,
+      kind: "car",
+      title,
+      sub: ask ? `$${Math.round(Number(ask)).toLocaleString()}` : undefined,
+      image: serverDeal?.images?.[0],
+      href: `/deal/${id}`,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, store.year, store.make, store.model, serverDeal]);
   const hasEngine = !!serverDeal?.dealVerdict;
   const engineVerdict = (
     hasEngine ? String(serverDeal.dealVerdict).toUpperCase() : store.verdict

@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { usePreferences } from "@/hooks/usePreferences";
 import { NearbyDeals } from "@/components/discovery/NearbyDeals";
 import { MarketPicker } from "@/components/shared/MarketPicker";
+import { RecentlyViewed } from "@/components/shared/RecentlyViewed";
 import useSWR from "swr";
 import { Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
@@ -165,6 +166,9 @@ export default function DiscoverPage() {
           onPick={(st) => setState(st)}
         />
       )}
+
+      {/* Jump back to deals you just looked at. */}
+      <RecentlyViewed kind="car" accent="var(--amber-d)" />
 
       {/* Deals near you — personalized to the saved home market + surrounding states. */}
       <NearbyDeals />
