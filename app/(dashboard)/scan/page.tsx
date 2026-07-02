@@ -1044,9 +1044,9 @@ export default function ScanPage() {
               color: verdict === "go" ? "var(--green)" : "var(--t3)",
               borderColor: verdict === "go" ? "var(--gbd)" : "var(--b2)",
             }}
-            title="Only show deals the engine rates GO"
+            title="Only show deals the engine rates BUY"
           >
-            ✓ GO only
+            ✓ BUY only
           </button>
           <FilterSelect
             label="Make"

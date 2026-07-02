@@ -21,7 +21,7 @@ export function MarketSummary() {
     color?: string;
   }[] = [
     {
-      label: "New GO today",
+      label: "New BUY today",
       value: data.newGoToday ?? 0,
       sub: `${data.activeGo ?? 0} active`,
     },

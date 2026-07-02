@@ -31,7 +31,7 @@ export default function WelcomePage() {
     : null;
   const carStats = stats?.cars
     ? [
-        { label: "GO deals", value: stats.cars.go ?? 0 },
+        { label: "BUY deals", value: stats.cars.go ?? 0 },
         { label: "live", value: stats.cars.active ?? 0 },
       ]
     : null;

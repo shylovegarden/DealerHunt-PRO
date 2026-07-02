@@ -28,14 +28,14 @@ export async function GET() {
 
   const items: { label: string; change: number }[] = [];
 
-  items.push({ label: `New GO deals today: ${newGo.count || 0}`, change: 0 });
+  items.push({ label: `New BUY deals today: ${newGo.count || 0}`, change: 0 });
   if (flash.count)
     items.push({ label: `Flash deals live now: ${flash.count}`, change: 0 });
 
   for (const p of (pulse.data || []).slice(0, 4)) {
     if (p.avg_profit)
       items.push({
-        label: `${p.make} ${p.model}: ${p.go_deals} GO · $${Math.round(Number(p.avg_profit)).toLocaleString()} avg profit`,
+        label: `${p.make} ${p.model}: ${p.go_deals} BUY · $${Math.round(Number(p.avg_profit)).toLocaleString()} avg profit`,
         change: 0,
       });
   }
