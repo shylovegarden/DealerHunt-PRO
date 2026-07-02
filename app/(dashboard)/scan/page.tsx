@@ -658,6 +658,10 @@ export default function ScanPage() {
   } = useSWR(swrKey, fetcher, {
     revalidateOnFocus: false,
     dedupingInterval: 30000,
+    // Keep the current results on screen while a new filter/search refetches, instead of flashing the
+    // whole list to skeletons on every change — makes filtering feel instant/seamless. (isLoading then
+    // only fires on the very first load, so the skeleton block below shows once, not on every filter.)
+    keepPreviousData: true,
     onSuccess: (data) => {
       // Cache for offline fallback
       if (swrKey) {
