@@ -99,6 +99,11 @@ export async function GET(req: NextRequest) {
     .trim()
     .slice(0, 60);
   const state = searchParams.get("state") || "";
+  // Multi-state hard filter (for the "deals near you" widget: your state + surrounding states).
+  const states = (searchParams.get("states") || "")
+    .split(",")
+    .map((s) => s.trim().toUpperCase())
+    .filter(Boolean);
   const make = searchParams.get("make") || "";
   const model = searchParams.get("model") || "";
   const source = searchParams.get("source") || "";
@@ -133,6 +138,10 @@ export async function GET(req: NextRequest) {
 
   if (model) {
     query = query.ilike("model", model);
+  }
+
+  if (states.length) {
+    query = query.in("location_state", states);
   }
 
   if (availability) {
