@@ -1,15 +1,21 @@
 "use client";
 
-import { ErrorState } from "@/components/shared/ErrorState";
+import { useEffect } from "react";
+import * as Sentry from "@sentry/nextjs";
 import { Ico } from "@/components/shared/Ico";
 
-export default function GlobalError({
+export default function RouteError({
   error,
   reset,
 }: {
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  // Actually report the error (the copy below promises "this has been logged") so it shows in monitoring.
+  useEffect(() => {
+    Sentry.captureException(error);
+  }, [error]);
+
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-[var(--s1)]">
       <div className="glass-panel max-w-md w-full p-6 md:p-8 text-center space-y-6">
