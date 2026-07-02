@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef, Suspense } from "react";
+import { useState, useMemo, useEffect, useRef, Suspense, memo } from "react";
 import dynamic from "next/dynamic";
 import useSWR from "swr";
 import Link from "next/link";
@@ -809,7 +809,15 @@ function CardSkeleton() {
   );
 }
 
-function LeadCard({ lead, index = 0 }: { lead: Lead; index?: number }) {
+// Memoized so typing in search, infinite-scroll appends, and filter toggles don't re-render every
+// already-rendered card (each card carries framer-motion + an image) — keeps scrolling/typing at high FPS.
+const LeadCard = memo(function LeadCard({
+  lead,
+  index = 0,
+}: {
+  lead: Lead;
+  index?: number;
+}) {
   const color = TIER_COLOR[lead.tier] || "var(--blue)";
   return (
     <motion.div
@@ -1118,4 +1126,4 @@ function LeadCard({ lead, index = 0 }: { lead: Lead; index?: number }) {
       </Link>
     </motion.div>
   );
-}
+});
