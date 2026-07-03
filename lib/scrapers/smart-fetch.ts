@@ -35,9 +35,6 @@ export interface SmartFetchResult {
   unverified?: boolean;
 }
 
-const UA =
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
-
 // The full ladder, cheap → powerful. Each fetch climbs from where it expects to win.
 const LADDER: FetchTier[] = ["static", "stealth", "headed"];
 
@@ -125,14 +122,28 @@ function isBlocked(html: string, status: number): boolean {
 async function fetchStatic(
   url: string,
 ): Promise<{ html: string; status: number; headers: Record<string, string> }> {
+  const fp = fingerprintFor(hostOf(url));
+  // A coherent modern-Chrome TOP-LEVEL NAVIGATION header set whose values all match this host's persona
+  // (UA ↔ sec-ch-ua version ↔ platform ↔ Accept-Language). Node's fetch normalizes header ORDER (which we
+  // can't fully control, and Chrome's exact JA4/h2 fingerprint is unreachable from pure Node — those hosts
+  // route to the Patchright real-Chrome tier), but coherent VALUES kill the most common tell: a lone
+  // generic UA with no client hints. Exact document `Accept` + `Priority: u=0, i` + sec-fetch-* per spec.
   const res = await fetch(url, {
     headers: {
-      "User-Agent": UA,
-      Accept:
-        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-      "Accept-Language": "en-US,en;q=0.9",
-      "Accept-Encoding": "gzip, deflate, br",
+      "sec-ch-ua": fp.chUa,
+      "sec-ch-ua-mobile": "?0",
+      "sec-ch-ua-platform": fp.platform,
       "Upgrade-Insecure-Requests": "1",
+      "User-Agent": fp.ua,
+      Accept:
+        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+      "Sec-Fetch-Site": "none",
+      "Sec-Fetch-Mode": "navigate",
+      "Sec-Fetch-User": "?1",
+      "Sec-Fetch-Dest": "document",
+      "Accept-Encoding": "gzip, deflate, br",
+      "Accept-Language": `${fp.locale},en;q=0.9`,
+      Priority: "u=0, i",
     },
     signal: AbortSignal.timeout(20_000),
   });
@@ -149,36 +160,52 @@ async function fetchStatic(
 // fingerprint alongside the IP. One fingerprint is picked PER HOST (stable within a run so a session
 // stays consistent — flip-flopping is itself a bot tell) and differs across fleet replicas (each is a
 // separate process), so N nodes look like N different browsers, not N clones.
+// COHERENCE > rotation. Every field must encode the SAME browser/OS: a Windows UA with a macOS
+// client-hint is MORE suspicious than a plain one (anti-bots cross-check UA ↔ sec-ch-ua ↔ platform). So
+// each persona pins a real Chrome version + its MATCHING sec-ch-ua + platform. One persona is picked PER
+// HOST (stable within a run — flip-flopping is itself a tell) and differs across fleet replicas.
+const chUa = (v: number) =>
+  `"Google Chrome";v="${v}", "Chromium";v="${v}", "Not_A Brand";v="24"`;
 interface Fingerprint {
   ua: string;
   viewport: { width: number; height: number };
   locale: string;
   tz: string;
+  chUa: string; // sec-ch-ua — matches the UA's Chrome version
+  platform: string; // sec-ch-ua-platform — matches the UA's OS
 }
 const FINGERPRINTS: Fingerprint[] = [
   {
-    ua: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    ua: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
     viewport: { width: 1440, height: 900 },
     locale: "en-US",
     tz: "America/New_York",
+    chUa: chUa(131),
+    platform: '"macOS"',
   },
   {
-    ua: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    ua: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
     viewport: { width: 1920, height: 1080 },
     locale: "en-US",
     tz: "America/Chicago",
+    chUa: chUa(131),
+    platform: '"Windows"',
   },
   {
-    ua: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+    ua: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
     viewport: { width: 1536, height: 864 },
     locale: "en-US",
     tz: "America/Los_Angeles",
+    chUa: chUa(130),
+    platform: '"Windows"',
   },
   {
-    ua: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+    ua: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
     viewport: { width: 1680, height: 1050 },
     locale: "en-US",
     tz: "America/Denver",
+    chUa: chUa(130),
+    platform: '"macOS"',
   },
 ];
 const fpByHost = new Map<string, Fingerprint>();
