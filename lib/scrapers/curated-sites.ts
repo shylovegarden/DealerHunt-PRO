@@ -78,6 +78,7 @@ export const CURATED_SITES: CuratedSite[] = [
   { url: "https://www.aeofmiami.com", name: "A&E of Miami", state: "FL", type: "independent_dealer" },
   { url: "https://www.autosavvy.com", name: "AutoSavvy", state: "UT", type: "rebuilder_dealer" }, // multi-state chain (UT/AZ/CO/ID/NV/NM/TX)
   { url: "https://www.74auto.com", name: "74Auto", type: "rebuilder_dealer" }, // salvage / repairable cars (verified)
+  { url: "https://rebuilders.stjamesautoparts.com", name: "St. James Auto & Truck (Rebuilders)", type: "salvage_yard" }, // parts yard that ALSO sells rebuildable vehicles — verified on the rebuilders/vehicles.php inventory
 
   // ── Northeast / Mid-Atlantic ──
   { url: "https://www.chayabrothers.com", name: "Chaya Brothers Auto & Salvage", state: "NH", type: "rebuilder_dealer" },
