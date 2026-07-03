@@ -2,13 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 
-// Do NOT throw at module load — Vercel's build (page-data collection) evaluates route modules without the
-// runtime env present, and a top-level throw fails the whole build. Fall back to empty strings so the module
-// loads; at request time in prod the env is set. (This was silently freezing every deploy.)
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "",
-);
+// LAZY client — created at REQUEST time, never at module load. `next build` evaluates route modules
+// without the runtime env, and createClient("","") throws on an empty URL → that top-level call was
+// failing the whole build ("Failed to collect page data for /api/scan") and freezing every deploy.
+let _supabase: ReturnType<typeof createClient> | null = null;
+function db() {
+  if (!_supabase)
+    _supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "",
+    );
+  return _supabase;
+}
 
 function toNum(v: any): number {
   const n = Number(v);
@@ -89,6 +94,7 @@ export async function GET(req: NextRequest) {
   const rl = rateLimit(req, { key: "scan", limit: 90, windowMs: 60_000 });
   if (!rl.allowed) return tooManyRequests(rl) as any;
 
+  const supabase = db();
   const { searchParams } = new URL(req.url);
   // Sanitize free-text search before it's interpolated into the PostgREST .or() filter — strip
   // anything that isn't a normal vehicle/VIN character so commas/parens can't inject extra filters.

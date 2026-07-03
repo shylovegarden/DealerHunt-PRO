@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerComponentClient } from "@/lib/supabase";
 
-const supabase = createServerComponentClient();
-
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ vin: string }> },
 ) {
   const { vin } = await params;
+  // Create the client at REQUEST time, not module load — a module-scope call throws via assertEnv() during
+  // `next build` page-data collection (no env), which was a deploy-breaker.
+  const supabase = createServerComponentClient();
 
   // Check cache first (deals table has mmr_value)
   const { data: cached } = await supabase
