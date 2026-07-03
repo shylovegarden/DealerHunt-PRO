@@ -17,6 +17,49 @@ const PROOF = [
   { icon: "check-circle" as const, text: "Free — no paid data brokers" },
 ];
 
+// The 3-step story — what actually happens, in plain terms.
+const HOW = [
+  {
+    icon: "scan" as const,
+    title: "We scan everything",
+    body: "Every auction, marketplace, dealer lot, and public record — all 50 states, refreshed around the clock. The 40 tabs you'd never have time to open, in one feed.",
+  },
+  {
+    icon: "calculator" as const,
+    title: "We price it against reality",
+    body: "Each listing is valued against real sold comps and its true title & condition — not the asking price. The honest number, not the hopeful one.",
+  },
+  {
+    icon: "check-circle" as const,
+    title: "You act with confidence",
+    body: "BUY / HOLD / PASS and true net profit on cars; max offer, cap rate & cashflow on homes — the decision handed to you before you commit a dollar.",
+  },
+];
+
+// The edge — the things that are genuinely hard to get anywhere else (our moat, all real).
+const EDGE = [
+  {
+    icon: "trending-up" as const,
+    title: "Profit before you bid",
+    body: "True net after fees, transport & recon — or max offer, cap rate & cashflow. Every listing is a decision, not just a photo and a price.",
+  },
+  {
+    icon: "shield" as const,
+    title: "Title & condition truth",
+    body: "Salvage / rebuilt / clean called per car, with VIN history and a cross-market sighting timeline. Never get burned by a hidden brand again.",
+  },
+  {
+    icon: "map" as const,
+    title: "Off-market, found first",
+    body: "Foreclosures, absentee owners & rental portfolios — all public record — surfaced and skip-traced before the phone starts ringing.",
+  },
+  {
+    icon: "search" as const,
+    title: "Every source, one screen",
+    body: "Auctions, marketplaces, our 122-lot salvage & rebuilder dealer network, FSBO — deduped, scored, and ranked side by side.",
+  },
+];
+
 export default async function Home() {
   try {
     const { data } = await getServerUser();
@@ -176,6 +219,124 @@ export default async function Home() {
           >
             Explore homes
             <Ico name="arrow" size={16} />
+          </Link>
+        </div>
+      </section>
+
+      {/* WHY IT MATTERS — the problem, stated plainly */}
+      <section className="w-full bg-[var(--s0)] border-y border-[var(--b1)]">
+        <div className="max-w-3xl mx-auto px-6 py-16 text-center">
+          <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--t4)] mb-4">
+            The problem
+          </p>
+          <p className="serif text-[1.5rem] md:text-[2rem] leading-snug text-[var(--t1)] font-medium">
+            The best deals are hidden in{" "}
+            <span className="text-[var(--t3)]">the wrong tab</span>, priced by{" "}
+            <span className="text-[var(--t3)]">a hopeful seller</span>, and gone
+            before you've done the math.
+          </p>
+          <p className="mt-5 text-base text-[var(--t3)] leading-relaxed">
+            Winners don&apos;t search harder — they see the whole market at once
+            and know the number instantly. That&apos;s the entire job AutoVerse
+            does for you.
+          </p>
+        </div>
+      </section>
+
+      {/* HOW IT WORKS — 3 steps */}
+      <section className="w-full max-w-5xl mx-auto px-6 py-20">
+        <div className="text-center mb-12">
+          <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--t4)] mb-3">
+            How it works
+          </p>
+          <h2 className="serif text-[1.8rem] md:text-[2.4rem] font-semibold text-[var(--t1)]">
+            Three steps. Zero guesswork.
+          </h2>
+        </div>
+        <div className="grid gap-5 md:grid-cols-3">
+          {HOW.map((s, i) => (
+            <div key={s.title} className="glass-panel p-7 flex flex-col gap-3">
+              <div className="flex items-center gap-3">
+                <span
+                  className="w-11 h-11 rounded-[14px] grid place-items-center text-white"
+                  style={{ background: "var(--grad)" }}
+                  aria-hidden
+                >
+                  <Ico name={s.icon} size={20} />
+                </span>
+                <span className="text-3xl font-black text-[var(--b2)] tabular-nums">
+                  0{i + 1}
+                </span>
+              </div>
+              <h3 className="text-lg font-black text-[var(--t1)]">{s.title}</h3>
+              <p className="text-sm text-[var(--t3)] leading-relaxed">
+                {s.body}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* THE EDGE — why us, the moat */}
+      <section className="w-full bg-[var(--s0)] border-y border-[var(--b1)]">
+        <div className="max-w-5xl mx-auto px-6 py-20">
+          <div className="text-center mb-12">
+            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--t4)] mb-3">
+              Why AutoVerse
+            </p>
+            <h2 className="serif text-[1.8rem] md:text-[2.4rem] font-semibold text-[var(--t1)]">
+              What you can&apos;t get anywhere else
+            </h2>
+          </div>
+          <div className="grid gap-5 sm:grid-cols-2">
+            {EDGE.map((e) => (
+              <div
+                key={e.title}
+                className="flex gap-4 p-6 rounded-[var(--r3)] bg-[var(--s1)] border border-[var(--b1)]"
+              >
+                <span
+                  className="w-11 h-11 shrink-0 rounded-[12px] grid place-items-center text-[var(--t1)]"
+                  style={{ background: "var(--s2)" }}
+                  aria-hidden
+                >
+                  <Ico name={e.icon} size={19} />
+                </span>
+                <div>
+                  <h3 className="text-[15px] font-black text-[var(--t1)] mb-1.5">
+                    {e.title}
+                  </h3>
+                  <p className="text-sm text-[var(--t3)] leading-relaxed">
+                    {e.body}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* CLOSING CTA */}
+      <section className="w-full max-w-3xl mx-auto px-6 py-20 text-center">
+        <h2 className="serif text-[2rem] md:text-[2.8rem] font-semibold text-[var(--t1)] leading-tight">
+          See the deal before everyone else does.
+        </h2>
+        <p className="mt-5 text-base md:text-lg text-[var(--t3)] max-w-lg mx-auto leading-relaxed">
+          Free to start. No paid data brokers, no credit card — just the whole
+          market, scored, on one login.
+        </p>
+        <div className="mt-8 flex flex-col items-center gap-4">
+          <Link
+            href="/register"
+            className="btn btn-primary inline-flex items-center justify-center gap-2 px-8 py-4 text-base shadow-[var(--shadow)] min-h-[52px]"
+          >
+            Get started free
+            <Ico name="arrow" size={18} />
+          </Link>
+          <Link
+            href="/login"
+            className="text-sm font-medium text-[var(--t4)] hover:text-[var(--t2)] transition-colors"
+          >
+            Already have an account? Sign in
           </Link>
         </div>
       </section>
