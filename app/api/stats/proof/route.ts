@@ -12,8 +12,11 @@ type Proof = {
   carsScored: number; // active car listings we've priced
   carsBuy: number; // BUY-verdict deals live right now
   avgSpread: number; // avg true net profit on a BUY deal — the money on the table
+  totalSpread: number; // SUM of net profit across every live BUY — the whole opportunity on the board
+  newBuys7d: number; // BUY deals first seen in the last 7 days
   homesTracked: number; // active properties scored
   distressed: number; // hot / distressed leads
+  newLeads24h: number; // distressed leads first seen in the last 24h
   states: number;
   dealers: number; // curated salvage/rebuilder lots
 };
@@ -35,16 +38,22 @@ export async function GET() {
       cars_scored: number;
       cars_buy: number;
       avg_spread: number;
+      total_spread: number;
+      new_buys_7d: number;
       homes_tracked: number;
       distressed: number;
+      new_leads_24h: number;
     } | null;
 
     const data: Proof = {
       carsScored: Number(r?.cars_scored) || 0,
       carsBuy: Number(r?.cars_buy) || 0,
       avgSpread: Number(r?.avg_spread) || 0,
+      totalSpread: Number(r?.total_spread) || 0,
+      newBuys7d: Number(r?.new_buys_7d) || 0,
       homesTracked: Number(r?.homes_tracked) || 0,
       distressed: Number(r?.distressed) || 0,
+      newLeads24h: Number(r?.new_leads_24h) || 0,
       states: 50,
       dealers,
     };
@@ -57,8 +66,11 @@ export async function GET() {
       carsScored: 0,
       carsBuy: 0,
       avgSpread: 0,
+      totalSpread: 0,
+      newBuys7d: 0,
       homesTracked: 0,
       distressed: 0,
+      newLeads24h: 0,
       states: 50,
       dealers,
     });

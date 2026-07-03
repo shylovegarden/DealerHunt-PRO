@@ -19,6 +19,7 @@ import { aerialThumb } from "@/lib/housing/property-image";
 import { MarketPicker } from "@/components/shared/MarketPicker";
 import { RecentlyViewed } from "@/components/shared/RecentlyViewed";
 import { CompareToggle, CompareBar } from "@/components/shared/CompareControls";
+import { EdgeBanner } from "@/components/shared/EdgeBanner";
 
 // Market-leading housing browse — Zillow/Redfin split map+list + photo-forward cards + PropStream-style
 // lead signals. LOCATION-FIRST + PROGRESSIVE: scoped to your state shows it IMMEDIATELY, then "Nearby"
@@ -439,6 +440,10 @@ function LeadsInner() {
   return (
     <div className="bg-transparent text-[var(--t1)]">
       <CompareBar kind="home" href="/homeiq/compare" accent="var(--home)" />
+      {/* Your edge today — fresh distressed flow on the board right now. */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-4">
+        <EdgeBanner kind="homes" />
+      </div>
       {/* Location scope — progressive: your state → nearby → nationwide */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-4 flex items-center justify-between gap-2 flex-wrap">
         {scopeState ? (
