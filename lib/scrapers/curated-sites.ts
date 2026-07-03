@@ -77,6 +77,7 @@ export const CURATED_SITES: CuratedSite[] = [
   { url: "https://www.erepairables.com", name: "eRepairables", type: "rebuilder_dealer" },
   { url: "https://www.aeofmiami.com", name: "A&E of Miami", state: "FL", type: "independent_dealer" },
   { url: "https://www.autosavvy.com", name: "AutoSavvy", state: "UT", type: "rebuilder_dealer" }, // multi-state chain (UT/AZ/CO/ID/NV/NM/TX)
+  { url: "https://www.74auto.com", name: "74Auto", type: "rebuilder_dealer" }, // salvage / repairable cars (verified)
 
   // ── Northeast / Mid-Atlantic ──
   { url: "https://www.chayabrothers.com", name: "Chaya Brothers Auto & Salvage", state: "NH", type: "rebuilder_dealer" },
