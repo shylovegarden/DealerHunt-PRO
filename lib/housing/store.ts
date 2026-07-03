@@ -87,6 +87,28 @@ function service(): SupabaseClient {
   );
 }
 
+// Owner → portfolio size (owners holding >=5 active properties), cached 15 min. Powers the "portfolio
+// owner / institutional landlord" triage signal — public county-record ownership rolled up. Non-fatal:
+// degrades to an empty map on any error, so leads never break if the aggregate is unavailable.
+let _ownerPortfolio: { at: number; map: Map<string, number> } | null = null;
+export async function ownerPortfolioMap(): Promise<Map<string, number>> {
+  const now = Date.now();
+  if (_ownerPortfolio && now - _ownerPortfolio.at < 15 * 60 * 1000)
+    return _ownerPortfolio.map;
+  const map = new Map<string, number>();
+  try {
+    const { data } = await service().rpc("owner_portfolio_counts", {
+      min_count: 5,
+    });
+    for (const r of (data as { owner: string; cnt: number }[]) || [])
+      if (r.owner) map.set(String(r.owner), Number(r.cnt));
+  } catch {
+    /* non-fatal */
+  }
+  _ownerPortfolio = { at: now, map };
+  return map;
+}
+
 function toRow(p: Property): Record<string, unknown> {
   const lead = scoreHousingLead(p);
   return {
