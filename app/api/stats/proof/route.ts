@@ -48,7 +48,9 @@ export async function GET() {
       states: 50,
       dealers,
     };
-    if (data.carsScored || data.homesTracked) cache = { at: now, data };
+    // Only cache a COMPLETE result — both headline counts present. A partial (one count 0 from a transient
+    // miss) must not stick for 30 min; retry next request until it's whole.
+    if (data.carsScored && data.homesTracked) cache = { at: now, data };
     return NextResponse.json(data);
   } catch {
     return NextResponse.json({
