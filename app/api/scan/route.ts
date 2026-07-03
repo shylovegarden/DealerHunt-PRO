@@ -107,6 +107,10 @@ export async function GET(req: NextRequest) {
   const make = searchParams.get("make") || "";
   const model = searchParams.get("model") || "";
   const source = searchParams.get("source") || "";
+  // Per-dealer inventory filter (site host). Host-safe chars only.
+  const dealer = (searchParams.get("dealer") || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9.-]/g, "");
   const titleType = searchParams.get("titleType") || "";
   const lane = (searchParams.get("lane") || "").toLowerCase();
   const category = searchParams.get("cat") || "";
@@ -178,6 +182,11 @@ export async function GET(req: NextRequest) {
 
   if (source) {
     query = query.eq("source", source.toLowerCase());
+  }
+  // Filter to a single curated dealer by its site host (source_url contains it) — powers the per-dealer
+  // in-app inventory view. Sanitized to host-safe chars before interpolation.
+  if (dealer) {
+    query = query.ilike("source_url", `%${dealer}%`);
   }
 
   if (titleType && titleType !== "all") {
