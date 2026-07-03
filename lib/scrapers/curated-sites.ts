@@ -131,14 +131,14 @@ export const CURATED_SITES: CuratedSite[] = [
   { url: "https://www.newbuildcars.com", name: "Newbuild Automotive", state: "GA", type: "rebuilder_dealer" },
   { url: "https://www.autoworldofamerica.com", name: "Autoworld of America", state: "FL", type: "rebuilder_dealer" },
   { url: "https://casmiami.com", name: "CAS Miami", state: "FL", type: "auction_proxy" },
-  { url: "https://sperryauto.com", name: "Sperry Auto Sales", state: "KY", type: "rebuilder_dealer" },
+  { url: "https://sperryauto.com", name: "Sperry Auto Sales", state: "KY", type: "rebuilder_dealer", inventoryUrl: "https://www.sperryauto.com/newandusedcars" },
   { url: "https://cullmanautorebuilders.com", name: "Cullman Auto Rebuilders", state: "AL", type: "rebuilder_dealer" },
   { url: "https://www.tennisonautosales.com", name: "Tennison Auto Sales & Salvage", state: "AR", type: "rebuilder_dealer" },
 
   // ── Midwest ──
   { url: "https://www.marcellsinc.com", name: "Marcell's Inc", state: "OH", type: "rebuilder_dealer" },
   { url: "https://www.denisonautopartsoh.com", name: "Denison Auto Parts", state: "OH", type: "salvage_yard" },
-  { url: "https://www.cardomemi.com", name: "CarDome Auto Sales", state: "MI", type: "rebuilder_dealer" },
+  { url: "https://www.cardomemi.com", name: "CarDome Auto Sales", state: "MI", type: "rebuilder_dealer", inventoryUrl: "https://www.cardomemi.com/salvage-title-vehicles-for-sale-in-detroit-mi" },
   { url: "https://www.florasauto.com", name: "Flora's Auto", state: "IN", type: "rebuilder_dealer" },
   { url: "https://autonetworkinc.com", name: "Auto Network, Inc.", state: "IN", type: "rebuilder_dealer" },
   { url: "https://www.billsmithauto.com", name: "Bill Smith Auto", state: "IL", type: "rebuilder_dealer" },
@@ -160,10 +160,10 @@ export const CURATED_SITES: CuratedSite[] = [
   { url: "https://www.axautostx.com", name: "America's Xtreme Auto", state: "TX", type: "rebuilder_dealer" },
   { url: "https://www.montanaautorecyclers.com", name: "Montana Auto Recyclers", state: "MT", type: "rebuilder_dealer" },
   { url: "https://asalvagecar.com", name: "STS Automotive Denver", state: "CO", type: "rebuilder_dealer" },
-  { url: "https://www.prestmanauto.com", name: "Prestman Auto", state: "UT", type: "rebuilder_dealer" },
+  { url: "https://www.prestmanauto.com", name: "Prestman Auto", state: "UT", type: "rebuilder_dealer", inventoryUrl: "https://www.prestmanauto.com/used-vehicles" },
   { url: "https://autols.com", name: "Auto LifeStyle", state: "UT", type: "rebuilder_dealer" },
   { url: "https://bestwesternmotors.com", name: "Best Western Motors", state: "AZ", type: "rebuilder_dealer" },
-  { url: "https://www.autogator.com", name: "Auto Gator", state: "CA", type: "rebuilder_dealer" },
+  { url: "https://www.autogator.com", name: "Auto Gator", state: "CA", type: "rebuilder_dealer", inventoryUrl: "https://www.autogator.com/repairable-vehicles" }, // car inventory (not /used-auto-parts)
 
   // ════ Wave 2 — deep gap-fill (per-metro + auction-proxy resellers) ════
   { url: "https://sca.auction", name: "SCA Auctions", type: "auction_proxy" },
@@ -190,12 +190,12 @@ export const CURATED_SITES: CuratedSite[] = [
   { url: "https://www.quickautonc.com", name: "Quick Auto Sales", state: "NC", type: "rebuilder_dealer" },
   { url: "https://www.axautosga.com", name: "AX Auto (America's Xtreme Auto)", state: "GA", type: "rebuilder_dealer" },
   { url: "https://www.wolfgangsautos.com", name: "Wolfgang's Auto Sales", state: "GA", type: "rebuilder_dealer" },
-  { url: "https://www.a-autosalvage.com", name: "A-Auto Salvage", state: "AR", type: "salvage_yard" },
+  { url: "https://www.a-autosalvage.com", name: "A-Auto Salvage", state: "AR", type: "salvage_yard", inventoryUrl: "https://www.a-autosalvage.com/used-cars-for-sale" },
 
   // ── Midwest / Plains ──
   { url: "https://wellerrepairables.com", name: "Weller Repairables", state: "MI", type: "rebuilder_dealer" },
   { url: "https://superiorusedautosales.com", name: "Superior Used Auto Sales", state: "MI", type: "rebuilder_dealer" },
-  { url: "https://www.garysautoia.net", name: "Gary's Auto", state: "IA", type: "rebuilder_dealer" },
+  { url: "https://www.garysautoia.net", name: "Gary's Auto", state: "IA", type: "rebuilder_dealer", inventoryUrl: "https://www.garysautoia.net/home/used-vehicles" },
   { url: "https://www.premiersalvage.com", name: "Premier Auto Rebuilders & Truck Salvage", state: "MO", type: "salvage_yard" },
   { url: "https://midwaycarlot.com", name: "Midway Auto", state: "MO", type: "rebuilder_dealer" },
   { url: "https://americanauto.com", name: "American Auto Parts", state: "NE", type: "salvage_yard" },
@@ -205,13 +205,13 @@ export const CURATED_SITES: CuratedSite[] = [
 
   // ── West / Mountain / Pacific ──
   { url: "https://zaraauto.net", name: "Zara Auto Sales", state: "CO", type: "rebuilder_dealer" },
-  { url: "https://www.imageautosales.com", name: "Image Auto", state: "UT", type: "rebuilder_dealer" },
-  { url: "https://www.highlineauto.net", name: "High Line Auto Sales", state: "UT", type: "rebuilder_dealer" },
+  { url: "https://www.imageautosales.com", name: "Image Auto", state: "UT", type: "rebuilder_dealer", inventoryUrl: "https://www.imageautosales.com/used-cars-in-west-jordan-ut" },
+  { url: "https://www.highlineauto.net", name: "High Line Auto Sales", state: "UT", type: "rebuilder_dealer", inventoryUrl: "https://www.highlineauto.net/used-cars-in-salt-lake-city-ut" },
   { url: "https://www.parklinemotors.com", name: "Parkline Motors", state: "UT", type: "rebuilder_dealer" },
   { url: "https://www.autolocitymotors.com", name: "Autolocity Motors", state: "UT", type: "rebuilder_dealer" },
   { url: "https://www.summitautoutah.com", name: "Summit Auto Sales", state: "UT", type: "rebuilder_dealer" },
   { url: "https://www.tjchapmanauto.com", name: "TJ Chapman Auto", state: "UT", type: "rebuilder_dealer" },
   { url: "https://www.familyautonv.com", name: "Family Auto LLC", state: "NV", type: "rebuilder_dealer" },
-  { url: "https://www.columbia-motors.com", name: "Columbia Motors", state: "OR", type: "rebuilder_dealer" },
+  { url: "https://www.columbia-motors.com", name: "Columbia Motors", state: "OR", type: "rebuilder_dealer", inventoryUrl: "https://www.columbia-motors.com/view-inventory" },
   { url: "https://www.sandiegototalcars.com", name: "San Diego Total Cars", state: "CA", type: "rebuilder_dealer" },
 ];
