@@ -1,39 +1,36 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { createBrowserClient } from "@supabase/ssr";
 
-function assertEnv() {
-  if (
-    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    process.env.NEXT_PUBLIC_SUPABASE_URL.includes("YOUR_PROJECT_ID")
-  ) {
-    throw new Error(
-      "NEXT_PUBLIC_SUPABASE_URL is not configured. Set it in .env.local",
-    );
-  }
+// Build-time safety: `next build` evaluates route modules (page-data collection) AND prerenders pages
+// (static generation) WITHOUT the runtime env present. A missing-env THROW here — or a createClient("") —
+// fails the whole build, which silently froze every Vercel deploy. Instead fall back to a harmless
+// placeholder client so nothing crashes at build; at REQUEST time in prod the real env is present and used.
+const PLACEHOLDER_URL = "https://placeholder.supabase.co";
+const PLACEHOLDER_KEY = "placeholder";
+
+function resolvedUrl(): string {
+  const u = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  return u && !u.includes("YOUR_PROJECT_ID") ? u : PLACEHOLDER_URL;
 }
 
 export function getSupabaseClient(): SupabaseClient {
-  assertEnv();
   return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    resolvedUrl(),
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || PLACEHOLDER_KEY,
   );
 }
 
-import { createBrowserClient } from "@supabase/ssr";
-
 export function createClientComponentClient(): SupabaseClient {
-  assertEnv();
   return createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    resolvedUrl(),
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || PLACEHOLDER_KEY,
   );
 }
 
 export function createServerComponentClient(): SupabaseClient {
-  assertEnv();
   return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    resolvedUrl(),
+    process.env.SUPABASE_SERVICE_ROLE_KEY || PLACEHOLDER_KEY,
     {
       auth: {
         autoRefreshToken: false,
@@ -43,8 +40,7 @@ export function createServerComponentClient(): SupabaseClient {
   );
 }
 
-// Legacy named export — call this instead of using `supabase` directly
-// Use createClientComponentClient() or createServerComponentClient() where possible.
+// Legacy named export — call this instead of using `supabase` directly.
 export function getSupabase(): SupabaseClient {
   return getSupabaseClient();
 }
