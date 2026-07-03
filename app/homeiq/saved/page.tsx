@@ -267,6 +267,20 @@ function Card({
           {s.city ? `${s.city}, ${s.state || ""}` : s.state || ""}
         </div>
         <div className="text-xs text-[var(--t2)] truncate">{s.title}</div>
+        {s.owner && (
+          <div className="text-[11px] text-[var(--t3)] truncate mt-0.5">
+            👤 <span className="font-semibold">{s.owner}</span>
+            {s.ownerMailing && (
+              <span className="text-[var(--green)]"> · 📮</span>
+            )}
+            {s.ownerCount >= 5 && (
+              <span className="text-[var(--t1)] font-bold">
+                {" "}
+                · 🏢 {s.ownerCount.toLocaleString()}
+              </span>
+            )}
+          </div>
+        )}
         {s.mao != null && (
           <div className="text-[11px] font-bold mt-1" style={{ color: ACCENT }}>
             MAO ${s.mao.toLocaleString()} · {s.verdict}

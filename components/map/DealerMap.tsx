@@ -53,6 +53,8 @@ export interface MapPoint {
   baths?: number;
   sqft?: number;
   verdict?: string;
+  owner?: string;
+  ownerCount?: number;
   url?: string; // detail link
 }
 
@@ -124,6 +126,15 @@ function cardPopup(p: MapPoint): string {
       <div style="font-weight:800;font-size:15px;color:#111">${price}</div>
       <div style="font-weight:600;font-size:12px;color:#555;margin-top:2px">${esc(p.name)}</div>
       ${meta ? `<div style="font-size:11px;color:#777;margin-top:2px">${meta}</div>` : ""}
+      ${
+        p.owner
+          ? `<div style="font-size:11px;color:#555;margin-top:3px">👤 ${esc(p.owner)}${
+              (p.ownerCount ?? 0) >= 5
+                ? ` · 🏢 ${p.ownerCount!.toLocaleString()}`
+                : ""
+            }</div>`
+          : ""
+      }
       ${
         p.score != null || p.verdict
           ? `<div style="margin-top:5px;font-weight:700;font-size:11px;color:${color}">${

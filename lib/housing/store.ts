@@ -109,6 +109,36 @@ export async function ownerPortfolioMap(): Promise<Map<string, number>> {
   return map;
 }
 
+// Sources where the "owner" is a disposition entity that IS selling (HUD, land banks, GSA, Fannie) — a
+// portfolio count there is redundant with the source label AND misleading (they sell), so don't stamp it.
+// The flag is meant for private HOLDERS (Invitation Homes, LLC rental portfolios) = "not a motivated seller".
+export const DISPOSITION_SOURCES = new Set([
+  "hud",
+  "hud_reo",
+  "land_bank",
+  "fannie_homepath",
+  "gsa_realestate",
+  "gov_auction",
+]);
+
+/** Stamp `ownerCount` on any lead whose owner is a portfolio holder (>=5), skipping disposition sources.
+ *  Shared by every read path so the owner-portfolio signal is identical everywhere. */
+export async function stampOwnerPortfolio(
+  leads: {
+    source?: string | null;
+    owner?: string | null;
+    ownerCount?: number;
+  }[],
+): Promise<void> {
+  const map = await ownerPortfolioMap();
+  if (!map.size) return;
+  for (const l of leads) {
+    if (l.source && DISPOSITION_SOURCES.has(l.source)) continue;
+    const n = l.owner ? map.get(l.owner) : undefined;
+    if (n && n >= 5) l.ownerCount = n;
+  }
+}
+
 function toRow(p: Property): Record<string, unknown> {
   const lead = scoreHousingLead(p);
   return {

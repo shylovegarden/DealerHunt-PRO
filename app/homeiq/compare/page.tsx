@@ -101,6 +101,18 @@ export default function HomeComparePage() {
         return tags.length ? tags.join(", ") : "—";
       },
     },
+    { label: "Owner", get: (l) => l.owner || "—" },
+    {
+      label: "Owner portfolio",
+      get: (l) =>
+        l.ownerCount && l.ownerCount >= 5 ? (
+          <span className="font-bold">
+            🏢 {l.ownerCount.toLocaleString()} properties
+          </span>
+        ) : (
+          "—"
+        ),
+    },
     {
       label: "Owner mailing",
       get: (l) => (l.ownerMailing ? "✅ direct-mail ready" : "—"),
