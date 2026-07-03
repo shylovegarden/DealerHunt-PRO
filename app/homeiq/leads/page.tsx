@@ -275,6 +275,7 @@ function LeadsInner() {
   const [sort, setSort] = useState("score");
   const [maxPrice, setMaxPrice] = useState(0);
   const [minPrice, setMinPrice] = useState(0);
+  const [hideInstitutional, setHideInstitutional] = useState(false);
   const [q, setQ] = useState(params.get("q") || ""); // pre-filled by the city/ZIP front-door search
   const [visible, setVisible] = useState(PAGE);
   // Mobile is list-OR-map (Zillow pattern), so the listings lead instead of a map shoving them down the
@@ -345,6 +346,8 @@ function LeadsInner() {
       r = r.filter((l) => leadCategories(l).includes(category));
     if (maxPrice) r = r.filter((l) => (l.price || 0) <= maxPrice);
     if (minPrice) r = r.filter((l) => (l.price || 0) >= minPrice);
+    // Hide institutional / portfolio owners (>=5 properties) — they don't sell to wholesalers.
+    if (hideInstitutional) r = r.filter((l) => (l.ownerCount || 0) < 5);
     if (q.trim()) {
       const t = q.trim().toLowerCase();
       // Match address + ZIP + city/state + title + the distress signal text, so typing a street, a ZIP,
@@ -374,6 +377,7 @@ function LeadsInner() {
     category,
     maxPrice,
     minPrice,
+    hideInstitutional,
     q,
     sort,
   ]);
@@ -381,7 +385,18 @@ function LeadsInner() {
   // Reset the visible window whenever the result set changes.
   useEffect(
     () => setVisible(PAGE),
-    [scopeSet, tier, type, source, category, maxPrice, minPrice, q, sort],
+    [
+      scopeSet,
+      tier,
+      type,
+      source,
+      category,
+      maxPrice,
+      minPrice,
+      hideInstitutional,
+      q,
+      sort,
+    ],
   );
 
   // Infinite scroll — extend the list as the sentinel comes into view.
@@ -418,7 +433,8 @@ function LeadsInner() {
   const activeFilters =
     [type, source, category].filter(Boolean).length +
     (minPrice ? 1 : 0) +
-    (maxPrice ? 1 : 0);
+    (maxPrice ? 1 : 0) +
+    (hideInstitutional ? 1 : 0);
 
   return (
     <div className="bg-transparent text-[var(--t1)]">
@@ -632,6 +648,29 @@ function LeadsInner() {
             </button>
           );
         })}
+        {/* Hide institutional / portfolio owners — one tap removes the un-sellable inventory (they don't
+            sell to wholesalers). Only shown when there are any in the current scope. */}
+        {(() => {
+          const inst = all.filter((l) => (l.ownerCount || 0) >= 5).length;
+          if (inst === 0) return null;
+          return (
+            <button
+              onClick={() => setHideInstitutional((v) => !v)}
+              className="shrink-0 px-3 py-1.5 rounded-full text-xs font-bold transition-colors whitespace-nowrap"
+              style={{
+                background: hideInstitutional ? "var(--t1)" : "var(--s2)",
+                color: hideInstitutional ? "var(--s0)" : "var(--t3)",
+                border: "1px solid var(--b1)",
+              }}
+              title="Hide portfolio / institutional landlords (5+ properties) — they don't sell to wholesalers"
+            >
+              {hideInstitutional
+                ? "🏢 Institutional hidden"
+                : "🏢 Hide institutional"}{" "}
+              <span style={{ opacity: 0.6 }}>{inst.toLocaleString()}</span>
+            </button>
+          );
+        })()}
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-3 flex items-center justify-between gap-2">
