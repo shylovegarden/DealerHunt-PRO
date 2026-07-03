@@ -8,6 +8,7 @@ import {
   historyFromText,
   type VinHistory as VinHistoryT,
 } from "@/lib/vehicle/vin-history";
+import { CarfaxLink } from "./CarfaxLink";
 
 // VIN history — the "should I buy" red flags. Tier 1 (free) from the listing text shows instantly;
 // if an NMVTIS key is configured, the authoritative report upgrades it. Always shows something.
@@ -60,13 +61,16 @@ export function VinHistory({
   };
 
   const hasFlags = h.titleBrands.length > 0;
-  // Show when we have something meaningful — flags, claims, an authoritative all-clear, OR a multi-
-  // sighting timeline (seeing the same VIN twice is itself a story no single-site report has).
+  const validVin = !!vin && /^[A-HJ-NPR-Z0-9]{11,17}$/i.test(vin.trim());
+  // Show when we have something meaningful — flags, claims, an authoritative all-clear, a multi-sighting
+  // timeline (seeing the same VIN twice is a story no single-site report has), OR simply a valid VIN (so the
+  // buyer always has the one-tap CarFax pull on a title-branded market).
   if (
     !hasFlags &&
     h.cleanClaims.length === 0 &&
     !h.authoritative &&
-    !multiSighting
+    !multiSighting &&
+    !validVin
   )
     return null;
 
@@ -84,13 +88,16 @@ export function VinHistory({
           <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--t4)] font-bold">
             VIN history
           </p>
-          <span className="text-[10px] text-[var(--t5)]">
-            {h.authoritative
-              ? "NMVTIS · verified"
-              : h.source === "vin-graph"
-                ? "our records · cross-referenced"
-                : "from listing · claimed"}
-          </span>
+          <div className="flex items-center gap-3">
+            <CarfaxLink vin={vin} />
+            <span className="text-[10px] text-[var(--t5)]">
+              {h.authoritative
+                ? "NMVTIS · verified"
+                : h.source === "vin-graph"
+                  ? "our records · cross-referenced"
+                  : "from listing · claimed"}
+            </span>
+          </div>
         </div>
 
         {hasFlags ? (
