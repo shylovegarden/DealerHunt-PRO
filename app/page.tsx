@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getServerUser } from "@/lib/server-supabase";
 import { Ico } from "@/components/shared/Ico";
 import { LiveCount } from "@/components/landing/LiveCount";
+import { ProofBand } from "@/components/landing/ProofBand";
 
 export const metadata = {
   title: "AutoVerse — Underpriced cars & distressed homes, deal-scored",
@@ -150,8 +151,11 @@ export default async function Home() {
         </div>
       </section>
 
+      {/* PROOF IN NUMBERS — real live figures, animated */}
+      <ProofBand />
+
       {/* The two products — equal billing */}
-      <section className="w-full max-w-5xl mx-auto px-6 pb-24 grid gap-5 md:grid-cols-2">
+      <section className="w-full max-w-5xl mx-auto px-6 pt-16 pb-24 grid gap-5 md:grid-cols-2">
         {/* DealerHunt — cars */}
         <div className="glass-panel p-7 flex flex-col gap-4 text-left">
           <div className="flex items-center gap-3">

@@ -101,7 +101,7 @@ export default function WelcomePage() {
         <Panel
           kicker="Real estate leads"
           title="HomeIQ"
-          tagline="Every house on the market — discounted, distressed, deal-ready."
+          tagline="Distressed, discounted, off-market — scored by equity before anyone else calls."
           accent="#2dd4bf"
           align="left"
           active={focus === "house"}
@@ -123,7 +123,7 @@ export default function WelcomePage() {
         <Panel
           kicker="Auto flip leads"
           title="DealerHunt Pro"
-          tagline="Every auction & marketplace, valued — GO / PASS the moment you see it."
+          tagline="Every auction & marketplace, priced against real comps — your profit, before you bid."
           accent="#a78bfa"
           align="right"
           active={focus === "car"}
