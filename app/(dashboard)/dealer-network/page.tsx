@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import useSWR from "swr";
+import Link from "next/link";
 import { useDealerWatch } from "@/hooks/useDealerWatch";
 
 // The curated salvage/rebuilder/dealer NETWORK — browse every independent shop we crawl, categorized, with
@@ -239,14 +240,24 @@ export default function DealerNetworkPage() {
                   </div>
                   <TitleMix d={d} />
 
-                  <a
-                    href={d.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-auto inline-flex items-center gap-1.5 self-start text-xs font-bold text-[var(--amber-d)] hover:underline"
-                  >
-                    Visit {d.host} ↗
-                  </a>
+                  <div className="mt-auto flex items-center gap-3">
+                    {d.total > 0 && (
+                      <Link
+                        href={`/dealer-network/${d.host}`}
+                        className="text-xs font-bold text-[var(--amber-d)] hover:underline"
+                      >
+                        View {d.total.toLocaleString()} in app →
+                      </Link>
+                    )}
+                    <a
+                      href={d.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs font-semibold text-[var(--t4)] hover:text-[var(--t2)]"
+                    >
+                      Visit site ↗
+                    </a>
+                  </div>
                 </div>
               );
             })}
