@@ -14,6 +14,7 @@ import {
   queryProperties,
   countByState,
   upsertProperties,
+  ownerPortfolioMap,
   type StoredProperty,
 } from "@/lib/housing/store";
 import { STATE_COORDS } from "@/lib/geo";
@@ -72,6 +73,8 @@ interface Lead {
   // Public-record owner of record + mailing address (direct-mail ready when a county feed supplies it).
   owner?: string;
   ownerMailing?: string;
+  // How many active properties this owner holds (>=5 → portfolio / institutional landlord).
+  ownerCount?: number;
   // Cross-source list-stacking: # of distinct distress lists this property sits on (1 = single list).
   stack?: number;
   // Compact distress detail (amount owed, years, sheriff sale, below-market…) for card/detail badges.
@@ -339,6 +342,14 @@ export async function GET(req: NextRequest) {
           : await liveHarvest();
     all.sort((a, b) => b.score - a.score);
     applyStacking(all); // cross-source list-stacking → each lead's `stack` count
+    // Portfolio-owner triage — stamp how many active properties this owner holds (public-record rollup,
+    // cached). >=5 usually means an institutional landlord / portfolio, not a motivated individual seller.
+    const portfolio = await ownerPortfolioMap();
+    if (portfolio.size)
+      for (const l of all) {
+        const n = l.owner ? portfolio.get(l.owner) : undefined;
+        if (n && n >= 5) l.ownerCount = n;
+      }
     // Statistical underpricing flag ("🎯 priced N% below comps") — robust MAD test vs same state+type
     // $/sqft peers, independent of the distress scorer. Display + filter only (score already rewards equity).
     const anomalies = flagPriceAnomalies(all);

@@ -209,6 +209,7 @@ interface Lead {
   pricePerSqft?: number;
   owner?: string;
   ownerMailing?: string;
+  ownerCount?: number;
   stack?: number;
   priceDrops?: number | null;
   prevPrice?: number | null;
@@ -1057,6 +1058,15 @@ const LeadCard = memo(function LeadCard({
               )}
               {lead.ownerMailing && (
                 <span className="text-[var(--green)]"> · 📮 mail-ready</span>
+              )}
+              {(lead.ownerCount || 0) >= 5 && (
+                <span
+                  className="text-[var(--t1)] font-bold"
+                  title="This owner holds many properties — a portfolio / institutional landlord, usually not a motivated individual seller"
+                >
+                  {" "}
+                  · 🏢 {lead.ownerCount!.toLocaleString()} properties
+                </span>
               )}
             </p>
           )}
