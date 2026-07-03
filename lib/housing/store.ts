@@ -97,9 +97,9 @@ export async function ownerPortfolioMap(): Promise<Map<string, number>> {
     return _ownerPortfolio.map;
   const map = new Map<string, number>();
   try {
-    const { data } = await service().rpc("owner_portfolio_counts", {
-      min_count: 5,
-    });
+    // Parameterless RPC (matches dealer_inventory, which resolves reliably in prod — the parameterized
+    // variant's signature wasn't resolving via PostgREST).
+    const { data } = await service().rpc("owner_portfolios");
     for (const r of (data as { owner: string; cnt: number }[]) || [])
       if (r.owner) map.set(String(r.owner), Number(r.cnt));
   } catch {
