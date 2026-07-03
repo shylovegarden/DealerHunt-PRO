@@ -28,47 +28,23 @@ export async function GET() {
   const dealers = CURATED_SITES.length;
   try {
     const sb = createServerComponentClient();
-    const [scored, buy, tracked, hot, spreadRows] = await Promise.all([
-      sb
-        .from("deals")
-        .select("id", { count: "exact", head: true })
-        .eq("active", true),
-      sb
-        .from("deals")
-        .select("id", { count: "exact", head: true })
-        .eq("active", true)
-        .eq("deal_verdict", "go"),
-      sb
-        .from("properties")
-        .select("id", { count: "exact", head: true })
-        .eq("active", true),
-      sb
-        .from("properties")
-        .select("id", { count: "exact", head: true })
-        .eq("active", true)
-        .eq("lead_tier", "hot"),
-      sb
-        .from("deals")
-        .select("true_net_profit")
-        .eq("active", true)
-        .eq("deal_verdict", "go")
-        .gt("true_net_profit", 0)
-        .limit(5000),
-    ]);
-
-    const profits = (spreadRows.data || [])
-      .map((r) => Number((r as { true_net_profit: number }).true_net_profit))
-      .filter((n) => n > 0);
-    const avgSpread = profits.length
-      ? Math.round(profits.reduce((a, b) => a + b, 0) / profits.length)
-      : 0;
+    // One RPC — count:exact head:true timed out on the big unfiltered counts (returned 0); a single
+    // function with a raised statement_timeout returns them reliably.
+    const { data: rows } = await sb.rpc("landing_proof");
+    const r = (Array.isArray(rows) ? rows[0] : rows) as {
+      cars_scored: number;
+      cars_buy: number;
+      avg_spread: number;
+      homes_tracked: number;
+      distressed: number;
+    } | null;
 
     const data: Proof = {
-      carsScored: scored.count || 0,
-      carsBuy: buy.count || 0,
-      avgSpread,
-      homesTracked: tracked.count || 0,
-      distressed: hot.count || 0,
+      carsScored: Number(r?.cars_scored) || 0,
+      carsBuy: Number(r?.cars_buy) || 0,
+      avgSpread: Number(r?.avg_spread) || 0,
+      homesTracked: Number(r?.homes_tracked) || 0,
+      distressed: Number(r?.distressed) || 0,
       states: 50,
       dealers,
     };
