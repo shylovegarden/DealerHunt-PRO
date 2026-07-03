@@ -102,6 +102,10 @@ export const CURATED_SITES: CuratedSite[] = [
   { url: "https://www.lambmotors.com", name: "Lamb Motors", type: "rebuilder_dealer" },
   { url: "https://www.glensautosales.com", name: "Glen's Auto Sales", type: "rebuilder_dealer" },
   { url: "https://www.rogersautosales.com", name: "Rogers Auto (Late Model Rebuilders)", type: "rebuilder_dealer" },
+  // ── Wave 5 — mined from the Creative Design Group (4cdg.com) auto-dealer portfolio (verified) ──
+  { url: "https://www.johannesauto.com", name: "Johannes Auto Sales", state: "MO", type: "rebuilder_dealer" }, // salvage/rebuilt cars + parts, Jackson MO
+  { url: "https://www.autovada.com", name: "AutoVada", state: "MO", type: "independent_dealer" }, // Cape Girardeau MO lot, titles vary
+  { url: "https://www.elitesikeston.com", name: "Elite Auto Sales", state: "MO", type: "independent_dealer" }, // Sikeston MO lot, titles vary
 
   // ── Northeast / Mid-Atlantic ──
   { url: "https://www.chayabrothers.com", name: "Chaya Brothers Auto & Salvage", state: "NH", type: "rebuilder_dealer" },
