@@ -372,6 +372,7 @@ export default function DealPage({
         <ImageGallery
           images={serverDeal.images}
           title={`${serverDeal.year ?? ""} ${serverDeal.make ?? ""} ${serverDeal.model ?? ""}`.trim()}
+          sourceUrl={serverDeal.sourceUrl}
         />
       )}
 
