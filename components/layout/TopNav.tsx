@@ -33,6 +33,7 @@ import {
   ListPlus,
   Layers,
   Banknote,
+  Store,
 } from "lucide-react";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { AccountMenu } from "@/components/home/AccountMenu";
@@ -57,6 +58,7 @@ const MORE_GROUPS = [
       { name: "Today", href: "/today", icon: CalendarDays },
       { name: "Flash deals", href: "/flash-deals", icon: Zap },
       { name: "Compare", href: "/compare", icon: Columns3 },
+      { name: "Dealer network", href: "/dealer-network", icon: Store },
       { name: "Find", href: "/find", icon: Search },
     ],
   },
