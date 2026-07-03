@@ -93,6 +93,15 @@ export const CURATED_SITES: CuratedSite[] = [
   { url: "https://salvagedus.com", name: "SalvagedUS", type: "auction_proxy" }, // rebuilt / salvage marketplace, dealers + private (verified)
   { url: "https://www.bidndrive.com", name: "BidNDrive", type: "auction_proxy" }, // salvage/repairable auction (browser-render; 403s curl)
   { url: "https://www.auto4export.com", name: "Auto4Export", type: "auction_proxy" }, // salvage export auction (browser-render; 403s curl)
+  // ── Wave 4 — mined from the rebuild1.com salvage-dealer directory (names → resolved domains, verified) ──
+  { url: "https://www.riverbendrebuildables.com", name: "Riverbend Rebuildables & Auto Sales", state: "MO", type: "rebuilder_dealer" },
+  { url: "https://www.trumannauto.com", name: "Trumann Auto Body & Sales", state: "AR", type: "rebuilder_dealer" },
+  { url: "https://www.polecatsautosales.com", name: "Polecats Auto Sales", state: "MO", type: "rebuilder_dealer" },
+  { url: "https://www.25autollc.com", name: "25 Auto LLC", state: "MO", type: "rebuilder_dealer" },
+  { url: "https://www.cameronautollc.com", name: "Cameron Auto LLC", state: "MO", type: "rebuilder_dealer" },
+  { url: "https://www.lambmotors.com", name: "Lamb Motors", type: "rebuilder_dealer" },
+  { url: "https://www.glensautosales.com", name: "Glen's Auto Sales", type: "rebuilder_dealer" },
+  { url: "https://www.rogersautosales.com", name: "Rogers Auto (Late Model Rebuilders)", type: "rebuilder_dealer" },
 
   // ── Northeast / Mid-Atlantic ──
   { url: "https://www.chayabrothers.com", name: "Chaya Brothers Auto & Salvage", state: "NH", type: "rebuilder_dealer" },
