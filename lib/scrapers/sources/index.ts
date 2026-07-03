@@ -607,6 +607,7 @@ export async function autoDiscoverAndCrawl(
     conditionDefault?: string;
     damageDefault?: string;
     sellerDefault?: string;
+    inventoryUrl?: string; // exact inventory page — skip auto-discovery when provided
   },
 ): Promise<number> {
   console.log(`[AutoDiscover] Analyzing ${dealerWebsite}`);
@@ -632,21 +633,27 @@ export async function autoDiscoverAndCrawl(
     /inventory|vehicles|\/used|for-sale|listings|stock|showroom/i;
   const INV_TEXT = /inventory|vehicles|stock|cars|used|available|repairable/i;
 
-  let inventoryUrl = "";
+  // Explicit override (from the curated registry) wins — for sites whose inventory lives at a non-standard
+  // URL the auto-discovery can't find (e.g. /vehicles.php on a subdomain).
+  let inventoryUrl = hint?.inventoryUrl
+    ? normalizeUrl(hint.inventoryUrl, dealerWebsite)
+    : "";
   let textFallback = "";
-  $("a[href]").each((_, el) => {
-    const href = ($(el).attr("href") || "").trim();
-    if (!navigational(href)) return; // skip JS/anchor/mailto links
-    const text = $(el).text().toLowerCase();
-    if (INV_PATH.test(href)) {
-      inventoryUrl = normalizeUrl(href, dealerWebsite);
-      return false; // strong match — stop
-    }
-    if (!textFallback && INV_TEXT.test(text)) {
-      textFallback = normalizeUrl(href, dealerWebsite);
-    }
-  });
-  if (!inventoryUrl) inventoryUrl = textFallback;
+  if (!inventoryUrl) {
+    $("a[href]").each((_, el) => {
+      const href = ($(el).attr("href") || "").trim();
+      if (!navigational(href)) return; // skip JS/anchor/mailto links
+      const text = $(el).text().toLowerCase();
+      if (INV_PATH.test(href)) {
+        inventoryUrl = normalizeUrl(href, dealerWebsite);
+        return false; // strong match — stop
+      }
+      if (!textFallback && INV_TEXT.test(text)) {
+        textFallback = normalizeUrl(href, dealerWebsite);
+      }
+    });
+    if (!inventoryUrl) inventoryUrl = textFallback;
+  }
 
   if (!inventoryUrl) {
     console.warn(`[AutoDiscover] No inventory page found at ${dealerWebsite}`);
@@ -739,6 +746,7 @@ export async function scrapeCuratedSites(
         conditionDefault: d.condition,
         damageDefault: d.damage_type,
         sellerDefault: d.seller_type,
+        inventoryUrl: site.inventoryUrl,
       });
       console.log(
         `[CuratedSites] ${site.name} (${site.type}${site.state ? `/${site.state}` : ""}): ${n} listings`,
