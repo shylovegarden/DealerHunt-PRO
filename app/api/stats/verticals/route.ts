@@ -41,6 +41,7 @@ export async function GET() {
   let feed: FeedItem[] = [];
   try {
     const sb = createServerComponentClient();
+    // Over-fetch so that after de-duping (many absentee records share an address/price) we still get variety.
     const [carRows, houseRows] = await Promise.all([
       sb
         .from("deals")
@@ -48,29 +49,55 @@ export async function GET() {
         .eq("active", true)
         .eq("deal_verdict", "go")
         .order("last_seen_at", { ascending: false })
-        .limit(10),
+        .limit(40),
       sb
         .from("properties")
-        .select("title, city, state, price")
+        .select("address, city, state, price")
         .eq("active", true)
         .eq("lead_tier", "hot")
         .order("scraped_at", { ascending: false })
-        .limit(10),
+        .limit(60),
     ]);
     const money = (n?: number | null) =>
       n ? `$${Math.round(n).toLocaleString()}` : "";
-    const cars_: FeedItem[] = (carRows.data || []).map((d) => ({
-      kind: "car",
-      text: `${d.year || ""} ${d.make || ""} ${d.model || ""}`
-        .replace(/\s+/g, " ")
-        .trim(),
-      sub: [money(d.ask_price), d.location_state].filter(Boolean).join(" · "),
-    }));
-    const houses_: FeedItem[] = (houseRows.data || []).map((p) => ({
-      kind: "house",
-      text: (p.title || `${p.city || ""}, ${p.state || ""}`).slice(0, 42),
-      sub: [money(p.price), p.state].filter(Boolean).join(" · "),
-    }));
+
+    // De-dupe by text+price so the same listing never repeats down the scroll.
+    const dedupe = (items: FeedItem[], cap: number) => {
+      const seen = new Set<string>();
+      const out: FeedItem[] = [];
+      for (const it of items) {
+        if (!it.text) continue;
+        const key = `${it.text}|${it.sub}`.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(it);
+        if (out.length >= cap) break;
+      }
+      return out;
+    };
+
+    const cars_ = dedupe(
+      (carRows.data || []).map((d) => ({
+        kind: "car" as const,
+        text: `${d.year || ""} ${d.make || ""} ${d.model || ""}`
+          .replace(/\s+/g, " ")
+          .trim(),
+        sub: [money(d.ask_price), d.location_state].filter(Boolean).join(" · "),
+      })),
+      12,
+    );
+    const houses_ = dedupe(
+      (houseRows.data || []).map((p) => ({
+        kind: "house" as const,
+        // Use the real street address (falls back to city/state) — never a source-derived title.
+        text: (p.address || `${p.city || ""}, ${p.state || ""}`)
+          .replace(/\s+/g, " ")
+          .trim()
+          .slice(0, 40),
+        sub: [money(p.price), p.state].filter(Boolean).join(" · "),
+      })),
+      12,
+    );
     // Interleave so the feed alternates houses/cars.
     for (let i = 0; i < Math.max(cars_.length, houses_.length); i++) {
       if (houses_[i]) feed.push(houses_[i]);

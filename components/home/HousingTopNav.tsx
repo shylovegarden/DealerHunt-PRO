@@ -93,7 +93,7 @@ export function HousingTopNav() {
       }}
     >
       {/* Logo + vertical switch */}
-      <div className="flex items-center gap-2 shrink-0">
+      <div className="flex flex-1 items-center gap-2 min-w-0">
         <Link href="/homeiq" className="flex items-center gap-2.5 group">
           <div
             className="w-8 h-8 rounded-xl grid place-items-center text-black font-black transition-transform group-hover:scale-105 shadow-[var(--shadow2)]"
@@ -108,8 +108,9 @@ export function HousingTopNav() {
         <VerticalSwitch />
       </div>
 
-      {/* Primary nav (desktop) */}
-      <nav className="hidden md:flex items-center gap-0.5 absolute left-1/2 -translate-x-1/2">
+      {/* Primary nav (desktop) — in the flow (not absolute) so it centers between the two flex-1 sides and
+          can never overlap them as the window narrows. */}
+      <nav className="hidden md:flex items-center gap-0.5 shrink-0">
         {PRIMARY.map((item) => {
           const active = isActive(item.href);
           return (
@@ -142,7 +143,7 @@ export function HousingTopNav() {
       </nav>
 
       {/* Right actions */}
-      <div className="flex items-center gap-2 shrink-0">
+      <div className="flex flex-1 items-center justify-end gap-2 min-w-0">
         {/* Desktop ⌘K launcher — opens the command palette (search a city/ZIP or jump anywhere). */}
         <button
           onClick={openPalette}

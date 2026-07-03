@@ -196,7 +196,7 @@ export function TopNav() {
       }}
     >
       {/* LEFT: Logo + vertical switch */}
-      <div className="flex items-center gap-2 flex-shrink-0">
+      <div className="flex flex-1 items-center gap-2 min-w-0">
         <Link href="/discover" className="flex items-center gap-2.5 group">
           <div
             className="w-8 h-8 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105"
@@ -211,8 +211,9 @@ export function TopNav() {
         <VerticalSwitch />
       </div>
 
-      {/* CENTER: Primary nav + More (desktop) */}
-      <nav className="hidden md:flex items-center gap-0.5 absolute left-1/2 -translate-x-1/2">
+      {/* CENTER: Primary nav + More (desktop) — in the flow so it centers between the flex-1 sides and can't
+          overlap them as the window narrows. */}
+      <nav className="hidden md:flex items-center gap-0.5 shrink-0">
         {PRIMARY.map((item) => {
           const active =
             pathname === item.href ||
@@ -325,7 +326,7 @@ export function TopNav() {
       </nav>
 
       {/* RIGHT: Actions */}
-      <div className="flex items-center gap-2 flex-shrink-0">
+      <div className="flex flex-1 items-center justify-end gap-2 min-w-0">
         <ThemeToggle />
         <IconBtn href="/saved" title="Saved">
           <Bookmark style={{ width: 17, height: 17 }} />

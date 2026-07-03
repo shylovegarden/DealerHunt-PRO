@@ -754,9 +754,9 @@ function QuickSave({ listingId }: { listingId: string }) {
         state === "saved"
           ? { background: ACCENT, borderColor: ACCENT, color: "#000" }
           : {
-              background: "var(--s0)",
-              borderColor: "var(--b1)",
-              color: "var(--t3)",
+              background: "var(--s2)",
+              borderColor: "var(--b3)",
+              color: "var(--t2)",
             }
       }
     >
