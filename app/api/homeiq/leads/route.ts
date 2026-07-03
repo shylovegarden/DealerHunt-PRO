@@ -14,7 +14,7 @@ import {
   queryProperties,
   countByState,
   upsertProperties,
-  ownerPortfolioMap,
+  stampOwnerPortfolio,
   type StoredProperty,
 } from "@/lib/housing/store";
 import { STATE_COORDS } from "@/lib/geo";
@@ -343,13 +343,8 @@ export async function GET(req: NextRequest) {
     all.sort((a, b) => b.score - a.score);
     applyStacking(all); // cross-source list-stacking → each lead's `stack` count
     // Portfolio-owner triage — stamp how many active properties this owner holds (public-record rollup,
-    // cached). >=5 usually means an institutional landlord / portfolio, not a motivated individual seller.
-    const portfolio = await ownerPortfolioMap();
-    if (portfolio.size)
-      for (const l of all) {
-        const n = l.owner ? portfolio.get(l.owner) : undefined;
-        if (n && n >= 5) l.ownerCount = n;
-      }
+    // cached, disposition sources excluded). >=5 = a portfolio/institutional landlord, not a motivated seller.
+    await stampOwnerPortfolio(all);
     // Statistical underpricing flag ("🎯 priced N% below comps") — robust MAD test vs same state+type
     // $/sqft peers, independent of the distress scorer. Display + filter only (score already rewards equity).
     const anomalies = flagPriceAnomalies(all);
@@ -414,6 +409,8 @@ export async function GET(req: NextRequest) {
         sqft: l.sqft,
         verdict: l.verdict ?? undefined,
         stack: l.stack,
+        owner: l.owner,
+        ownerCount: l.ownerCount,
         url: `/homeiq/leads/${encodeURIComponent(l.id)}`,
       };
     })

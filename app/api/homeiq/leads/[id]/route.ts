@@ -1,7 +1,11 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { getProperty } from "@/lib/housing/store";
+import {
+  getProperty,
+  ownerPortfolioMap,
+  DISPOSITION_SOURCES,
+} from "@/lib/housing/store";
 import { scoreHousingLead } from "@/lib/housing/lead-score";
 import { analyzeHousingDeal } from "@/lib/housing/deal-analyzer";
 import { rentCashflow } from "@/lib/housing/rent";
@@ -74,6 +78,15 @@ export async function GET(
     ? classifyFloodZone(String(storedFz))
     : await floodZone(p.lat, p.lng).catch(() => null);
 
+  // Portfolio-owner flag (public-record rollup, cached; disposition sources excluded).
+  const ownerName = (row.signals as any)?.owner as string | undefined;
+  const rawOwnerCount =
+    ownerName && !DISPOSITION_SOURCES.has(row.source)
+      ? (await ownerPortfolioMap()).get(ownerName)
+      : undefined;
+  const ownerCount =
+    rawOwnerCount && rawOwnerCount >= 5 ? rawOwnerCount : undefined;
+
   return NextResponse.json({
     lead: {
       id: row.source_listing_id,
@@ -111,6 +124,7 @@ export async function GET(
       // NOT scraped — that needs a licensed, compliant skip-trace provider (surfaced as an opt-in).
       owner: (row.signals as any)?.owner,
       ownerMailing: (row.signals as any)?.owner_mailing,
+      ownerCount,
       // LLC owner → real contact person + address, matched from the free state business registry.
       entityContact: (row.signals as any)?.entity_contact || null,
       // Listing identity (MLS-grade) + glance metrics — collected by Redfin/MLS/REO sources, never shown.

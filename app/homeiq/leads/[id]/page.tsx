@@ -342,6 +342,23 @@ export default function LeadDetailPage({
                     </span>
                   </div>
                 )}
+                {lead.ownerCount != null && lead.ownerCount >= 5 && (
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="text-[11px] font-black px-2 py-0.5 rounded-full"
+                      style={{
+                        color: "var(--t1)",
+                        border: "1px solid var(--b3)",
+                      }}
+                    >
+                      🏢 {lead.ownerCount.toLocaleString()} properties
+                    </span>
+                    <span className="text-[11px] text-[var(--t4)]">
+                      Portfolio owner — likely an institutional landlord, not a
+                      motivated individual seller.
+                    </span>
+                  </div>
+                )}
                 {lead.ownerMailing && (
                   <div className="flex items-start justify-between gap-2">
                     <div>

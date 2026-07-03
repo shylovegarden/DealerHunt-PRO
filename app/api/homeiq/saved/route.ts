@@ -5,7 +5,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerComponentClient } from "@/lib/supabase";
 import { getServerUser } from "@/lib/server-supabase";
-import { getProperty } from "@/lib/housing/store";
+import {
+  getProperty,
+  ownerPortfolioMap,
+  DISPOSITION_SOURCES,
+} from "@/lib/housing/store";
 import { analyzeHousingDeal } from "@/lib/housing/deal-analyzer";
 import type { Property } from "@/lib/housing/types";
 
@@ -44,7 +48,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Property not found" }, { status: 404 });
 
   const a = analyzeHousingDeal(p as Property);
+  // Snapshot the public-record owner + direct-mail contact + portfolio flag so the pipeline card shows them
+  // even though it renders from the denormalized snapshot (not a live re-query).
+  const ownerName = (p.signals as any)?.owner as string | undefined;
+  const rawOwnerCount =
+    ownerName && !DISPOSITION_SOURCES.has(p.source)
+      ? (await ownerPortfolioMap()).get(ownerName)
+      : undefined;
   const snapshot = {
+    owner: ownerName,
+    ownerMailing: (p.signals as any)?.owner_mailing,
+    ownerCount: rawOwnerCount && rawOwnerCount >= 5 ? rawOwnerCount : undefined,
     title: p.title,
     address: p.address,
     city: p.city,
