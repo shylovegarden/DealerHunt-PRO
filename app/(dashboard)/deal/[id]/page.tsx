@@ -20,6 +20,7 @@ import { useDealerId } from "@/hooks/useDealerId";
 import { Skeleton } from "@/components/shared/Skeleton";
 import { MaxBidWidget } from "@/components/deal/MaxBidWidget";
 import { ValuationBreakdown } from "@/components/deal/ValuationBreakdown";
+import { ScoreBreakdown } from "@/components/deal/ScoreBreakdown";
 import { PriceSparkline } from "@/components/deal/PriceSparkline";
 import { SimilarDeals } from "@/components/deal/SimilarDeals";
 import { MarketTiming } from "@/components/deal/MarketTiming";
@@ -786,9 +787,11 @@ export default function DealPage({
               {engineScore}
             </div>
           </div>
-          <p className="text-xs text-[var(--t4)] max-w-[200px] leading-tight">
-            Based on ROI, Margin, Demand, Mileage, and Title Risk.
-          </p>
+          <ScoreBreakdown
+            netProfit={engineNetProfit}
+            roi={engineRoi}
+            breakdown={serverDeal?.dealAnalysis?.scoreBreakdown}
+          />
         </Card>
       </motion.div>
 
