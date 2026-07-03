@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import useSWR from "swr";
 import Link from "next/link";
 import { useDealerWatch } from "@/hooks/useDealerWatch";
+import { WatchedDealerFeed } from "@/components/discovery/WatchedDealerFeed";
 
 // The curated salvage/rebuilder/dealer NETWORK — browse every independent shop we crawl, categorized, with
 // live inventory + accurate title-status mix, and ⭐ watch the ones you trust to follow their new listings.
@@ -118,6 +119,8 @@ export default function DealerNetworkPage() {
           {watch.count > 0 && ` · ⭐ ${watch.count} watched`}
         </p>
       </div>
+
+      <WatchedDealerFeed />
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">

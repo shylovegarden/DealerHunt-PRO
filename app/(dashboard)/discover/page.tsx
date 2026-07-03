@@ -5,6 +5,7 @@ import { usePreferences } from "@/hooks/usePreferences";
 import { NearbyDeals } from "@/components/discovery/NearbyDeals";
 import { MarketPicker } from "@/components/shared/MarketPicker";
 import { RecentlyViewed } from "@/components/shared/RecentlyViewed";
+import { WatchedDealerFeed } from "@/components/discovery/WatchedDealerFeed";
 import useSWR from "swr";
 import { Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
@@ -166,6 +167,9 @@ export default function DiscoverPage() {
           onPick={(st) => setState(st)}
         />
       )}
+
+      {/* New listings from the salvage/rebuilder dealers you watch. */}
+      <WatchedDealerFeed />
 
       {/* Jump back to deals you just looked at. */}
       <RecentlyViewed kind="car" accent="var(--amber-d)" />

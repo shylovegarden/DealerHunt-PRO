@@ -111,6 +111,13 @@ export async function GET(req: NextRequest) {
   const dealer = (searchParams.get("dealer") || "")
     .toLowerCase()
     .replace(/[^a-z0-9.-]/g, "");
+  // Multi-dealer filter (comma-separated hosts) — powers the "new from watched dealers" feed.
+  const dealers = (searchParams.get("dealers") || "")
+    .toLowerCase()
+    .split(",")
+    .map((s) => s.replace(/[^a-z0-9.-]/g, ""))
+    .filter(Boolean)
+    .slice(0, 25);
   const titleType = searchParams.get("titleType") || "";
   const lane = (searchParams.get("lane") || "").toLowerCase();
   const category = searchParams.get("cat") || "";
@@ -187,6 +194,9 @@ export async function GET(req: NextRequest) {
   // in-app inventory view. Sanitized to host-safe chars before interpolation.
   if (dealer) {
     query = query.ilike("source_url", `%${dealer}%`);
+  }
+  if (dealers.length) {
+    query = query.or(dealers.map((h) => `source_url.ilike.%${h}%`).join(","));
   }
 
   if (titleType && titleType !== "all") {
