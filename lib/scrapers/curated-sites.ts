@@ -81,6 +81,18 @@ export const CURATED_SITES: CuratedSite[] = [
   { url: "https://rebuilders.stjamesautoparts.com", name: "St. James Auto & Truck (Rebuilders)", type: "salvage_yard" }, // parts yard that ALSO sells rebuildable vehicles — verified on the rebuilders/vehicles.php inventory
   { url: "https://www.rebuildtrucks.com", name: "RebuildTrucks", type: "rebuilder_dealer" }, // rebuildable / ready-to-drive trucks & SUVs (verified)
   { url: "https://www.globalautoauctions.com", name: "Global Auto Auctions", type: "auction_proxy" }, // IAAI reseller, damaged/rebuildable (verified)
+  // ── Wave 3 — surfaced by blocking the known network in search (genuinely new, curl-verified) ──
+  { url: "https://www.rebuild1.com", name: "Rebuild1", type: "rebuilder_dealer" }, // salvage cars/trucks + salvage-dealer database (verified)
+  { url: "https://thepartsfarm.com", name: "The Parts Farm", type: "salvage_yard" }, // parts yard — complete cars for sale (verified)
+  { url: "https://revroom.org", name: "ReVroom", type: "auction_proxy" }, // rebuilt / branded-title marketplace (verified)
+  { url: "https://www.salvagetrucksauction.com", name: "Salvage Trucks Auction", type: "auction_proxy" }, // Copart reseller (verified)
+  { url: "https://www.ttrepairables.com", name: "T&T Repairables", state: "IN", type: "rebuilder_dealer" }, // Spencer, IN rebuilder (browser-render; 403s curl)
+  { url: "https://brickyardautoparts.com", name: "Brickyard Auto Parts", type: "salvage_yard" }, // parts yard — rebuildable inventory (verified)
+  { url: "https://www.ridesafely.com", name: "RideSafely", type: "auction_proxy" }, // salvage auto auction (browser-render; 403s curl)
+  { url: "https://www.repairedsalvage.com", name: "Repaired Salvage", type: "rebuilder_dealer" }, // salvage / repaired cars (verified)
+  { url: "https://salvagedus.com", name: "SalvagedUS", type: "auction_proxy" }, // rebuilt / salvage marketplace, dealers + private (verified)
+  { url: "https://www.bidndrive.com", name: "BidNDrive", type: "auction_proxy" }, // salvage/repairable auction (browser-render; 403s curl)
+  { url: "https://www.auto4export.com", name: "Auto4Export", type: "auction_proxy" }, // salvage export auction (browser-render; 403s curl)
 
   // ── Northeast / Mid-Atlantic ──
   { url: "https://www.chayabrothers.com", name: "Chaya Brothers Auto & Salvage", state: "NH", type: "rebuilder_dealer" },
