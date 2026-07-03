@@ -29,7 +29,11 @@ export async function GET() {
 
   const stats = await propertyStats().catch(() => null);
   const houses = stats
-    ? { total: stats.total, hot: stats.byTier?.hot || 0 }
+    ? {
+        total: stats.total,
+        hot: stats.byTier?.hot || 0,
+        states: Object.keys(stats.byState || {}).filter(Boolean).length,
+      }
     : null;
 
   // A few recent items from BOTH verticals for the live scrolling background feed on /welcome.

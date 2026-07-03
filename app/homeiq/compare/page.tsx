@@ -54,23 +54,28 @@ export default function HomeComparePage() {
     },
     {
       label: "Neighborhood",
-      get: (l) =>
-        l.neighborhood ? (
+      get: (l) => {
+        // `neighborhood` can be a string OR an object {score, trajectory, label, ...} — render a string, never
+        // the object (rendering the object throws React #31 and crashed this page in prod).
+        const n = l.neighborhood;
+        if (!n) return "—";
+        const traj = typeof n === "string" ? n : n.trajectory || n.label || "";
+        const label = typeof n === "string" ? n : n.label || n.trajectory || "";
+        if (!label) return "—";
+        return (
           <span
             style={{
-              color:
-                l.neighborhood === "rising"
-                  ? "var(--green)"
-                  : l.neighborhood === "declining"
-                    ? "var(--red)"
-                    : "var(--t3)",
+              color: /ris|up|grow/i.test(traj)
+                ? "var(--green)"
+                : /declin|fall|down/i.test(traj)
+                  ? "var(--red)"
+                  : "var(--t3)",
             }}
           >
-            {l.neighborhood}
+            {String(label)}
           </span>
-        ) : (
-          "—"
-        ),
+        );
+      },
     },
     {
       label: "Flood",
