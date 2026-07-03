@@ -11,12 +11,15 @@ interface ImageGalleryProps {
   title?: string;
   /** Shown if the hero photo fails to load (e.g. a dead listing URL) — e.g. an aerial of the parcel. */
   fallbackSrc?: string;
+  /** The original source listing — rendered as a "View original ↗" link at the end of the gallery. */
+  sourceUrl?: string;
 }
 
 export function ImageGallery({
   images: rawImages = [],
   title = "Vehicle Image",
   fallbackSrc,
+  sourceUrl,
 }: ImageGalleryProps) {
   // Route every photo through the proxy so hotlink-protected sources load.
   const images = (rawImages || []).map(proxiedImage).filter(Boolean);
@@ -245,6 +248,18 @@ export function ImageGallery({
               No Images Available
             </span>
           </div>
+        )}
+
+        {/* End of the photos → jump to the original source listing. */}
+        {sourceUrl && (
+          <a
+            href={sourceUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-1.5 py-2.5 rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s0)] text-sm font-bold text-[var(--t2)] hover:border-[var(--b3)] hover:text-[var(--t1)] transition-colors"
+          >
+            <Ico name="external" size={15} /> View original listing ↗
+          </a>
         )}
       </div>
 

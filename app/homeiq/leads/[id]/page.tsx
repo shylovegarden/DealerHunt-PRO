@@ -254,6 +254,7 @@ export default function LeadDetailPage({
                 fallbackSrc={
                   aerialThumb(lead.lat, lead.lng, 800, 450) || undefined
                 }
+                sourceUrl={lead.url}
               />
             </div>
           ) : (
