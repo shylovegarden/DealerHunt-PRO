@@ -1044,6 +1044,22 @@ const LeadCard = memo(function LeadCard({
             </span>
           </div>
           <h3 className="text-sm text-[var(--t2)] truncate">{lead.title}</h3>
+          {/* Owner of record — the thing that distinguishes otherwise-identical parcels at one building (e.g. a
+              condo complex of absentee owners) and the direct-mail target itself. */}
+          {lead.owner && (
+            <p className="text-[11px] text-[var(--t3)] truncate mt-0.5">
+              👤 <span className="font-semibold">{lead.owner}</span>
+              {lead.distress?.outOfState && lead.distress?.ownerState && (
+                <span className="text-[var(--amber)] font-bold">
+                  {" "}
+                  · absentee {lead.distress.ownerState}
+                </span>
+              )}
+              {lead.ownerMailing && (
+                <span className="text-[var(--green)]"> · 📮 mail-ready</span>
+              )}
+            </p>
+          )}
           {/* Glance facts — the physical specs buyers scan first (beds/baths/sqft/$psf/days-on-market). */}
           {(lead.beds != null ||
             lead.baths != null ||
