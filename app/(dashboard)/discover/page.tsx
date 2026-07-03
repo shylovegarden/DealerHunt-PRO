@@ -19,6 +19,7 @@ import { MarketSummary } from "@/components/discovery/MarketSummary";
 import { DealTicker } from "@/components/home/DealTicker";
 import { MarketPulse } from "@/components/home/MarketPulse";
 import { DiscoverHero } from "@/components/discovery/DiscoverHero";
+import { EdgeBanner } from "@/components/shared/EdgeBanner";
 import type {
   DiscoverResponse,
   DiscoveryRail,
@@ -121,6 +122,9 @@ export default function DiscoverPage() {
 
   return (
     <div className="space-y-6 pb-24 md:pb-8">
+      {/* Your edge today — the live opportunity on the board right now. */}
+      <EdgeBanner kind="cars" />
+
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative">
