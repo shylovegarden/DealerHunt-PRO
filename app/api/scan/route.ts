@@ -2,14 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-if (!supabaseUrl || !supabaseKey) {
-  throw new Error(
-    "Supabase env not configured: set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY",
-  );
-}
-const supabase = createClient(supabaseUrl, supabaseKey);
+// Do NOT throw at module load — Vercel's build (page-data collection) evaluates route modules without the
+// runtime env present, and a top-level throw fails the whole build. Fall back to empty strings so the module
+// loads; at request time in prod the env is set. (This was silently freezing every deploy.)
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "",
+);
 
 function toNum(v: any): number {
   const n = Number(v);
