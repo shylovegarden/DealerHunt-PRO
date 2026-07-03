@@ -40,6 +40,14 @@ export default function HomeIQHome() {
   const { data } = useSWR(`/api/homeiq/leads?limit=300`, fetcher, {
     revalidateOnFocus: false,
   });
+  // Headline counts come from the LIGHT, fast stats endpoint (same one /welcome uses) so the stat cards
+  // populate instantly instead of waiting on — or getting stuck behind — the heavy leads payload.
+  const { data: vstats } = useSWR(`/api/stats/verticals`, fetcher, {
+    revalidateOnFocus: false,
+  });
+  const houseStats = vstats?.houses as
+    | { total: number; hot: number; states: number }
+    | undefined;
   const leads: Lead[] = data?.leads ?? [];
   const byState: Record<string, number> = data?.byState ?? {};
   const byTier = data?.byTier ?? { hot: 0, warm: 0, standard: 0 };
@@ -105,21 +113,21 @@ export default function HomeIQHome() {
         <div className="mt-7 grid grid-cols-3 gap-2 sm:gap-3 max-w-xl">
           <Stat
             label="Live leads"
-            value={total}
+            value={houseStats?.total ?? total}
             accent="var(--t1)"
-            loading={!data}
+            loading={houseStats == null && !data}
           />
           <Stat
             label="🔥 Hot"
-            value={byTier.hot ?? 0}
+            value={houseStats?.hot ?? byTier.hot ?? 0}
             accent="var(--red)"
-            loading={!data}
+            loading={houseStats == null && !data}
           />
           <Stat
             label="States"
-            value={Object.keys(byState).length}
+            value={houseStats?.states ?? Object.keys(byState).length}
             accent={ACCENT}
-            loading={!data}
+            loading={houseStats == null && !data}
           />
         </div>
 

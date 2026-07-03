@@ -83,7 +83,9 @@ export default function WelcomePage() {
       ref={ref}
       onMouseMove={(e) => setHover(sideAt(e.clientX, e.clientY))}
       onMouseLeave={() => setHover(null)}
-      onClick={() => focus && enter(focus)}
+      // Enter the side actually CLICKED (from the pointer position), not the last-hovered side — otherwise a
+      // click/tap on one side could enter the other (stale focus), which broke touch + fast clicks.
+      onClick={(e) => enter(sideAt(e.clientX, e.clientY))}
       className="fixed inset-0 overflow-hidden bg-black select-none cursor-pointer"
     >
       {/* ── HomeIQ (houses) — pointer-events:none; the <main> owns the mouse so the seam can't flip-flop. */}

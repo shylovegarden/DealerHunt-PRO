@@ -251,6 +251,9 @@ export default function LeadDetailPage({
                     ? lead.images
                     : [lead.image].filter(Boolean)
                 }
+                fallbackSrc={
+                  aerialThumb(lead.lat, lead.lng, 800, 450) || undefined
+                }
               />
             </div>
           ) : (

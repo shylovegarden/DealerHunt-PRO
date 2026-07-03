@@ -9,11 +9,14 @@ import { proxiedImage } from "@/lib/image-url";
 interface ImageGalleryProps {
   images?: string[];
   title?: string;
+  /** Shown if the hero photo fails to load (e.g. a dead listing URL) — e.g. an aerial of the parcel. */
+  fallbackSrc?: string;
 }
 
 export function ImageGallery({
   images: rawImages = [],
   title = "Vehicle Image",
+  fallbackSrc,
 }: ImageGalleryProps) {
   // Route every photo through the proxy so hotlink-protected sources load.
   const images = (rawImages || []).map(proxiedImage).filter(Boolean);
@@ -135,16 +138,26 @@ export function ImageGallery({
                 <div className="absolute inset-0 bg-gradient-to-r from-[var(--s2)] via-[var(--s3)] to-[var(--s2)] animate-pulse" />
               )}
               {imageError[0] ? (
-                <div className="w-full h-full bg-[var(--s2)] flex flex-col items-center justify-center text-[var(--t4)]">
-                  <Ico
-                    name="alert-triangle"
-                    size={48}
-                    className="opacity-20 mb-3 text-[var(--red)]"
+                fallbackSrc ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={fallbackSrc}
+                    alt={title}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
                   />
-                  <span className="text-sm font-bold uppercase tracking-widest">
-                    Image Failed
-                  </span>
-                </div>
+                ) : (
+                  <div className="w-full h-full bg-[var(--s2)] flex flex-col items-center justify-center text-[var(--t4)]">
+                    <Ico
+                      name="alert-triangle"
+                      size={48}
+                      className="opacity-20 mb-3 text-[var(--red)]"
+                    />
+                    <span className="text-sm font-bold uppercase tracking-widest">
+                      Image Failed
+                    </span>
+                  </div>
+                )
               ) : (
                 <img
                   src={images[0]}
