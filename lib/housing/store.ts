@@ -105,7 +105,9 @@ export async function ownerPortfolioMap(): Promise<Map<string, number>> {
   } catch {
     /* non-fatal */
   }
-  _ownerPortfolio = { at: now, map };
+  // Only cache a NON-empty result — a transient RPC failure (e.g. PostgREST schema-cache lag right after
+  // the migration) must not stick for the full TTL; retry on the next call until it populates.
+  if (map.size) _ownerPortfolio = { at: now, map };
   return map;
 }
 
