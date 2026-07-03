@@ -31,9 +31,9 @@ export function CompareToggle({
       aria-pressed={on}
       className="h-7 w-7 grid place-items-center rounded-full text-[13px] font-black shadow-[var(--shadow2)] transition-colors disabled:opacity-40"
       style={{
-        background: on ? accent : "var(--s0)",
-        color: on ? "#000" : "var(--t3)",
-        border: `1px solid ${on ? accent : "var(--b2)"}`,
+        background: on ? accent : "var(--s2)",
+        color: on ? "#000" : "var(--t2)",
+        border: `1px solid ${on ? accent : "var(--b3)"}`,
       }}
       disabled={full}
     >

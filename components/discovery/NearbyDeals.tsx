@@ -107,7 +107,7 @@ export function NearbyDeals() {
               href={`/deal/${d.id}`}
               className="flex items-center gap-3 rounded-xl border border-[var(--b1)] bg-[var(--s1)] p-2.5 hover:border-[var(--b3)] transition-colors"
             >
-              <div className="h-12 w-16 shrink-0 rounded-lg bg-[var(--s2)] overflow-hidden">
+              <div className="h-12 w-16 shrink-0 rounded-lg bg-[var(--s2)] overflow-hidden grid place-items-center">
                 {d.images?.[0] && d.images[0].startsWith("http") ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -116,7 +116,12 @@ export function NearbyDeals() {
                     className="h-full w-full object-cover"
                     loading="lazy"
                   />
-                ) : null}
+                ) : (
+                  // No photo → a subtle car glyph instead of an empty box.
+                  <span className="text-lg opacity-40" aria-hidden>
+                    🚗
+                  </span>
+                )}
               </div>
               <div className="min-w-0 flex-1">
                 <div className="text-[13px] font-bold text-[var(--t1)] truncate">
