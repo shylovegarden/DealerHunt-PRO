@@ -922,11 +922,322 @@ export const NATIONAL_SOURCES: OpenDataSource[] = [
   },
 ];
 
+// ── National metro distress feeds (2026-07, each curl-verified live: 200 + real residential rows). All
+// free, no-auth, no-anti-bot gov open data — the highest-ROI coverage path (data-without-HTML). ArcGIS
+// geometry comes back as lat/lng (engine sends outSR=4326); NOLA has no geometry → geocoded by address. ──
+const METRO_DISTRESS_SOURCES: OpenDataSource[] = [
+  {
+    // Baltimore, MD — open Vacant Building Notices (~11.6k). Every row is an active vacant designation.
+    source: "vacant_building",
+    api: "arcgis",
+    url: "https://egisdata.baltimorecity.gov/egis/rest/services/Housing/DHCD_Open_Baltimore_Datasets/FeatureServer/1",
+    state: "MD",
+    city: "Baltimore",
+    where: "1=1",
+    limit: 12000,
+    map: (a, g): Property | null => {
+      const address = s(a.Address);
+      if (!address) return null;
+      return {
+        source: "vacant_building",
+        source_listing_id: `balt-vbn-${s(a.NoticeNum) || s(a.BLOCKLOT) || address}`,
+        title: `Vacant building · ${address}`,
+        address,
+        city: "Baltimore",
+        state: "MD",
+        lat: g.lat,
+        lng: g.lng,
+        seller_type: "owner",
+        signals: {
+          vacant: true,
+          code_violation: true,
+          owner: s(a.OWNER_ABBR),
+          status: "Vacant building notice",
+        },
+      };
+    },
+  },
+  {
+    // Seattle, WA — open code complaints & violations (~13k).
+    source: "code_violation",
+    api: "socrata",
+    url: "https://cos-data.seattle.gov/resource/ez4a-iug7.json",
+    state: "WA",
+    city: "Seattle",
+    where:
+      "statuscurrent in ('Under Investigation','NOV Issued','Initiated','Warning','Citation Issued')",
+    limit: 8000,
+    map: (a, g): Property | null => {
+      const address = s(a.originaladdress1);
+      if (!address) return null;
+      return {
+        source: "code_violation",
+        source_listing_id: `sea-${address}-${s(a.originalzip) || ""}`,
+        title: `Code case · ${address}`,
+        address,
+        city: s(a.originalcity) || "Seattle",
+        state: "WA",
+        zip: s(a.originalzip),
+        lat: g.lat,
+        lng: g.lng,
+        seller_type: "owner",
+        signals: {
+          code_violation: true,
+          status: s(a.statuscurrent) || "Open code case",
+        },
+      };
+    },
+  },
+  {
+    // Dallas, TX — open code violations incl. city liens (~14k). LIENHOLD = a filed city lien (strong).
+    source: "code_violation",
+    api: "socrata",
+    url: "https://www.dallasopendata.com/resource/xrzj-c8ez.json",
+    state: "TX",
+    city: "Dallas",
+    where: "status in ('OPEN','LIENHOLD')",
+    limit: 10000,
+    map: (a, g): Property | null => {
+      const built = [
+        s(a.str_num),
+        s(a.str_prefix),
+        s(a.str_nam),
+        s(a.str_suffix),
+      ]
+        .filter(Boolean)
+        .join(" ");
+      const address =
+        a.str_num && String(a.str_num) !== "0" ? built : s(a.str_nam);
+      if (!address) return null;
+      const geo = pointLatLng(a.the_geom);
+      const lien = String(a.status).toUpperCase() === "LIENHOLD";
+      return {
+        source: "code_violation",
+        source_listing_id: `dal-${address}-${s(a.zone) || ""}`,
+        title: `${lien ? "City lien / " : ""}Code violation · ${address}`,
+        address,
+        city: "Dallas",
+        state: "TX",
+        zip: s(a.zone),
+        lat: geo.lat,
+        lng: geo.lng,
+        seller_type: "owner",
+        signals: {
+          code_violation: true,
+          status: lien ? "City lien filed" : s(a.status) || "Open violation",
+        },
+      };
+    },
+  },
+  {
+    // Indianapolis (Marion Co), IN — open code enforcement / unsafe-building cases (~21k). Carries owner.
+    source: "code_violation",
+    api: "arcgis",
+    url: "https://services.arcgis.com/tKsJAIiLjd90D5q2/arcgis/rest/services/Indianapolis_Code_Enforcement_Violations_and_Investigations_Geocoded/FeatureServer/0",
+    state: "IN",
+    city: "Indianapolis",
+    where: "USER_CASE_STATUS NOT LIKE 'Closed%'",
+    limit: 10000,
+    map: (a, g): Property | null => {
+      const address = s(a.USER_STREET_ADDRESS);
+      if (!address) return null;
+      const unsafe = /unsafe/i.test(String(a.USER_CASE_TYPE || ""));
+      return {
+        source: "code_violation",
+        source_listing_id: `indy-${address}-${s(a.USER_ZIP) || ""}`,
+        title: `${unsafe ? "Unsafe building / " : ""}Code case · ${address}`,
+        address,
+        city: s(a.USER_CITY) || "Indianapolis",
+        state: "IN",
+        zip: s(a.USER_ZIP),
+        lat: g.lat,
+        lng: g.lng,
+        seller_type: "owner",
+        signals: {
+          code_violation: true,
+          owner: s(a.USER_OWNER),
+          status: s(a.USER_CASE_STATUS) || "Open code case",
+        },
+      };
+    },
+  },
+  {
+    // Miami-Dade, FL — open/lien/referred code compliance violations (~31k).
+    source: "code_violation",
+    api: "arcgis",
+    url: "https://services.arcgis.com/8Pc9XBTAsYuxx9Ny/arcgis/rest/services/CCVIOL_gdb/FeatureServer/0",
+    state: "FL",
+    city: "Miami",
+    where:
+      "STAT_DESC LIKE 'Open%' OR STAT_DESC LIKE 'Lien%' OR STAT_DESC LIKE 'Referred%'",
+    limit: 12000,
+    map: (a, g): Property | null => {
+      const address = s(a.ADDRESS);
+      if (!address) return null;
+      const lien = /lien/i.test(String(a.STAT_DESC || ""));
+      return {
+        source: "code_violation",
+        source_listing_id: `mdc-${s(a.FOLIO) || address}`,
+        title: `${lien ? "Lien / " : ""}Code case · ${address}`,
+        address,
+        city: "Miami",
+        state: "FL",
+        lat: g.lat,
+        lng: g.lng,
+        seller_type: "owner",
+        signals: {
+          code_violation: true,
+          status: s(a.STAT_DESC) || "Open code case",
+        },
+      };
+    },
+  },
+  {
+    // New Orleans, LA — pending sheriff sales / lien foreclosures (~440). No geometry → geocode by address.
+    source: "foreclosure",
+    api: "socrata",
+    url: "https://data.nola.gov/resource/d52w-8nva.json",
+    state: "LA",
+    city: "New Orleans",
+    where: "salestatus='Pending'",
+    limit: 2000,
+    map: (a, g): Property | null => {
+      const address = s(a.propertyaddress);
+      if (!address) return null;
+      return {
+        source: "foreclosure",
+        source_listing_id: `nola-fc-${s(a.cdccasenumber) || address}`,
+        title: `Sheriff sale · ${address}`,
+        address,
+        city: "New Orleans",
+        state: "LA",
+        lat: g.lat,
+        lng: g.lng,
+        price: n(a.saleamount),
+        seller_type: "owner",
+        signals: {
+          foreclosure: true,
+          sheriff_sale: true,
+          owner: s(a.defendant),
+          status: s(a.salestatus) || "Pending sheriff sale",
+        },
+      };
+    },
+  },
+  {
+    // Detroit (Wayne Co), MI — unpaid blight tickets since 2023 (~144k). Owner + MAILING address → doubles
+    // as an absentee feed when the owner's state isn't MI (a core off-market list).
+    source: "code_violation",
+    api: "arcgis",
+    url: "https://services2.arcgis.com/qvkbeam7Wirps6zC/arcgis/rest/services/blight_tickets/FeatureServer/0",
+    state: "MI",
+    city: "Detroit",
+    where: "amt_balance_due>0 AND ticket_issued_date>'2023-01-01'",
+    limit: 15000,
+    map: (a, g): Property | null => {
+      const address = s(a.address);
+      if (!address) return null;
+      const ownerState = s(a.property_owner_state);
+      const absentee = !!ownerState && ownerState.toUpperCase() !== "MI";
+      return {
+        source: absentee ? "absentee_owner" : "code_violation",
+        source_listing_id: `det-blight-${address}-${s(a.zip_code) || ""}`,
+        title: `${absentee ? "Absentee / " : ""}Blight ticket · ${address}`,
+        address,
+        city: "Detroit",
+        state: "MI",
+        zip: s(a.zip_code),
+        lat: g.lat,
+        lng: g.lng,
+        seller_type: "owner",
+        signals: {
+          code_violation: true,
+          total_due: n(a.amt_balance_due),
+          owner: s(a.property_owner_name),
+          absentee,
+          out_of_state_owner: absentee,
+          owner_mailing: mailing(
+            a.property_owner_address,
+            a.property_owner_city,
+            a.property_owner_state,
+            a.property_owner_zip_code,
+          ),
+          status: "Unpaid blight ticket",
+        },
+      };
+    },
+  },
+  {
+    // Washington, DC — active vacant & blighted building designations (~2.1k).
+    source: "vacant_building",
+    api: "arcgis",
+    url: "https://maps2.dcgis.dc.gov/dcgis/rest/services/DCGIS_DATA/Property_and_Land_WebMercator/FeatureServer/82",
+    state: "DC",
+    city: "Washington",
+    where: "STATUS='ACTIVE'",
+    limit: 4000,
+    map: (a, g): Property | null => {
+      const address = s(a.ADDRESS);
+      if (!address) return null;
+      return {
+        source: "vacant_building",
+        source_listing_id: `dc-vacant-${address}`,
+        title: `Vacant / blighted · ${address}`,
+        address,
+        city: s(a.CITY) || "Washington",
+        state: "DC",
+        zip: s(a.ZIPCODE),
+        lat: g.lat ?? coord(a.LATITUDE),
+        lng: g.lng ?? coord(a.LONGITUDE),
+        seller_type: "owner",
+        signals: {
+          vacant: true,
+          code_violation: true,
+          status: `Vacant/blighted (${s(a.RESIDENTIAL_TYPE) || "residential"})`,
+        },
+      };
+    },
+  },
+  {
+    // Cleveland (Cuyahoga Co), OH — open property-maintenance investigations (~3.2k). ADDRESS is
+    // "street, CLEVELAND, OH, zip" → take the street part.
+    source: "code_violation",
+    api: "arcgis",
+    url: "https://services3.arcgis.com/dty2kHktVXHrqO8i/arcgis/rest/services/Property_Maintenance_Investigations/FeatureServer/0",
+    state: "OH",
+    city: "Cleveland",
+    where: "RECORD_STATUS NOT LIKE 'Closed%'",
+    limit: 5000,
+    map: (a, g): Property | null => {
+      const full = s(a.ADDRESS);
+      if (!full) return null;
+      const address = full.split(",")[0].trim();
+      if (!address) return null;
+      return {
+        source: "code_violation",
+        source_listing_id: `cle-${s(a.PARCEL_NUMBER) || full}`,
+        title: `Code case · ${address}`,
+        address,
+        city: "Cleveland",
+        state: "OH",
+        lat: g.lat ?? coord(a.LAT),
+        lng: g.lng ?? coord(a.LON),
+        seller_type: "owner",
+        signals: {
+          code_violation: true,
+          status: s(a.RECORD_STATUS) || "Open investigation",
+        },
+      };
+    },
+  },
+];
+
 // All configured open-data jurisdictions (grows state by state).
 export const OPEN_DATA_SOURCES: OpenDataSource[] = [
   ...MISSOURI_SOURCES,
   ...NATIONAL_SOURCES,
   ...CITY_FEED_SOURCES,
+  ...METRO_DISTRESS_SOURCES,
 ];
 
 /** Harvest all configured open-data off-market leads (Missouri-first; whole-US as configs are added). */
