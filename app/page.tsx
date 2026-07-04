@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { getServerUser } from "@/lib/server-supabase";
+import { getServerUserAndVertical } from "@/lib/server-supabase";
 import { Ico } from "@/components/shared/Ico";
 import { LiveCount } from "@/components/landing/LiveCount";
 import { ProofBand } from "@/components/landing/ProofBand";
@@ -62,13 +62,22 @@ const EDGE = [
 ];
 
 export default async function Home() {
+  // Resolve where a logged-in user should land, THEN redirect (never inside try/catch — a caught
+  // NEXT_REDIRECT would be swallowed). Honor the "land on" preference; else the vertical selector.
+  let dest: string | null = null;
   try {
-    const { data } = await getServerUser();
-    // Logged in → the vertical selector (pick HomeIQ or DealerHunt).
-    if (data?.user) redirect("/welcome");
+    const { userId, preferredVertical } = await getServerUserAndVertical();
+    if (userId)
+      dest =
+        preferredVertical === "cars"
+          ? "/discover"
+          : preferredVertical === "homeiq"
+            ? "/homeiq"
+            : "/welcome";
   } catch {
     // Not configured or no session — show the public landing.
   }
+  if (dest) redirect(dest);
 
   return (
     <main className="min-h-screen flex flex-col bg-[var(--s1)] pb-safe">
