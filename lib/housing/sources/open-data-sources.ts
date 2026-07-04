@@ -2441,6 +2441,768 @@ const MO_IL_SOURCES: OpenDataSource[] = [
   },
 ];
 
+// ── GAP STATES (2026-07, curl-verified) — one strong feed per state that had ZERO local coverage. Mostly
+// out-of-state-owner absentee rolls (the universal vector), plus SC tax-delinquent + MS tax-forfeited. ──
+const abs = (
+  o: Partial<Property> & { source_listing_id: string; address: string },
+): Property => ({
+  source: "absentee_owner",
+  property_type: "single_family",
+  seller_type: "owner",
+  title: `Absentee owner · ${o.address}`,
+  ...o,
+});
+
+const GAP_STATE_SOURCES: OpenDataSource[] = [
+  {
+    // AL — Jefferson County (Birmingham) out-of-state owners (~63k).
+    source: "absentee_owner",
+    api: "arcgis",
+    url: "https://jccgis.jccal.org/server/rest/services/DDS/AccelaProd/MapServer/3",
+    state: "AL",
+    city: "Jefferson County",
+    where: "STATE_Mail<>'AL' AND STATE_Mail IS NOT NULL AND STATE_Mail<>''",
+    limit: 8000,
+    map: (a, g): Property | null => {
+      const address = s(a.ADDR_PSPR);
+      if (!address) return null;
+      return abs({
+        source_listing_id: `al-jeff-${address}`,
+        address,
+        city: s(a.Property_City) || "Birmingham",
+        state: "AL",
+        zip: s(a.ZIP),
+        lat: g.lat,
+        lng: g.lng,
+        price: n(a.AssdValue),
+        signals: {
+          absentee: true,
+          out_of_state_owner: true,
+          owner: s(a.OWNERNAME),
+          owner_mailing: mailing(
+            a.PROP_MAIL,
+            a.CITYMAIL,
+            a.STATE_Mail,
+            a.ZIP_MAIL,
+          ),
+          market_value: n(a.AssdValue),
+          status: `Absentee (${s(a.STATE_Mail) || "out of state"})`,
+        },
+      });
+    },
+  },
+  {
+    // AR — Pulaski County (Little Rock) out-of-state owners (~13k).
+    source: "absentee_owner",
+    api: "arcgis",
+    url: "https://www.pagis.org/arcgis/rest/services/APPS/OperationalLayers/MapServer/39",
+    state: "AR",
+    city: "Pulaski County",
+    where:
+      "OWNER_ST<>'AR' AND OWNER_ST<>'' AND OWNER_ST IS NOT NULL AND ADRLABEL<>'' AND ADRLABEL IS NOT NULL",
+    limit: 8000,
+    map: (a, g): Property | null => {
+      const address = s(a.ADRLABEL);
+      if (!address) return null;
+      return abs({
+        source_listing_id: `ar-pulaski-${address}`,
+        address,
+        city: s(a.ADRCITY) || "Little Rock",
+        state: "AR",
+        zip: s(a.ADRZIP5),
+        lat: g.lat,
+        lng: g.lng,
+        price: n(a.TOTALVALUE),
+        signals: {
+          absentee: true,
+          out_of_state_owner: true,
+          owner: s(a.OWNERNAME),
+          owner_mailing: mailing(
+            a.OWNER_ADD1,
+            a.OWNER_CITY,
+            a.OWNER_ST,
+            a.OWNER_ZIP,
+          ),
+          market_value: n(a.TOTALVALUE),
+          status: `Absentee (${s(a.OWNER_ST) || "out of state"})`,
+        },
+      });
+    },
+  },
+  {
+    // CO — Boulder County out-of-state owners (~10k).
+    source: "absentee_owner",
+    api: "arcgis",
+    url: "https://maps.bouldercounty.org/arcgis/rest/services/PARCELS/PARCELS_OWNER/FeatureServer/0",
+    state: "CO",
+    city: "Boulder County",
+    where: "MailState<>'CO' AND Street IS NOT NULL AND Street<>''",
+    limit: 8000,
+    map: (a, g): Property | null => {
+      const address = [s(a.StrNum), s(a.Street), s(a.StrSuf)]
+        .filter(Boolean)
+        .join(" ");
+      if (!address) return null;
+      return abs({
+        source_listing_id: `co-boulder-${address}`,
+        address,
+        city: s(a.StrCity) || "Boulder",
+        state: "CO",
+        lat: g.lat,
+        lng: g.lng,
+        signals: {
+          absentee: true,
+          out_of_state_owner: true,
+          owner: s(a.OwnerName),
+          owner_mailing: mailing(
+            a.MailAddr1,
+            a.MailCity,
+            a.MailState,
+            a.MailZip,
+          ),
+          status: `Absentee (${s(a.MailState) || "out of state"})`,
+        },
+      });
+    },
+  },
+  {
+    // CT — Hartford / New Haven / Bridgeport out-of-state owners (statewide layer, ~4.8k).
+    source: "absentee_owner",
+    api: "arcgis",
+    url: "https://services3.arcgis.com/3FL1kr7L4LvwA2Kb/arcgis/rest/services/Connecticut_State_Parcel_Layer_2023/FeatureServer/0",
+    state: "CT",
+    city: "Hartford",
+    where:
+      "Town_Name IN ('Hartford','New Haven','Bridgeport') AND Mailing_State NOT IN ('CT') AND Mailing_State IS NOT NULL AND Location IS NOT NULL",
+    limit: 6000,
+    map: (a, g): Property | null => {
+      const address = s(a.Location);
+      if (!address) return null;
+      return abs({
+        source_listing_id: `ct-${address}`,
+        address,
+        city: s(a.Town_Name) || "Hartford",
+        state: "CT",
+        lat: g.lat,
+        lng: g.lng,
+        price: n(a.Assessed_Total),
+        signals: {
+          absentee: true,
+          out_of_state_owner: true,
+          owner: s(a.Owner),
+          owner_mailing: mailing(
+            a.Mailing_Address,
+            a.Mailing_City,
+            a.Mailing_State,
+          ),
+          market_value: n(a.Assessed_Total),
+          status: `Absentee (${s(a.Mailing_State) || "out of state"})`,
+        },
+      });
+    },
+  },
+  {
+    // DE — New Castle County out-of-state owners (~10k; owner name not exposed, mailing intact).
+    source: "absentee_owner",
+    api: "arcgis",
+    url: "https://gis.nccde.org/agsserver/rest/services/CustomMaps/Ownership/MapServer/0",
+    state: "DE",
+    city: "New Castle County",
+    where:
+      "ADDRESS IS NOT NULL AND OWNSTATE NOT IN ('DE') AND OWNSTATE IS NOT NULL",
+    limit: 8000,
+    map: (a, g): Property | null => {
+      const address = s(a.ADDRESS);
+      if (!address) return null;
+      return abs({
+        source_listing_id: `de-ncc-${address}`,
+        address,
+        city: s(a.PROPCITY) || "Wilmington",
+        state: "DE",
+        zip: s(a.PROPZIP),
+        lat: g.lat,
+        lng: g.lng,
+        signals: {
+          absentee: true,
+          out_of_state_owner: true,
+          owner_mailing: mailing(a.OWNADDR, a.OWNCITY, a.OWNSTATE, a.OWNZIP),
+          status: `Absentee (${s(a.OWNSTATE) || "out of state"})`,
+        },
+      });
+    },
+  },
+  {
+    // IA — Linn County (Cedar Rapids) out-of-state owners (~2.9k).
+    source: "absentee_owner",
+    api: "arcgis",
+    url: "https://services.arcgis.com/i14SLLmXo7Hn9vNc/arcgis/rest/services/RealEstateParcel/FeatureServer/0",
+    state: "IA",
+    city: "Linn County",
+    where:
+      "OwnerState NOT IN ('IA') AND OwnerState IS NOT NULL AND SitusAddress IS NOT NULL",
+    limit: 5000,
+    map: (a, g): Property | null => {
+      const address = s(a.SitusAddress);
+      if (!address) return null;
+      return abs({
+        source_listing_id: `ia-linn-${address}`,
+        address,
+        city: s(a.SitusCity) || "Cedar Rapids",
+        state: "IA",
+        zip: s(a.SitusZip),
+        lat: g.lat,
+        lng: g.lng,
+        price: n(a.ValueAssessedTotal),
+        signals: {
+          absentee: true,
+          out_of_state_owner: true,
+          owner: s(a.OwnerDeed),
+          owner_mailing: mailing(
+            a.OwnerAddress,
+            a.OwnerCity,
+            a.OwnerState,
+            a.OwnerZip,
+          ),
+          market_value: n(a.ValueAssessedTotal),
+          status: `Absentee (${s(a.OwnerState) || "out of state"})`,
+        },
+      });
+    },
+  },
+  {
+    // KS — Sedgwick County (Wichita) out-of-state owners (~11k).
+    source: "absentee_owner",
+    api: "arcgis",
+    url: "https://gismaps.wichita.gov/ageweb/rest/services/COWGIS/Property_and_Location/MapServer/4",
+    state: "KS",
+    city: "Sedgwick County",
+    where: "Owner_Stat<>'KS' AND Owner_Stat<>'' AND Owner_Stat IS NOT NULL",
+    limit: 8000,
+    map: (a, g): Property | null => {
+      const address = s(a.Prop_Addr);
+      if (!address) return null;
+      return abs({
+        source_listing_id: `ks-sedgwick-${address}`,
+        address,
+        city: s(a.Prop_City) || "Wichita",
+        state: "KS",
+        zip: s(a.Prop_zip),
+        lat: g.lat,
+        lng: g.lng,
+        price: n(a.TotVal),
+        signals: {
+          absentee: true,
+          out_of_state_owner: true,
+          owner: s(a.Owner),
+          owner_mailing: mailing(
+            a.Owner_madd,
+            a.Owner_City,
+            a.Owner_Stat,
+            a.Owner_zip,
+          ),
+          market_value: n(a.TotVal),
+          status: `Absentee (${s(a.Owner_Stat) || "out of state"})`,
+        },
+      });
+    },
+  },
+  {
+    // ME — Portland / Cumberland out-of-state owners (~2.5k).
+    source: "absentee_owner",
+    api: "arcgis",
+    url: "https://gis.portlandmaine.gov/maps/rest/services/planningCadastre/Tax_Parcels/FeatureServer/11",
+    state: "ME",
+    city: "Portland",
+    where: "OWN_ST<>'ME' AND OWN_ST IS NOT NULL AND ST_NAME IS NOT NULL",
+    limit: 4000,
+    map: (a, g): Property | null => {
+      const address = [s(a.ST_NUM), s(a.ST_NAME)].filter(Boolean).join(" ");
+      if (!address) return null;
+      return abs({
+        source_listing_id: `me-portland-${address}`,
+        address,
+        city: "Portland",
+        state: "ME",
+        lat: g.lat,
+        lng: g.lng,
+        signals: {
+          absentee: true,
+          out_of_state_owner: true,
+          owner: s(a.OWN),
+          owner_mailing: mailing(a.OWN_ADDR, a.OWN_CITY, a.OWN_ST, a.OWN_ZIP),
+          status: `Absentee (${s(a.OWN_ST) || "out of state"})`,
+        },
+      });
+    },
+  },
+  {
+    // MS — Hinds County (Jackson) tax-forfeited inventory (~2.6k).
+    source: "foreclosure",
+    api: "arcgis",
+    url: "https://gis.cmpdd.org/server/rest/services/Hosted/Hinds_County_Map/FeatureServer/23",
+    state: "MS",
+    city: "Hinds County",
+    where: "1=1",
+    limit: 3000,
+    map: (a, g): Property | null => {
+      const raw = s(a.property_a);
+      if (!raw) return null;
+      const address = raw.split(",")[0].trim() || raw;
+      return {
+        source: "foreclosure",
+        source_listing_id: `ms-hinds-${address}`,
+        title: `Tax-forfeited · ${address}`,
+        address,
+        city: "Jackson",
+        state: "MS",
+        lat: g.lat,
+        lng: g.lng,
+        price: n(a.market_val),
+        seller_type: "gov",
+        signals: {
+          foreclosure: true,
+          owner: s(a.assessed_o),
+          status: "Tax-forfeited (state)",
+        },
+      };
+    },
+  },
+  {
+    // NE — Lincoln / Lancaster out-of-state owners (~2.8k).
+    source: "absentee_owner",
+    api: "arcgis",
+    url: "https://gis.lincoln.ne.gov/integration/rest/services/Assessor/TaxParcels/MapServer/0",
+    state: "NE",
+    city: "Lincoln",
+    where: "PSTLSTATE NOT IN ('NE','') AND SITEADDRESS<>'' AND OWNERNME1<>''",
+    limit: 4000,
+    map: (a, g): Property | null => {
+      const address = s(a.SITEADDRESS);
+      if (!address) return null;
+      return abs({
+        source_listing_id: `ne-lancaster-${address}`,
+        address,
+        city: "Lincoln",
+        state: "NE",
+        lat: g.lat,
+        lng: g.lng,
+        price: n(a.CNTASSDVAL),
+        signals: {
+          absentee: true,
+          out_of_state_owner: true,
+          owner: s(a.OWNERNME1),
+          owner_mailing: mailing(
+            a.PSTLADDRESS,
+            a.PSTLCITY,
+            a.PSTLSTATE,
+            a.PSTLZIP5,
+          ),
+          market_value: n(a.CNTASSDVAL),
+          status: `Absentee (${s(a.PSTLSTATE) || "out of state"})`,
+        },
+      });
+    },
+  },
+  {
+    // NV — Washoe County (Reno) out-of-state owners (~28k).
+    source: "absentee_owner",
+    api: "arcgis",
+    url: "https://wcgisweb.washoecounty.us/arcgis/rest/services/OpenData/OpenData/FeatureServer/0",
+    state: "NV",
+    city: "Washoe County",
+    where: "MAILSTATE<>'NV' AND STREETNUM IS NOT NULL AND STREET IS NOT NULL",
+    limit: 8000,
+    map: (a, g): Property | null => {
+      const address = s(a.FullAddress);
+      if (!address) return null;
+      return abs({
+        source_listing_id: `nv-washoe-${address}`,
+        address,
+        city: s(a.CITY) || "Reno",
+        state: "NV",
+        zip: s(a.SITUSZIP),
+        lat: g.lat,
+        lng: g.lng,
+        price: n(a.TOTALAPR),
+        signals: {
+          absentee: true,
+          out_of_state_owner: true,
+          owner:
+            [s(a.FIRSTNAME), s(a.LASTNAME)].filter(Boolean).join(" ") ||
+            undefined,
+          owner_mailing: mailing(
+            a.MAILING1,
+            a.MAILCITY,
+            a.MAILSTATE,
+            a.MAILZIP,
+          ),
+          market_value: n(a.TOTALAPR),
+          status: `Absentee (${s(a.MAILSTATE) || "out of state"})`,
+        },
+      });
+    },
+  },
+  {
+    // NH — Manchester out-of-state owners (~1.5k).
+    source: "absentee_owner",
+    api: "arcgis",
+    url: "https://ags.manchesternh.gov/agsgis7/rest/services/Community/Parcels/MapServer/0",
+    state: "NH",
+    city: "Manchester",
+    where:
+      "PrimaryOwnerState<>'NH' AND PrimaryOwnerState IS NOT NULL AND StreetAddress IS NOT NULL",
+    limit: 3000,
+    map: (a, g): Property | null => {
+      const address = s(a.StreetAddress);
+      if (!address) return null;
+      return abs({
+        source_listing_id: `nh-manchester-${address}`,
+        address,
+        city: s(a.City) || "Manchester",
+        state: "NH",
+        zip: s(a.ZipCode),
+        lat: g.lat,
+        lng: g.lng,
+        price: n(a.TotalValuation),
+        signals: {
+          absentee: true,
+          out_of_state_owner: true,
+          owner: s(a.PrimaryOwnerName),
+          owner_mailing: mailing(a.PrimaryOwnerAddress, a.City, a.State, a.ZIP),
+          market_value: n(a.TotalValuation),
+          status: `Absentee (${s(a.PrimaryOwnerState) || "out of state"})`,
+        },
+      });
+    },
+  },
+  {
+    // NJ — Newark / Jersey City / Camden out-of-state owners (MOD-IV; owner name redacted by Daniel's Law).
+    source: "absentee_owner",
+    api: "arcgis",
+    url: "https://maps.nj.gov/arcgis/rest/services/Framework/Cadastral/MapServer/0",
+    state: "NJ",
+    city: "Newark",
+    where:
+      "(MUN_NAME LIKE 'NEWARK%' OR MUN_NAME LIKE 'JERSEY CITY%' OR MUN_NAME LIKE 'CAMDEN%') AND PROP_LOC IS NOT NULL AND CITY_STATE NOT LIKE '%NJ%'",
+    limit: 8000,
+    map: (a, g): Property | null => {
+      const address = s(a.PROP_LOC);
+      if (!address) return null;
+      const mun = (s(a.MUN_NAME) || "").split(" ")[0];
+      return abs({
+        source_listing_id: `nj-${address}-${s(a.ZIP_CODE) || ""}`,
+        address,
+        city: mun ? mun.charAt(0) + mun.slice(1).toLowerCase() : "Newark",
+        state: "NJ",
+        zip: s(a.ZIP_CODE),
+        lat: g.lat,
+        lng: g.lng,
+        price: n(a.NET_VALUE),
+        signals: {
+          absentee: true,
+          out_of_state_owner: true,
+          owner_mailing: mailing(a.ST_ADDRESS, a.CITY_STATE, a.ZIP_CODE),
+          market_value: n(a.NET_VALUE),
+          status: "Absentee (out of state)",
+        },
+      });
+    },
+  },
+  {
+    // ND — City of Fargo out-of-state owners (~1.8k).
+    source: "absentee_owner",
+    api: "arcgis",
+    url: "https://gis.cityoffargo.com/arcgis/rest/services/Basemap/FargoParcels/MapServer/0",
+    state: "ND",
+    city: "Fargo",
+    where:
+      "MailSt NOT IN ('ND') AND MailSt IS NOT NULL AND LandAddr IS NOT NULL AND LandAddr<>''",
+    limit: 3000,
+    map: (a, g): Property | null => {
+      const address = s(a.LandAddr);
+      if (!address) return null;
+      return abs({
+        source_listing_id: `nd-fargo-${address}`,
+        address,
+        city: "Fargo",
+        state: "ND",
+        zip: s(a.LandZip),
+        lat: g.lat,
+        lng: g.lng,
+        price: n(a.TotalValue),
+        signals: {
+          absentee: true,
+          out_of_state_owner: true,
+          owner: s(a.Owner1),
+          owner_mailing: mailing(a.MailAddr, a.MailCity, a.MailSt, a.MailZip),
+          market_value: n(a.TotalValue),
+          status: `Absentee (${s(a.MailSt) || "out of state"})`,
+        },
+      });
+    },
+  },
+  {
+    // OK — Tulsa County out-of-state owners (~500; May-2021 snapshot).
+    source: "absentee_owner",
+    api: "arcgis",
+    url: "https://services1.arcgis.com/VJvqwZ3JnU52C9ua/arcgis/rest/services/TulsaParcelsClip20May2021/FeatureServer/0",
+    state: "OK",
+    city: "Tulsa County",
+    where:
+      "PROP_ADD<>' ' AND PROP_ADD IS NOT NULL AND STATE NOT IN ('OK',' ') AND STATE IS NOT NULL",
+    limit: 2000,
+    map: (a, g): Property | null => {
+      const address = s(a.PROP_ADD);
+      if (!address) return null;
+      return abs({
+        source_listing_id: `ok-tulsa-${address}`,
+        address,
+        city: s(a.SITECITY) || "Tulsa",
+        state: "OK",
+        zip: s(a.ZIPCODE),
+        lat: g.lat,
+        lng: g.lng,
+        price: n(a.MKT_VAL),
+        signals: {
+          absentee: true,
+          out_of_state_owner: true,
+          owner: s(a.OWNER),
+          owner_mailing: mailing(a.ADDRESS1, a.CITY, a.STATE, a.ZIPCODE),
+          market_value: n(a.MKT_VAL),
+          status: `Absentee (${s(a.STATE) || "out of state"})`,
+        },
+      });
+    },
+  },
+  {
+    // RI — Providence out-of-state owners (~3.2k).
+    source: "absentee_owner",
+    api: "socrata",
+    url: "https://data.providenceri.gov/resource/6ub4-iebe.json",
+    state: "RI",
+    city: "Providence",
+    where: "state NOT IN ('RI') AND state IS NOT NULL AND street IS NOT NULL",
+    limit: 4000,
+    map: (a, g): Property | null => {
+      const address = s(a.formated_address) || s(a.street);
+      if (!address) return null;
+      return abs({
+        source_listing_id: `ri-prov-${address}`,
+        address,
+        city: s(a.city) || "Providence",
+        state: "RI",
+        zip: s(a.zip_postal),
+        lat: g.lat,
+        lng: g.lng,
+        price: n(a.total_assmt),
+        signals: {
+          absentee: true,
+          out_of_state_owner: true,
+          owner: s(a.company) || s(a.last_name),
+          owner_mailing: mailing(a.street_1, a.city_1, a.state, a.zip_postal_1),
+          market_value: n(a.total_assmt),
+          total_due: n(a.total_taxes),
+          status: `Absentee (${s(a.state) || "out of state"})`,
+        },
+      });
+    },
+  },
+  {
+    // SC — Greenville County TAX-DELINQUENT (~2.3k). PDDATE=0 → billed-unpaid.
+    source: "tax_delinquent",
+    api: "arcgis",
+    url: "https://citygis.greenvillesc.gov/arcgis/rest/services/GeneralData/GeneralData_6570/MapServer/2",
+    state: "SC",
+    city: "Greenville County",
+    where: "PDDATE=0 AND TOTTAX>0",
+    limit: 3000,
+    map: (a, g): Property | null => {
+      const address = [s(a.STRNUM), s(a.LOCATE)].filter(Boolean).join(" ");
+      if (!address) return null;
+      return {
+        source: "tax_delinquent",
+        source_listing_id: `sc-greenville-td-${address}`,
+        title: `Tax-delinquent · ${address}`,
+        address,
+        city: "Greenville",
+        state: "SC",
+        lat: g.lat,
+        lng: g.lng,
+        price: n(a.TAXMKTVAL) || n(a.FAIRMKTVAL),
+        seller_type: "owner",
+        signals: {
+          tax_delinquent: true,
+          total_due: n(a.TOTTAX),
+          market_value: n(a.TAXMKTVAL),
+          owner: s(a.OWNAM1),
+          owner_mailing: mailing(a.STREET, a.CITY, a.STATE, a.ZIP5),
+          status: "Tax-delinquent (billed, unpaid)",
+        },
+      };
+    },
+  },
+  {
+    // SD — Sioux Falls out-of-state owners (~2.4k).
+    source: "absentee_owner",
+    api: "arcgis",
+    url: "https://gis.siouxfalls.gov/arcgis/rest/services/Data/Property/MapServer/1",
+    state: "SD",
+    city: "Sioux Falls",
+    where: "OWNSTATE<>'SD' AND ADDRESS IS NOT NULL AND ADDRESS<>''",
+    limit: 4000,
+    map: (a, g): Property | null => {
+      const address = s(a.ADDRESS);
+      if (!address) return null;
+      return abs({
+        source_listing_id: `sd-siouxfalls-${address}`,
+        address,
+        city: "Sioux Falls",
+        state: "SD",
+        zip: s(a.ZIPCODE),
+        lat: g.lat,
+        lng: g.lng,
+        signals: {
+          absentee: true,
+          out_of_state_owner: true,
+          owner: s(a.OWNNAME1),
+          owner_mailing: mailing(a.OWNADDRESS, a.OWNCITY, a.OWNSTATE, a.OWNZIP),
+          status: `Absentee (${s(a.OWNSTATE) || "out of state"})`,
+        },
+      });
+    },
+  },
+  {
+    // UT — Salt Lake County out-of-state owners (~18k). own_citystate is padded "CITY ST".
+    source: "absentee_owner",
+    api: "arcgis",
+    url: "https://apps.saltlakecounty.gov/arcgis/rest/services/Assessor/Parcel_Viewer_external/MapServer/5",
+    state: "UT",
+    city: "Salt Lake County",
+    where:
+      "own_citystate NOT LIKE '% UT %' AND prop_location IS NOT NULL AND prop_location<>''",
+    limit: 8000,
+    map: (a, g): Property | null => {
+      const address = s(a.prop_location);
+      if (!address) return null;
+      return abs({
+        source_listing_id: `ut-slc-${address}`,
+        address,
+        city: "Salt Lake County",
+        state: "UT",
+        lat: g.lat,
+        lng: g.lng,
+        price: n(a.total_full_mkt),
+        signals: {
+          absentee: true,
+          out_of_state_owner: true,
+          owner: s(a.own_name),
+          owner_mailing: mailing(a.own_addr, a.own_citystate, a.own_zip),
+          market_value: n(a.total_full_mkt),
+          status: "Absentee (out of state)",
+        },
+      });
+    },
+  },
+  {
+    // VT — Chittenden County (Burlington metro) out-of-state owners (~1.9k).
+    source: "absentee_owner",
+    api: "arcgis",
+    url: "https://services1.arcgis.com/BkFxaEFNwHqX3tAw/arcgis/rest/services/FS_VCGI_VTPARCELS_WM_NOCACHE_v2/FeatureServer/1",
+    state: "VT",
+    city: "Burlington",
+    where:
+      "TNAME IN ('Burlington','South Burlington','Colchester','Essex','Williston','Shelburne','Winooski') AND STGL<>'VT' AND STGL IS NOT NULL AND E911ADDR IS NOT NULL AND E911ADDR<>''",
+    limit: 3000,
+    map: (a, g): Property | null => {
+      const address = s(a.E911ADDR);
+      if (!address) return null;
+      return abs({
+        source_listing_id: `vt-chittenden-${address}`,
+        address,
+        city: s(a.TNAME) || "Burlington",
+        state: "VT",
+        lat: g.lat,
+        lng: g.lng,
+        price: n(a.REAL_FLV),
+        signals: {
+          absentee: true,
+          out_of_state_owner: true,
+          owner: s(a.OWNER1),
+          owner_mailing: mailing(a.ADDRGL1, a.CITYGL, a.STGL, a.ZIPGL),
+          market_value: n(a.REAL_FLV),
+          status: `Absentee (${s(a.STGL) || "out of state"})`,
+        },
+      });
+    },
+  },
+  {
+    // WV — Kanawha County (Charleston) out-of-state owners (~8k). FullOwnerAddress is one string.
+    source: "absentee_owner",
+    api: "arcgis",
+    url: "https://gis.transportation.wv.gov/arcgis/rest/services/Economic/FeatureServer/5",
+    state: "WV",
+    city: "Kanawha County",
+    where:
+      "CODIST LIKE '20%' AND FullPhysicalAddress IS NOT NULL AND FullOwnerAddress NOT LIKE '%WV%'",
+    limit: 8000,
+    map: (a, g): Property | null => {
+      const address = s(a.FullPhysicalAddress);
+      if (!address) return null;
+      return abs({
+        source_listing_id: `wv-kanawha-${address}`,
+        address,
+        city: "Charleston",
+        state: "WV",
+        lat: g.lat,
+        lng: g.lng,
+        signals: {
+          absentee: true,
+          out_of_state_owner: true,
+          owner: s(a.FullOwnerName),
+          owner_mailing: s(a.FullOwnerAddress),
+          status: "Absentee (out of state)",
+        },
+      });
+    },
+  },
+  {
+    // WY — Laramie County (Cheyenne) out-of-state owners (~1.7k).
+    source: "absentee_owner",
+    api: "arcgis",
+    url: "https://maps.laramiecounty.com/arcgis/rest/services/Planning/SmartGovParcels/FeatureServer/1",
+    state: "WY",
+    city: "Laramie County",
+    where:
+      "owner_state<>'WY' AND site_address1 IS NOT NULL AND site_address1<>''",
+    limit: 3000,
+    map: (a, g): Property | null => {
+      const address = s(a.site_address1);
+      if (!address) return null;
+      return abs({
+        source_listing_id: `wy-laramie-${address}`,
+        address,
+        city: s(a.site_town) || "Cheyenne",
+        state: "WY",
+        zip: s(a.site_zip),
+        lat: g.lat,
+        lng: g.lng,
+        signals: {
+          absentee: true,
+          out_of_state_owner: true,
+          owner: s(a.owner_name1),
+          owner_mailing: mailing(
+            a.owner_address,
+            a.owner_town,
+            a.owner_state,
+            a.owner_zip,
+          ),
+          status: `Absentee (${s(a.owner_state) || "out of state"})`,
+        },
+      });
+    },
+  },
+];
+
 // All configured open-data jurisdictions (grows state by state).
 export const OPEN_DATA_SOURCES: OpenDataSource[] = [
   ...MISSOURI_SOURCES,
@@ -2451,6 +3213,7 @@ export const OPEN_DATA_SOURCES: OpenDataSource[] = [
   ...METRO_DISTRESS_SOURCES_3,
   ...METRO_DISTRESS_SOURCES_4,
   ...MO_IL_SOURCES,
+  ...GAP_STATE_SOURCES,
 ];
 
 /** Harvest all configured open-data off-market leads (Missouri-first; whole-US as configs are added). */
