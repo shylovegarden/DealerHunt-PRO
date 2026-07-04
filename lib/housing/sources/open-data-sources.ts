@@ -1232,12 +1232,293 @@ const METRO_DISTRESS_SOURCES: OpenDataSource[] = [
   },
 ];
 
+// ── Batch 2 (2026-07, curl-verified) — money-grade types: tax-delinquent + absentee (owner mailing). ──
+const METRO_DISTRESS_SOURCES_2: OpenDataSource[] = [
+  {
+    // Houston / Harris County, TX — tax-delinquent suit list (owner + mailing + amount owed + market value).
+    // The tax field name is date-stamped and rotates monthly → resolve it by pattern, not a fixed key.
+    source: "tax_delinquent",
+    api: "arcgis",
+    url: "https://services5.arcgis.com/GtNPpPrhcOMhYgh4/arcgis/rest/services/Tax_Delinquent_Parcels/FeatureServer/0",
+    state: "TX",
+    city: "Houston",
+    where: "1=1",
+    limit: 5000,
+    map: (a, g): Property | null => {
+      const address =
+        s(a.Address) ||
+        [s(a.site_str_num), s(a.site_str_name)].filter(Boolean).join(" ");
+      if (!address) return null;
+      const taxKey = Object.keys(a).find((k) => /Tax_P_I/i.test(k));
+      const ownerState = s(a.mail_state);
+      const absentee = !!ownerState && ownerState.toUpperCase() !== "TX";
+      return {
+        source: "tax_delinquent",
+        source_listing_id: `harris-td-${address}-${s(a.site_zip) || ""}`,
+        title: `Tax-delinquent · ${address}`,
+        address,
+        city: s(a.site_city) || "Houston",
+        state: "TX",
+        zip: s(a.site_zip),
+        lat: g.lat,
+        lng: g.lng,
+        price: n(a.total_market_val),
+        seller_type: "owner",
+        signals: {
+          tax_delinquent: true,
+          total_due: taxKey ? n(a[taxKey]) : undefined,
+          market_value: n(a.total_market_val),
+          owner: s(a.owner_name_1) || s(a.Owner),
+          absentee,
+          out_of_state_owner: absentee,
+          owner_mailing: mailing(
+            a.mail_addr_1,
+            a.mail_city,
+            a.mail_state,
+            a.mail_zip,
+          ),
+          status: `Tax-delinquent (${s(a.Years_Due) || "multi-year"})`,
+        },
+      };
+    },
+  },
+  {
+    // Virginia Beach, VA — delinquent real-estate taxes (~18k). Table view (no geometry) → geocoded by address.
+    source: "tax_delinquent",
+    api: "arcgis",
+    url: "https://services2.arcgis.com/CyVvlIiUfRBmMQuu/arcgis/rest/services/Delinquent_Real_Estate_Taxes_view/FeatureServer/0",
+    state: "VA",
+    city: "Virginia Beach",
+    where: "Total_Delinquent_Amount_Due>0",
+    limit: 9000,
+    map: (a, g): Property | null => {
+      const address = s(a.Situs_Address);
+      if (!address) return null;
+      return {
+        source: "tax_delinquent",
+        source_listing_id: `vabeach-td-${s(a.GPIN) || address}`,
+        title: `Tax-delinquent · ${address}`,
+        address,
+        city: "Virginia Beach",
+        state: "VA",
+        lat: g.lat,
+        lng: g.lng,
+        seller_type: "owner",
+        signals: {
+          tax_delinquent: true,
+          total_due: n(a.Total_Delinquent_Amount_Due),
+          owner: s(a.Owner_Name),
+          status: `Tax-delinquent (${s(a.Tax_Year) || ""})`,
+        },
+      };
+    },
+  },
+  {
+    // Milwaukee, WI — non-owner-occupied residential with OUT-OF-STATE owner (~7.2k). Direct-mail ready.
+    source: "absentee_owner",
+    api: "arcgis",
+    url: "https://milwaukeemaps.milwaukee.gov/arcgis/rest/services/property/parcels_mprop/MapServer/8",
+    state: "WI",
+    city: "Milwaukee",
+    where: "OWNER_CITY_STATE NOT LIKE '%WI%'",
+    limit: 9000,
+    map: (a, g): Property | null => {
+      const address = s(a.ADDRESS);
+      if (!address) return null;
+      return {
+        source: "absentee_owner",
+        source_listing_id: `mke-abs-${address}`,
+        title: `Absentee owner · ${address}`,
+        property_type: "single_family",
+        address,
+        city: "Milwaukee",
+        state: "WI",
+        zip: s(a.GEO_ZIP_CODE),
+        lat: g.lat,
+        lng: g.lng,
+        price: n(a.C_A_TOTAL),
+        seller_type: "owner",
+        signals: {
+          absentee: true,
+          out_of_state_owner: true,
+          owner: s(a.OWNER_NAME_1),
+          owner_mailing: mailing(
+            a.OWNER_MAIL_ADDR,
+            a.OWNER_CITY_STATE,
+            a.OWNER_ZIP,
+          ),
+          market_value: n(a.C_A_TOTAL),
+          status: `Absentee (${s(a.OWNER_CITY_STATE) || "out of state"})`,
+        },
+      };
+    },
+  },
+  {
+    // Atlanta / Fulton County, GA — residential parcels with OUT-OF-STATE owner (~1.1k). Direct-mail ready.
+    source: "absentee_owner",
+    api: "arcgis",
+    url: "https://services5.arcgis.com/buITjRsK0rZsAXbQ/arcgis/rest/services/CurrentParcels/FeatureServer/0",
+    state: "GA",
+    city: "Atlanta",
+    where: "OwnerAddr2 NOT LIKE '%GA%' AND LivUnits>0",
+    limit: 5000,
+    map: (a, g): Property | null => {
+      const address = s(a.Address);
+      if (!address) return null;
+      return {
+        source: "absentee_owner",
+        source_listing_id: `fulton-abs-${address}-${s(a.ZipCode) || ""}`,
+        title: `Absentee owner · ${address}`,
+        property_type: "single_family",
+        address,
+        city: "Atlanta",
+        state: "GA",
+        zip: s(a.ZipCode),
+        lat: g.lat,
+        lng: g.lng,
+        price: n(a.TotAppr) || n(a.TotAssess),
+        seller_type: "owner",
+        signals: {
+          absentee: true,
+          out_of_state_owner: true,
+          owner: s(a.Owner),
+          owner_mailing: mailing(a.OwnerAddr1, a.OwnerAddr2),
+          market_value: n(a.TotAppr),
+          status: `Absentee (${s(a.OwnerAddr2) || "out of state"})`,
+        },
+      };
+    },
+  },
+  {
+    // Charlotte / Mecklenburg County, NC — open code-enforcement cases (~3.2k). FullAddress = "ST … CHARLOTTE, NC".
+    source: "code_violation",
+    api: "arcgis",
+    url: "https://gis.charlottenc.gov/arcgis/rest/services/HNS/CodeEnforcementCasesAll/MapServer/0",
+    state: "NC",
+    city: "Charlotte",
+    where: "CaseStatus='Open'",
+    limit: 4000,
+    map: (a, g): Property | null => {
+      const full = s(a.FullAddress);
+      if (!full) return null;
+      const address = full.replace(/\s+CHARLOTTE,?\s*NC.*$/i, "").trim();
+      if (!address) return null;
+      return {
+        source: "code_violation",
+        source_listing_id: `clt-${s(a.CaseNumber) || s(a.ParcelId) || full}`,
+        title: `Code case · ${address}`,
+        address,
+        city: "Charlotte",
+        state: "NC",
+        lat: g.lat,
+        lng: g.lng,
+        seller_type: "owner",
+        signals: {
+          code_violation: true,
+          status: s(a.CaseType) || "Open code case",
+        },
+      };
+    },
+  },
+  {
+    // Columbus / Franklin County, OH — active building/zoning code cases.
+    source: "code_violation",
+    api: "arcgis",
+    url: "https://maps2.columbus.gov/arcgis/rest/services/Schemas/BuildingZoning/MapServer/23",
+    state: "OH",
+    city: "Columbus",
+    where: "B1_APPL_STATUS NOT IN ('Closed')",
+    limit: 8000,
+    map: (a, g): Property | null => {
+      const address = s(a.SITE_ADDRESS);
+      if (!address) return null;
+      return {
+        source: "code_violation",
+        source_listing_id: `cbus-${s(a.B1_PARCEL_NBR) || address}`,
+        title: `Code case · ${address}`,
+        address,
+        city: "Columbus",
+        state: "OH",
+        lat: g.lat,
+        lng: g.lng,
+        seller_type: "owner",
+        signals: {
+          code_violation: true,
+          status: s(a.B1_APPL_STATUS) || "Open code case",
+        },
+      };
+    },
+  },
+  {
+    // Nashville / Davidson County, TN — open property-standards violations (~3.3k). Carries owner + lat/lon.
+    source: "code_violation",
+    api: "arcgis",
+    url: "https://services2.arcgis.com/HdTo6HJqh92wn4D8/arcgis/rest/services/Property_Standards_Violations_2/FeatureServer/0",
+    state: "TN",
+    city: "Nashville",
+    where: "Status='Open'",
+    limit: 4000,
+    map: (a, g): Property | null => {
+      const address = s(a.Property_Address);
+      if (!address) return null;
+      return {
+        source: "code_violation",
+        source_listing_id: `nash-${address}-${s(a.ZIP) || ""}`,
+        title: `Code violation · ${address}`,
+        address,
+        city: s(a.City) || "Nashville",
+        state: "TN",
+        zip: s(a.ZIP),
+        lat: g.lat ?? coord(a.Lat),
+        lng: g.lng ?? coord(a.Lon),
+        seller_type: "owner",
+        signals: {
+          code_violation: true,
+          owner: s(a.Property_Owner),
+          status: "Open property-standards violation",
+        },
+      };
+    },
+  },
+  {
+    // Louisville / Jefferson County, KY — open building-code enforcement cases (~3.6k). Table → geocoded.
+    source: "code_violation",
+    api: "arcgis",
+    url: "https://services1.arcgis.com/79kfd2K6fskCAkyg/arcgis/rest/services/Louisville_Metro_KY_Building_Code_Permit_Enforcement_Cases/FeatureServer/0",
+    state: "KY",
+    city: "Louisville",
+    where: "STATUS='Open' AND STREETADDRESS<>' '",
+    limit: 4000,
+    map: (a, g): Property | null => {
+      const address = s(a.STREETADDRESS);
+      if (!address) return null;
+      return {
+        source: "code_violation",
+        source_listing_id: `lou-${address}-${s(a.ZIP) || ""}`,
+        title: `Code case · ${address}`,
+        address,
+        city: s(a.CITY) || "Louisville",
+        state: "KY",
+        zip: s(a.ZIP),
+        lat: g.lat,
+        lng: g.lng,
+        seller_type: "owner",
+        signals: {
+          code_violation: true,
+          status: s(a.CASETYPE) || "Open code case",
+        },
+      };
+    },
+  },
+];
+
 // All configured open-data jurisdictions (grows state by state).
 export const OPEN_DATA_SOURCES: OpenDataSource[] = [
   ...MISSOURI_SOURCES,
   ...NATIONAL_SOURCES,
   ...CITY_FEED_SOURCES,
   ...METRO_DISTRESS_SOURCES,
+  ...METRO_DISTRESS_SOURCES_2,
 ];
 
 /** Harvest all configured open-data off-market leads (Missouri-first; whole-US as configs are added). */
