@@ -2155,6 +2155,292 @@ const METRO_DISTRESS_SOURCES_4: OpenDataSource[] = [
   },
 ];
 
+// ── MO + IL deepen (2026-07, curl-verified) — fill out the two home markets county by county. ──
+const MO_IL_SOURCES: OpenDataSource[] = [
+  {
+    // St Charles County, MO — out-of-state owners (~5.7k). MailingAddress packs street+city+state+zip.
+    source: "absentee_owner",
+    api: "arcgis",
+    url: "https://gis-dev.sccmo.org/scc_gis/rest/services/open_data/Tax_Information_o/FeatureServer/1",
+    state: "MO",
+    city: "St Charles County",
+    where:
+      "MailingAddress NOT LIKE '% MO,%' AND SiteAddress IS NOT NULL AND SiteAddress <> ' '",
+    limit: 6000,
+    map: (a, g): Property | null => {
+      const address = s(a.SiteAddress);
+      if (!address) return null;
+      return {
+        source: "absentee_owner",
+        source_listing_id: `stcharles-abs-${address}-${s(a.SitusZip) || ""}`,
+        title: `Absentee owner · ${address}`,
+        property_type: "single_family",
+        address,
+        city: s(a.Municipality) || "St Charles County",
+        state: "MO",
+        zip: s(a.SitusZip),
+        lat: g.lat,
+        lng: g.lng,
+        price: n(a.TotalMarketValue),
+        seller_type: "owner",
+        signals: {
+          absentee: true,
+          out_of_state_owner: true,
+          owner: s(a.Owner),
+          owner_mailing: s(a.MailingAddress),
+          market_value: n(a.TotalMarketValue),
+          status: "Absentee (out of state)",
+        },
+      };
+    },
+  },
+  {
+    // Jasper County (Joplin), MO — out-of-state owners (~3.4k). Own_Addres is ';'-delimited.
+    source: "absentee_owner",
+    api: "arcgis",
+    url: "https://services6.arcgis.com/f6278XvXrNz6PmsX/arcgis/rest/services/Parcels/FeatureServer/1",
+    state: "MO",
+    city: "Jasper County",
+    where: "Own_Addres LIKE '%;%' AND Own_Addres NOT LIKE '%;MO;%'",
+    limit: 4000,
+    map: (a, g): Property | null => {
+      const address = s(a.Address);
+      if (!address) return null;
+      return {
+        source: "absentee_owner",
+        source_listing_id: `jasper-abs-${s(a.PIN) || address}`,
+        title: `Absentee owner · ${address}`,
+        property_type: "single_family",
+        address,
+        city: "Joplin",
+        state: "MO",
+        lat: g.lat,
+        lng: g.lng,
+        seller_type: "owner",
+        signals: {
+          absentee: true,
+          out_of_state_owner: true,
+          owner: s(a.Own_Name),
+          owner_mailing: a.Own_Addres
+            ? String(a.Own_Addres)
+                .replace(/\s*;\s*/g, ", ")
+                .trim()
+            : undefined,
+          status: "Absentee (out of state)",
+        },
+      };
+    },
+  },
+  {
+    // Jackson County, MO — county Land Trust (tax-foreclosure) inventory (~270). Distinct from KC land bank.
+    source: "land_bank",
+    api: "arcgis",
+    url: "https://services.arcgis.com/sbDzK061dd6DNPHv/arcgis/rest/services/Land_Trust_of_Jackson_County_Missouri_Parcels/FeatureServer/0",
+    state: "MO",
+    city: "Jackson County",
+    where: "1=1",
+    limit: 500,
+    map: (a, g): Property | null => {
+      const address = s(a.SitusAddress);
+      if (!address || /no address|common area/i.test(address)) return null;
+      return {
+        source: "land_bank",
+        source_listing_id: `jackson-lt-${s(a.parcel_number) || address}`,
+        title: `Land trust · ${address}`,
+        address,
+        city: s(a.SitusCity) || "Jackson County",
+        state: "MO",
+        zip: s(a.SitusZipCode),
+        lat: g.lat,
+        lng: g.lng,
+        price: n(a.Market_Value_Total),
+        seller_type: "gov",
+        signals: {
+          land_bank: true,
+          market_value: n(a.Market_Value_Total),
+          status: `Land trust (${s(a.landuse_cd_descr) || "tax-foreclosed"})`,
+        },
+      };
+    },
+  },
+  {
+    // St Louis County, MO — registered VACANT properties (~500), many also absentee (owner mailing incl).
+    source: "vacant_building",
+    api: "arcgis",
+    url: "https://services2.arcgis.com/w657bnjzrjguNyOy/arcgis/rest/services/VacantProperties_2023_Final/FeatureServer/0",
+    state: "MO",
+    city: "St Louis County",
+    where: "StAddr IS NOT NULL AND StAddr <> ''",
+    limit: 1000,
+    map: (a, g): Property | null => {
+      const address = s(a.StAddr) || s(a.PROP_ADD);
+      if (!address) return null;
+      const ownerState = s(a.OWN_STATE);
+      const absentee = !!ownerState && ownerState.toUpperCase() !== "MO";
+      return {
+        source: "vacant_building",
+        source_listing_id: `stlco-vac-${address}`,
+        title: `Vacant · ${address}`,
+        address,
+        city: s(a.City) || "St Louis County",
+        state: "MO",
+        zip: s(a.Postal),
+        lat: g.lat,
+        lng: g.lng,
+        seller_type: "owner",
+        signals: {
+          vacant: true,
+          absentee,
+          out_of_state_owner: absentee,
+          owner: s(a.OWNER_NAME),
+          owner_mailing: mailing(a.OWN_ADD, a.OWN_CITY, a.OWN_STATE, a.OWN_ZIP),
+          status: s(a.VacantStatus) || "Vacant",
+        },
+      };
+    },
+  },
+  {
+    // DuPage County, IL — out-of-state owners w/ tax amount (~7.6k).
+    source: "absentee_owner",
+    api: "arcgis",
+    url: "https://gis.dupageco.org/arcgis/rest/services/DuPage_County_IL/ParcelsWithRealEstateCC/FeatureServer/0",
+    state: "IL",
+    city: "DuPage County",
+    where:
+      "BILLSTATE NOT IN ('IL','') AND BILLSTATE IS NOT NULL AND PROPADDRL1 IS NOT NULL AND PROPADDRL1 <> ''",
+    limit: 8000,
+    map: (a, g): Property | null => {
+      const address = s(a.PROPADDRL1);
+      if (!address) return null;
+      return {
+        source: "absentee_owner",
+        source_listing_id: `dupage-abs-${address}-${s(a.PROPZIP) || ""}`,
+        title: `Absentee owner · ${address}`,
+        property_type: "single_family",
+        address,
+        city: s(a.PROPCITY) || "DuPage County",
+        state: "IL",
+        zip: s(a.PROPZIP),
+        lat: g.lat,
+        lng: g.lng,
+        price: n(a.REA017_FCV_TOTAL),
+        seller_type: "owner",
+        signals: {
+          absentee: true,
+          out_of_state_owner: true,
+          owner: s(a.BILLNAME),
+          owner_mailing: mailing(
+            a.BILLADDRL1,
+            a.BILLCITY,
+            a.BILLSTATE,
+            a.BILLZIP,
+          ),
+          market_value: n(a.REA017_FCV_TOTAL),
+          total_due: n(a.TAXAMOUNT),
+          status: `Absentee (${s(a.BILLSTATE) || "out of state"})`,
+        },
+      };
+    },
+  },
+  {
+    // Peoria County, IL — out-of-state owners (~5.6k).
+    source: "absentee_owner",
+    api: "arcgis",
+    url: "https://services.arcgis.com/iPiPjILCMYxPZWTc/arcgis/rest/services/Tax_Parcels/FeatureServer/5",
+    state: "IL",
+    city: "Peoria County",
+    where: "OWNSTE <> 'IL' AND prop_street IS NOT NULL",
+    limit: 6000,
+    map: (a, g): Property | null => {
+      const address = s(a.prop_street);
+      if (!address) return null;
+      return {
+        source: "absentee_owner",
+        source_listing_id: `peoria-abs-${address}-${s(a.PZIP) || ""}`,
+        title: `Absentee owner · ${address}`,
+        property_type: "single_family",
+        address,
+        city: s(a.CITY) || "Peoria",
+        state: "IL",
+        zip: s(a.PZIP),
+        lat: g.lat,
+        lng: g.lng,
+        price: n(a.total_assessed_value),
+        seller_type: "owner",
+        signals: {
+          absentee: true,
+          out_of_state_owner: true,
+          owner: s(a.owner_name),
+          owner_mailing: mailing(a.ADDR1, a.OWNCTY, a.OWNSTE, a.OWZIP),
+          market_value: n(a.total_assessed_value),
+          status: `Absentee (${s(a.OWNSTE) || "out of state"})`,
+        },
+      };
+    },
+  },
+  {
+    // Cook County Land Bank (SSMMA region), IL — land-bank inventory w/ minimum offer (~40).
+    source: "land_bank",
+    api: "arcgis",
+    url: "https://services1.arcgis.com/kZsOWCED80XbRyJ0/arcgis/rest/services/Cook_County_Land_Bank_Properties_SSMMA_Region/FeatureServer/0",
+    state: "IL",
+    city: "Cook County",
+    where: "Address IS NOT NULL AND Address <> ''",
+    limit: 500,
+    map: (a, g): Property | null => {
+      const address = s(a.Address);
+      if (!address) return null;
+      const minOffer = n(a.Minimum_Offer_Amount);
+      return {
+        source: "land_bank",
+        source_listing_id: `cookcclba-${s(a.Parcel_Number) || address}`,
+        title: `Land bank · ${address}`,
+        address,
+        city: s(a.City) || "Cook County",
+        state: "IL",
+        zip: s(a.Zip_Code),
+        lat: g.lat,
+        lng: g.lng,
+        price: minOffer || n(a.TotalValue),
+        seller_type: "gov",
+        signals: {
+          land_bank: true,
+          market_value: n(a.TotalValue),
+          below_market: true,
+          status: `Land bank${minOffer ? ` (min offer $${minOffer.toLocaleString()})` : ""}`,
+        },
+      };
+    },
+  },
+  {
+    // Whiteside County, IL — tax-sale / foreclosure parcels (~38).
+    source: "foreclosure",
+    api: "arcgis",
+    url: "https://services.arcgis.com/l0M0OC6J9QAHCiGx/arcgis/rest/services/Tax_Parcel_Foreclosures_Only/FeatureServer/0",
+    state: "IL",
+    city: "Whiteside County",
+    where: "SALEAMNT > 0",
+    limit: 500,
+    map: (a, g): Property | null => {
+      const address = s(a.SITEADDRESS);
+      if (!address) return null;
+      return {
+        source: "foreclosure",
+        source_listing_id: `whiteside-fc-${s(a.PARCELID) || address}`,
+        title: `Tax-sale / foreclosure · ${address}`,
+        address,
+        city: "Whiteside County",
+        state: "IL",
+        lat: g.lat,
+        lng: g.lng,
+        price: n(a.SALEAMNT),
+        seller_type: "owner",
+        signals: { foreclosure: true, status: "Tax-sale / foreclosure" },
+      };
+    },
+  },
+];
+
 // All configured open-data jurisdictions (grows state by state).
 export const OPEN_DATA_SOURCES: OpenDataSource[] = [
   ...MISSOURI_SOURCES,
@@ -2164,6 +2450,7 @@ export const OPEN_DATA_SOURCES: OpenDataSource[] = [
   ...METRO_DISTRESS_SOURCES_2,
   ...METRO_DISTRESS_SOURCES_3,
   ...METRO_DISTRESS_SOURCES_4,
+  ...MO_IL_SOURCES,
 ];
 
 /** Harvest all configured open-data off-market leads (Missouri-first; whole-US as configs are added). */
