@@ -1828,6 +1828,333 @@ const METRO_DISTRESS_SOURCES_3: OpenDataSource[] = [
   },
 ];
 
+// ── Batch 4 (2026-07, curl-verified) — remaining big metros; heavy on full-county absentee rolls. ──
+const METRO_DISTRESS_SOURCES_4: OpenDataSource[] = [
+  {
+    // Jacksonville / Duval County, FL — out-of-state owners on the full county parcel roll (~40k). Standout.
+    source: "absentee_owner",
+    api: "arcgis",
+    url: "https://maps.coj.net/coj/rest/services/CityBiz/Parcels/MapServer/0",
+    state: "FL",
+    city: "Jacksonville",
+    where: "MAILSTATE NOT IN ('FL') AND MAILSTATE IS NOT NULL",
+    limit: 15000,
+    map: (a, g): Property | null => {
+      const address = [
+        s(a.STREET_NO),
+        s(a.ST_DIR),
+        s(a.ST_NAME) || s(a.SAINT_NAME),
+        s(a.ST_TYPE),
+      ]
+        .filter(Boolean)
+        .join(" ");
+      if (!address) return null;
+      return {
+        source: "absentee_owner",
+        source_listing_id: `duval-abs-${address}-${s(a.ZIPCODE) || ""}`,
+        title: `Absentee owner · ${address}`,
+        property_type: "single_family",
+        address,
+        city: s(a.ADDRCITY) || "Jacksonville",
+        state: "FL",
+        zip: s(a.ZIPCODE),
+        lat: g.lat ?? coord(a.LAT),
+        lng: g.lng ?? coord(a.LONG),
+        price: n(a.CAMA_VAL),
+        seller_type: "owner",
+        signals: {
+          absentee: true,
+          out_of_state_owner: true,
+          owner: s(a.LNAMEOWNER),
+          owner_mailing: mailing(
+            a.MAILADDR1,
+            a.MAILCITY,
+            a.MAILSTATE,
+            a.MAILZIP,
+          ),
+          market_value: n(a.CAMA_VAL),
+          status: `Absentee (${s(a.MAILSTATE) || "out of state"})`,
+        },
+      };
+    },
+  },
+  {
+    // Fort Worth / Tarrant County, TX — open code violations (~12k).
+    source: "code_violation",
+    api: "arcgis",
+    url: "https://mapit.fortworthtexas.gov/ags/rest/services/CIVIC/Code_Violations_Experience_Builder/MapServer/4",
+    state: "TX",
+    city: "Fort Worth",
+    where: "Case_Current_Status='Open'",
+    limit: 10000,
+    map: (a, g): Property | null => {
+      const address = s(a.Address);
+      if (!address) return null;
+      return {
+        source: "code_violation",
+        source_listing_id: `ftw-${address}-${s(a.ZipCode) || ""}`,
+        title: `Code case · ${address}`,
+        address,
+        city: s(a.City) || "Fort Worth",
+        state: "TX",
+        zip: s(a.ZipCode),
+        lat: g.lat ?? coord(a.Latitude),
+        lng: g.lng ?? coord(a.Longitude),
+        seller_type: "owner",
+        signals: {
+          code_violation: true,
+          status: s(a.Complaint_Type_Description) || "Open code case",
+        },
+      };
+    },
+  },
+  {
+    // St Paul / Ramsey County, MN — registered vacant/condemned buildings (~380).
+    source: "vacant_building",
+    api: "arcgis",
+    url: "https://services1.arcgis.com/9meaaHE3uiba0zr8/arcgis/rest/services/VacantBuildings/FeatureServer/0",
+    state: "MN",
+    city: "Saint Paul",
+    where: "1=1",
+    limit: 2000,
+    map: (a, g): Property | null => {
+      const address = s(a.ADDRESS);
+      if (!address) return null;
+      return {
+        source: "vacant_building",
+        source_listing_id: `stpaul-vac-${s(a.PIN) || address}`,
+        title: `Vacant building · ${address}`,
+        address,
+        city: "Saint Paul",
+        state: "MN",
+        lat: g.lat,
+        lng: g.lng,
+        seller_type: "owner",
+        signals: {
+          vacant: true,
+          status: `Vacant (cat ${s(a.VB_CATEGORY) || "?"}, since ${s(a.VACANT_AS_OF) || "?"})`,
+        },
+      };
+    },
+  },
+  {
+    // Rochester, NY — vacant-land parcels; flags out-of-town owners as absentee.
+    source: "vacant_building",
+    api: "arcgis",
+    url: "https://maps.cityofrochester.gov/server/rest/services/Open_Data/Tax_Parcels_Vacant_Land_Open_Data/FeatureServer/3",
+    state: "NY",
+    city: "Rochester",
+    where: "1=1",
+    limit: 5000,
+    map: (a, g): Property | null => {
+      const address = s(a.SITEADDRESS);
+      if (!address) return null;
+      const pcity = String(a.PSTLCITY || "").toUpperCase();
+      const absentee = !!pcity && !pcity.includes("ROCHESTER");
+      return {
+        source: absentee ? "absentee_owner" : "vacant_building",
+        source_listing_id: `roc-${address}-${s(a.ZIP5) || ""}`,
+        title: `${absentee ? "Absentee / " : ""}Vacant land · ${address}`,
+        property_type: "land",
+        address,
+        city: s(a.CITY) || "Rochester",
+        state: "NY",
+        zip: s(a.ZIP5),
+        lat: g.lat,
+        lng: g.lng,
+        price: n(a.CURRENT_TOTAL_VALUE),
+        seller_type: "owner",
+        signals: {
+          vacant: true,
+          absentee,
+          owner: s(a.OWNERNME1),
+          owner_mailing: mailing(a.PSTLADDRESS, a.PSTLCITY),
+          market_value: n(a.CURRENT_TOTAL_VALUE),
+          status: absentee ? `Absentee vacant land` : "Vacant land",
+        },
+      };
+    },
+  },
+  {
+    // Orlando / Orange County, FL — active code violations (~2k). Layer is pre-filtered to active.
+    source: "code_violation",
+    api: "arcgis",
+    url: "https://ocgis4.ocfl.net/arcgis/rest/services/AGOL_Open_Data/MapServer/53",
+    state: "FL",
+    city: "Orlando",
+    where: "1=1",
+    limit: 3000,
+    map: (a, g): Property | null => {
+      const address =
+        s(a.CE_COMPLETE_ADDRESS) ||
+        [s(a.CE_LOC_ST_NUM), s(a.CE_LOC_ST_NAME), s(a.CE_LOC_ST_TYP)]
+          .filter(Boolean)
+          .join(" ");
+      if (!address) return null;
+      return {
+        source: "code_violation",
+        source_listing_id: `orl-${s(a.CE_OFFICIAL_PARCEL_ID) || address}`,
+        title: `Code case · ${address}`,
+        address,
+        city: "Orlando",
+        state: "FL",
+        lat: g.lat,
+        lng: g.lng,
+        seller_type: "owner",
+        signals: {
+          code_violation: true,
+          owner: s(a.NAME_NAME),
+          status: s(a.INCI_TYP) || "Active violation",
+        },
+      };
+    },
+  },
+  {
+    // Tucson / Pima County, AZ — open code violations (~6.4k).
+    source: "code_violation",
+    api: "arcgis",
+    url: "https://gis.tucsonaz.gov/arcgis/rest/services/PDSD/pdsdMain_General5/MapServer/94",
+    state: "AZ",
+    city: "Tucson",
+    where: "DT_CLSD IS NULL OR DT_CLSD=''",
+    limit: 6000,
+    map: (a, g): Property | null => {
+      const address = s(a.ADDRESSFULL);
+      if (!address) return null;
+      return {
+        source: "code_violation",
+        source_listing_id: `tuc-${address}`,
+        title: `Code case · ${address}`,
+        address,
+        city: "Tucson",
+        state: "AZ",
+        lat: g.lat,
+        lng: g.lng,
+        seller_type: "owner",
+        signals: {
+          code_violation: true,
+          status: s(a.TYPE_DESC) || "Open code case",
+        },
+      };
+    },
+  },
+  {
+    // San Jose / Santa Clara County, CA — out-of-state owners on the parcel layer.
+    source: "absentee_owner",
+    api: "arcgis",
+    url: "https://services3.arcgis.com/JAU7IM34hqT9y9ew/arcgis/rest/services/Parcels/FeatureServer/0",
+    state: "CA",
+    city: "San Jose",
+    where:
+      "MAILSTATE NOT IN ('CA') AND MAILSTATE IS NOT NULL AND MAILSTATE<>''",
+    limit: 3000,
+    map: (a, g): Property | null => {
+      const address = s(a.SiteAddressFull);
+      if (!address) return null;
+      const mv = (n(a.LAND) || 0) + (n(a.IMPROVEMENT) || 0);
+      return {
+        source: "absentee_owner",
+        source_listing_id: `sccl-abs-${s(a.APN) || address}`,
+        title: `Absentee owner · ${address}`,
+        property_type: "single_family",
+        address,
+        city: s(a.SITUS_CITY_NAME) || "San Jose",
+        state: "CA",
+        zip: s(a.SITUSZIP),
+        lat: g.lat,
+        lng: g.lng,
+        price: mv || undefined,
+        seller_type: "owner",
+        signals: {
+          absentee: true,
+          out_of_state_owner: true,
+          owner: s(a.ASSESSEE),
+          owner_mailing: mailing(
+            a.MAILING_ADDRESS,
+            a.MAILCITY,
+            a.MAILSTATE,
+            a.MAILZIP,
+          ),
+          market_value: mv || undefined,
+          status: `Absentee (${s(a.MAILSTATE) || "out of state"})`,
+        },
+      };
+    },
+  },
+  {
+    // Tampa / Hillsborough County, FL — out-of-state owners (HCPA roll subset).
+    source: "absentee_owner",
+    api: "arcgis",
+    url: "https://services.arcgis.com/04HiymDgLlsbhaV4/arcgis/rest/services/Final_Roll_HCPA_2025/FeatureServer/42",
+    state: "FL",
+    city: "Tampa",
+    where: "STATE NOT IN ('FL') AND STATE IS NOT NULL AND STATE<>''",
+    limit: 3000,
+    map: (a, g): Property | null => {
+      const address = s(a.SITE_ADDR);
+      if (!address) return null;
+      return {
+        source: "absentee_owner",
+        source_listing_id: `hills-abs-${s(a.FOLIO) || address}`,
+        title: `Absentee owner · ${address}`,
+        property_type: "single_family",
+        address,
+        city: s(a.SITE_CITY) || "Tampa",
+        state: "FL",
+        zip: s(a.SITE_ZIP),
+        lat: g.lat,
+        lng: g.lng,
+        price: n(a.JUST),
+        seller_type: "owner",
+        signals: {
+          absentee: true,
+          out_of_state_owner: true,
+          owner: s(a.OWNER),
+          owner_mailing: mailing(a.ADDR_1, a.CITY, a.STATE, a.ZIP),
+          market_value: n(a.JUST),
+          status: `Absentee (${s(a.STATE) || "out of state"})`,
+        },
+      };
+    },
+  },
+  {
+    // Albuquerque / Bernalillo County, NM — out-of-state owners (assessor layer 2, subset).
+    source: "absentee_owner",
+    api: "arcgis",
+    url: "https://services6.arcgis.com/NiLPE6S5bwjCDk9X/arcgis/rest/services/Assessor_Parcels/FeatureServer/2",
+    state: "NM",
+    city: "Albuquerque",
+    where: "OWNSTATE NOT IN ('NM') AND OWNSTATE IS NOT NULL",
+    limit: 2000,
+    map: (a, g): Property | null => {
+      const address = s(a.SITUSADD);
+      if (!address) return null;
+      return {
+        source: "absentee_owner",
+        source_listing_id: `abq-abs-${address}-${s(a.SITUSZIP) || ""}`,
+        title: `Absentee owner · ${address}`,
+        property_type: "single_family",
+        address,
+        city: "Albuquerque",
+        state: "NM",
+        zip: s(a.SITUSZIP),
+        lat: g.lat,
+        lng: g.lng,
+        price: n(a.TOTVALUE),
+        seller_type: "owner",
+        signals: {
+          absentee: true,
+          out_of_state_owner: true,
+          owner: s(a.OWNER),
+          owner_mailing: mailing(a.OWNADD, a.OWNCITY, a.OWNSTATE, a.OWNZIPCODE),
+          market_value: n(a.TOTVALUE),
+          status: `Absentee (${s(a.OWNSTATE) || "out of state"})`,
+        },
+      };
+    },
+  },
+];
+
 // All configured open-data jurisdictions (grows state by state).
 export const OPEN_DATA_SOURCES: OpenDataSource[] = [
   ...MISSOURI_SOURCES,
@@ -1836,6 +2163,7 @@ export const OPEN_DATA_SOURCES: OpenDataSource[] = [
   ...METRO_DISTRESS_SOURCES,
   ...METRO_DISTRESS_SOURCES_2,
   ...METRO_DISTRESS_SOURCES_3,
+  ...METRO_DISTRESS_SOURCES_4,
 ];
 
 /** Harvest all configured open-data off-market leads (Missouri-first; whole-US as configs are added). */
