@@ -12,9 +12,12 @@ import type { Property } from "../types";
 export interface OpenDataSource {
   /** Our canonical source key, e.g. "stl_lra", "kc_dangerous". */
   source: string;
-  api: "socrata" | "arcgis";
-  /** Socrata: https://<domain>/resource/<id>.json · ArcGIS: <service>/FeatureServer/<n> (or MapServer). */
+  api: "socrata" | "arcgis" | "ckan";
+  /** Socrata: https://<domain>/resource/<id>.json · ArcGIS: <service>/FeatureServer/<n> (or MapServer) ·
+   *  CKAN: the portal base, e.g. https://data.wprdc.org (+ `resourceId`). */
   url: string;
+  /** CKAN only — the datastore resource id used in datastore_search_sql. */
+  resourceId?: string;
   state: string;
   city?: string;
   /** Socrata SoQL `$where` / ArcGIS `where` filter. */
@@ -165,12 +168,43 @@ async function fetchArcGIS(cfg: OpenDataSource): Promise<Property[]> {
   return out;
 }
 
+// CKAN datastore (WPRDC, data.boston.gov, etc.) — SQL over a resource id. No geometry in most tables →
+// lat/lng come from row columns when present, else the address is geocoded on upsert.
+async function fetchCKAN(cfg: OpenDataSource): Promise<Property[]> {
+  const cap = Math.min(cfg.limit ?? 2000, 50000);
+  const out: Property[] = [];
+  for (let off = 0; off < cap; off += PAGE) {
+    const take = Math.min(PAGE, cap - off);
+    const sql = `SELECT * FROM "${cfg.resourceId}"${cfg.where ? ` WHERE ${cfg.where}` : ""} LIMIT ${take} OFFSET ${off}`;
+    const res = await fetch(
+      `${cfg.url}/api/3/action/datastore_search_sql?sql=${encodeURIComponent(sql)}`,
+    );
+    if (!res.ok) break;
+    const json = (await res.json()) as {
+      result?: { records?: Record<string, any>[] };
+    };
+    const rows = json?.result?.records;
+    if (!Array.isArray(rows) || !rows.length) break;
+    for (const r of rows) {
+      const lat = Number(r.latitude ?? r.lat);
+      const lng = Number(r.longitude ?? r.lng);
+      const p = cfg.map(r, {
+        lat: Number.isFinite(lat) ? lat : undefined,
+        lng: Number.isFinite(lng) ? lng : undefined,
+      });
+      if (p) out.push(p);
+    }
+    if (rows.length < take) break;
+  }
+  return out;
+}
+
 /** Fetch + normalize a configured open-data source. Returns [] on failure (harvest degrades gracefully). */
 export async function fetchOpenData(cfg: OpenDataSource): Promise<Property[]> {
   try {
-    return cfg.api === "socrata"
-      ? await fetchSocrata(cfg)
-      : await fetchArcGIS(cfg);
+    if (cfg.api === "socrata") return await fetchSocrata(cfg);
+    if (cfg.api === "ckan") return await fetchCKAN(cfg);
+    return await fetchArcGIS(cfg);
   } catch {
     return [];
   }
