@@ -1512,6 +1512,322 @@ const METRO_DISTRESS_SOURCES_2: OpenDataSource[] = [
   },
 ];
 
+// ── Batch 3 (2026-07, curl-verified) — West Coast + Mountain + more TX/FL, incl. the first CKAN feeds. ──
+const METRO_DISTRESS_SOURCES_3: OpenDataSource[] = [
+  {
+    // Broward County (Fort Lauderdale), FL — out-of-state owners on the property-appraiser taxroll (~32k).
+    source: "absentee_owner",
+    api: "arcgis",
+    url: "https://services.arcgis.com/JMAJrTsHNLrSsWf5/arcgis/rest/services/PARCEL_POLY_BCPA_TAXROLL/FeatureServer/0",
+    state: "FL",
+    city: "Broward County",
+    where:
+      "STATE<>'FL' AND STATE IS NOT NULL AND SITUS_STREET_NAME IS NOT NULL",
+    limit: 15000,
+    map: (a, g): Property | null => {
+      const address = [
+        s(a.SITUS_STREET_NUMBER),
+        s(a.SITUS_STREET_DIRECTION),
+        s(a.SITUS_STREET_NAME),
+        s(a.SITUS_STREET_TYPE),
+      ]
+        .filter(Boolean)
+        .join(" ");
+      if (!address) return null;
+      const mv = (n(a.JUST_LAND_VALUE) || 0) + (n(a.JUST_BUILDING_VALUE) || 0);
+      return {
+        source: "absentee_owner",
+        source_listing_id: `broward-abs-${address}-${s(a.SITUS_ZIP_CODE) || ""}`,
+        title: `Absentee owner · ${address}`,
+        property_type: "single_family",
+        address,
+        city: s(a.SITUS_CITY) || "Broward County",
+        state: "FL",
+        zip: s(a.SITUS_ZIP_CODE),
+        lat: g.lat,
+        lng: g.lng,
+        price: mv || undefined,
+        seller_type: "owner",
+        signals: {
+          absentee: true,
+          out_of_state_owner: true,
+          owner: s(a.NAME_LINE_1),
+          owner_mailing: mailing(a.ADDRESS_LINE_1, a.CITY, a.STATE, a.ZIP),
+          market_value: mv || undefined,
+          status: `Absentee (${s(a.STATE) || "out of state"})`,
+        },
+      };
+    },
+  },
+  {
+    // San Francisco, CA — active DBI notices of violation (~30k).
+    source: "code_violation",
+    api: "socrata",
+    url: "https://data.sfgov.org/resource/nbtm-fbw5.json",
+    state: "CA",
+    city: "San Francisco",
+    where: "status='active'",
+    limit: 12000,
+    map: (a, g): Property | null => {
+      const address = [s(a.street_number), s(a.street_name), s(a.street_suffix)]
+        .filter(Boolean)
+        .join(" ");
+      if (!address) return null;
+      return {
+        source: "code_violation",
+        source_listing_id: `sf-${s(a.block) || ""}-${s(a.lot) || ""}-${address}`,
+        title: `Code violation · ${address}`,
+        address,
+        city: "San Francisco",
+        state: "CA",
+        zip: s(a.zipcode),
+        lat: g.lat,
+        lng: g.lng,
+        seller_type: "owner",
+        signals: {
+          code_violation: true,
+          status: s(a.nov_category_description) || "Active violation",
+        },
+      };
+    },
+  },
+  {
+    // Portland / Multnomah County, OR — out-of-state owners on the BDS property roll (~28k).
+    source: "absentee_owner",
+    api: "arcgis",
+    url: "https://www.portlandmaps.com/arcgis/rest/services/Public/BDS_Property/MapServer/0",
+    state: "OR",
+    city: "Portland",
+    where:
+      "OWNER_MAILING_ADDRESS NOT LIKE '% OR %' AND OWNER_MAILING_ADDRESS IS NOT NULL AND OWNER_MAILING_ADDRESS<>'' AND ADDRESS_SITUS IS NOT NULL",
+    limit: 12000,
+    map: (a, g): Property | null => {
+      const address = s(a.ADDRESS_SITUS);
+      if (!address) return null;
+      return {
+        source: "absentee_owner",
+        source_listing_id: `pdx-abs-${address}`,
+        title: `Absentee owner · ${address}`,
+        property_type: "single_family",
+        address,
+        city: "Portland",
+        state: "OR",
+        lat: g.lat,
+        lng: g.lng,
+        seller_type: "owner",
+        signals: {
+          absentee: true,
+          out_of_state_owner: true,
+          owner: s(a.OWNER_NAME),
+          owner_mailing: s(a.OWNER_MAILING_ADDRESS),
+          status: "Absentee (out of state)",
+        },
+      };
+    },
+  },
+  {
+    // Pittsburgh (Allegheny Co), PA — city tax-delinquent list (~26k). CKAN datastore → geocoded by address.
+    source: "tax_delinquent",
+    api: "ckan",
+    url: "https://data.wprdc.org",
+    resourceId: "ed0d1550-c300-4114-865c-82dc7c23235b",
+    state: "PA",
+    city: "Pittsburgh",
+    where: "current_delq_tax>0",
+    limit: 15000,
+    map: (a, g): Property | null => {
+      const address = s(a.address);
+      if (!address) return null;
+      return {
+        source: "tax_delinquent",
+        source_listing_id: `pgh-td-${s(a.pin) || address}`,
+        title: `Tax-delinquent · ${address}`,
+        address,
+        city: "Pittsburgh",
+        state: "PA",
+        lat: g.lat,
+        lng: g.lng,
+        seller_type: "owner",
+        signals: {
+          tax_delinquent: true,
+          total_due: n(a.current_delq_tax),
+          status: `Tax-delinquent${a.prior_years ? ` (${s(a.prior_years)} prior yrs)` : ""}`,
+        },
+      };
+    },
+  },
+  {
+    // Minneapolis / Hennepin County, MN — tax-delinquent parcels (~3.4k). Carries owner + market value.
+    source: "tax_delinquent",
+    api: "arcgis",
+    url: "https://gis.hennepin.us/arcgis/rest/services/HennepinData/LAND_PROPERTY/MapServer/1",
+    state: "MN",
+    city: "Minneapolis",
+    where: "EARLIEST_DELQ_YR>'2000'",
+    limit: 6000,
+    map: (a, g): Property | null => {
+      const address = [s(a.HOUSE_NO), s(a.STREET_NM)].filter(Boolean).join(" ");
+      if (!address) return null;
+      const due = (n(a.TAX_TOT) || 0) - (n(a.NET_TAX_PD) || 0);
+      return {
+        source: "tax_delinquent",
+        source_listing_id: `hennepin-td-${address}-${s(a.ZIP_CD) || ""}`,
+        title: `Tax-delinquent · ${address}`,
+        address,
+        city: s(a.MAILING_MUNIC_NM) || "Minneapolis",
+        state: "MN",
+        zip: s(a.ZIP_CD),
+        lat: g.lat ?? coord(a.LAT),
+        lng: g.lng ?? coord(a.LON),
+        price: n(a.MKT_VAL_TOT),
+        seller_type: "owner",
+        signals: {
+          tax_delinquent: true,
+          total_due: due > 0 ? due : undefined,
+          market_value: n(a.MKT_VAL_TOT),
+          owner: s(a.OWNER_NM) || s(a.TAXPAYER_NM),
+          status: `Tax-delinquent (since 20${s(a.EARLIEST_DELQ_YR) || "??"})`,
+        },
+      };
+    },
+  },
+  {
+    // Tacoma / Pierce County, WA — open code violations (~700). Service name has a literal space (%20).
+    source: "code_violation",
+    api: "arcgis",
+    url: "https://services3.arcgis.com/SCwJH1pD8WSn5T5y/ArcGIS/rest/services/Code%20Violations/FeatureServer/0",
+    state: "WA",
+    city: "Tacoma",
+    where: "casestatus NOT LIKE 'Closed%'",
+    limit: 3000,
+    map: (a, g): Property | null => {
+      const address = s(a.address);
+      if (!address) return null;
+      return {
+        source: "code_violation",
+        source_listing_id: `tac-${s(a.parcelnumber) || address}`,
+        title: `Code case · ${address}`,
+        address,
+        city: "Tacoma",
+        state: "WA",
+        lat: g.lat ?? coord(a.latitude),
+        lng: g.lng ?? coord(a.longitude),
+        seller_type: "owner",
+        signals: {
+          code_violation: true,
+          status: s(a.casetype) || "Open code case",
+        },
+      };
+    },
+  },
+  {
+    // Sacramento, CA — vacant-lot / nuisance program (~4.8k).
+    source: "vacant_building",
+    api: "arcgis",
+    url: "https://services5.arcgis.com/54falWtcpty3V47Z/ArcGIS/rest/services/Vacant_Lot_Program/FeatureServer/0",
+    state: "CA",
+    city: "Sacramento",
+    where: "ADDRESS IS NOT NULL",
+    limit: 5000,
+    map: (a, g): Property | null => {
+      const address = s(a.ADDRESS);
+      if (!address) return null;
+      return {
+        source: "vacant_building",
+        source_listing_id: `sac-vac-${s(a.APN) || address}`,
+        title: `Vacant lot · ${address}`,
+        address,
+        city: "Sacramento",
+        state: "CA",
+        lat: g.lat,
+        lng: g.lng,
+        seller_type: "owner",
+        signals: {
+          vacant: true,
+          status: s(a.CASE_STATUS)
+            ? `Vacant lot (${s(a.CASE_STATUS)})`
+            : "Vacant lot program",
+        },
+      };
+    },
+  },
+  {
+    // Austin / Travis County, TX — active code violations (~3.4k).
+    source: "code_violation",
+    api: "socrata",
+    url: "https://data.austintexas.gov/resource/6wtj-zbtb.json",
+    state: "TX",
+    city: "Austin",
+    where: "status='Active'",
+    limit: 4000,
+    map: (a, g): Property | null => {
+      const address =
+        s(a.address) ||
+        [s(a.house_number), s(a.street_name)].filter(Boolean).join(" ");
+      if (!address) return null;
+      return {
+        source: "code_violation",
+        source_listing_id: `atx-${s(a.parcelid) || address}`,
+        title: `Code case · ${address}`,
+        address,
+        city: s(a.city) || "Austin",
+        state: "TX",
+        zip: s(a.zip_code),
+        lat: g.lat,
+        lng: g.lng,
+        seller_type: "owner",
+        signals: {
+          code_violation: true,
+          status: s(a.case_type) || "Active code case",
+        },
+      };
+    },
+  },
+  {
+    // Boston / Suffolk County, MA — out-of-state owners on the assessment roll (~8k). CKAN (quoted, case-
+    // sensitive columns) → geocoded by address.
+    source: "absentee_owner",
+    api: "ckan",
+    url: "https://data.boston.gov",
+    resourceId: "ee73430d-96c0-423e-ad21-c4cfb54c8961",
+    state: "MA",
+    city: "Boston",
+    where: `"OWN_OCC"='N' AND "MAIL_STATE"<>'MA'`,
+    limit: 9000,
+    map: (a, g): Property | null => {
+      const address = [s(a.ST_NUM), s(a.ST_NAME)].filter(Boolean).join(" ");
+      if (!address) return null;
+      return {
+        source: "absentee_owner",
+        source_listing_id: `boston-abs-${address}-${s(a.ZIP_CODE) || ""}`,
+        title: `Absentee owner · ${address}`,
+        property_type: "single_family",
+        address,
+        city: s(a.CITY) || "Boston",
+        state: "MA",
+        zip: s(a.ZIP_CODE),
+        lat: g.lat,
+        lng: g.lng,
+        price: n(a.TOTAL_VALUE),
+        seller_type: "owner",
+        signals: {
+          absentee: true,
+          out_of_state_owner: true,
+          owner: s(a.OWNER),
+          owner_mailing: mailing(
+            a.MAIL_STREET_ADDRESS,
+            a.MAIL_CITY,
+            a.MAIL_STATE,
+            a.MAIL_ZIP_CODE,
+          ),
+          market_value: n(a.TOTAL_VALUE),
+          status: `Absentee (${s(a.MAIL_STATE) || "out of state"})`,
+        },
+      };
+    },
+  },
+];
+
 // All configured open-data jurisdictions (grows state by state).
 export const OPEN_DATA_SOURCES: OpenDataSource[] = [
   ...MISSOURI_SOURCES,
@@ -1519,6 +1835,7 @@ export const OPEN_DATA_SOURCES: OpenDataSource[] = [
   ...CITY_FEED_SOURCES,
   ...METRO_DISTRESS_SOURCES,
   ...METRO_DISTRESS_SOURCES_2,
+  ...METRO_DISTRESS_SOURCES_3,
 ];
 
 /** Harvest all configured open-data off-market leads (Missouri-first; whole-US as configs are added). */
