@@ -21,6 +21,17 @@ import path from "path";
 // so adaptive selection (below) must set CL_CITIES first. Hence runScrapers is imported dynamically.
 dotenv.config({ path: path.resolve(process.cwd(), ".env.local") });
 
+// Global safety net: catch any unhandled crash so it surfaces in logs instead of
+// leaving a scraper_run row stuck in 'running' with no error_message.
+process.on("uncaughtException", (err) => {
+  console.error("[scrape-ci] uncaughtException:", err?.stack || err);
+  process.exit(1);
+});
+process.on("unhandledRejection", (reason) => {
+  console.error("[scrape-ci] unhandledRejection:", reason);
+  process.exit(1);
+});
+
 // $0-friendly defaults: no dealer login, no paid proxy. Carvana/Copart/PublicSurplus use open
 // JSON APIs (no FlareSolverr); cars_com/autotrader/cargurus escalate to FlareSolverr when blocked.
 const DEFAULT_SOURCES = [
@@ -354,10 +365,12 @@ async function main() {
 
   // Dynamic import so the adaptive CL_CITIES above is in place before the scraper resolves cities.
   const { runScrapers } = await import("../lib/scrapers/runner");
+  const concurrency = parseInt(process.env.SCRAPE_CONCURRENCY || "3", 10);
+  console.log(`⚙️  concurrency: ${concurrency}`);
   const results = await runScrapers({
     orchestrator: "concurrent",
     sourceIds: sources,
-    concurrency: 3,
+    concurrency,
     dryRun: false,
     onSourceComplete: (r) => {
       const icon = r.success ? "✅" : "❌";
