@@ -269,14 +269,20 @@ export default function SearchesPage() {
               />
               Email me
             </label>
-            <label className="flex items-center gap-2 text-sm text-[var(--t2)] cursor-pointer">
+            <label
+              className="flex items-center gap-2 text-sm text-[var(--t4)] cursor-not-allowed"
+              title="SMS alerts are coming soon"
+            >
               <input
                 type="checkbox"
-                checked={formNotifySms}
-                onChange={(e) => setFormNotifySms(e.target.checked)}
+                checked={false}
+                disabled
                 className="accent-[var(--amber)]"
               />
-              Text me
+              Text me{" "}
+              <span className="text-[10px] uppercase tracking-wide text-[var(--t5)]">
+                soon
+              </span>
             </label>
           </div>
 

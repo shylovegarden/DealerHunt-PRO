@@ -141,9 +141,30 @@ export class ScraperAlertService {
     const alerts = await this.getPendingPriceDropAlerts();
     let emailsSent = 0;
 
+    // Honor the per-user "email me on price drops" setting (user_profiles.notify_price_drops). Default ON
+    // when unset. Opted-out users' alerts are still marked sent (they stay in the in-app inbox) but no email.
+    const userIds = Array.from(
+      new Set(alerts.map((a) => a.userId).filter(Boolean)),
+    );
+    const optedOut = new Set<string>();
+    if (userIds.length) {
+      const { data } = await this.supabase
+        .from("user_profiles")
+        .select("user_id, notify_price_drops")
+        .in("user_id", userIds);
+      for (const p of (data || []) as {
+        user_id: string;
+        notify_price_drops: boolean | null;
+      }[]) {
+        if (p.notify_price_drops === false) optedOut.add(p.user_id);
+      }
+    }
+
     for (const alert of alerts) {
-      const sent = await this.sendPriceDropEmail(alert);
-      if (sent) emailsSent += 1;
+      if (!optedOut.has(alert.userId)) {
+        const sent = await this.sendPriceDropEmail(alert);
+        if (sent) emailsSent += 1;
+      }
       await this.markAlertSent(alert.id);
     }
 
