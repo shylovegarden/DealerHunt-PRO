@@ -12,6 +12,7 @@ import { scoreHousingLead } from "./lead-score";
 import { resolvePlaces, placeKey } from "@/lib/geo/geocode";
 import { normalizeAddress } from "./address-normalize";
 import { fetchAllRows } from "@/lib/db/paginate";
+import { US_STATES } from "./us-states";
 
 /**
  * Cross-source structural enrichment — the "no data wasted" merge. The SAME physical house arrives from
@@ -443,15 +444,30 @@ export async function propertyStats(): Promise<{
   byTier: Record<string, number>;
   byState: Record<string, number>;
 } | null> {
-  const rows = await queryProperties({ limit: 2000 });
-  if (rows == null) return null;
-  const byTier: Record<string, number> = { hot: 0, warm: 0, standard: 0 };
+  // Real totals from the fast matviews (property_stats_mv + property_state_counts_mv, pg_cron-refreshed) —
+  // NOT a 2000-row sample, which capped "total" at 2000, showed a timed-out partial (214), and saw only the
+  // handful of states present in that slice. This is what lets the landing show the true 1M+ tracked / 42k
+  // hot / ~50 states instead of undercounting itself by ~4000x.
+  const sb = service();
+  const [statsRows, stateRows] = await Promise.all([
+    rpcRows<{ total: number; hot: number; warm: number }>(() =>
+      sb.rpc("property_stats"),
+    ),
+    rpcRows<{ state: string; cnt: number }>(() =>
+      sb.rpc("property_state_counts"),
+    ),
+  ]);
+  const s = statsRows[0];
+  if (!s) return null;
   const byState: Record<string, number> = {};
-  for (const r of rows) {
-    if (r.lead_tier) byTier[r.lead_tier] = (byTier[r.lead_tier] || 0) + 1;
-    if (r.state)
-      byState[(r.state || "").toUpperCase()] =
-        (byState[(r.state || "").toUpperCase()] || 0) + 1;
+  for (const r of stateRows) {
+    const code = String(r.state || "").toUpperCase();
+    // Real US states/DC only — drop the stray full-name ("CALIFORNIA") + province ("ON") keys.
+    if (US_STATES[code]) byState[code] = Number(r.cnt);
   }
-  return { total: rows.length, byTier, byState };
+  return {
+    total: Number(s.total),
+    byTier: { hot: Number(s.hot), warm: Number(s.warm), standard: 0 },
+    byState,
+  };
 }

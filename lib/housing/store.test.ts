@@ -11,10 +11,12 @@ const mockLimit = vi.fn();
 const mockRange = vi.fn();
 const mockGte = vi.fn();
 const mockFrom = vi.fn();
+const mockRpc = vi.fn();
 
 vi.mock("@supabase/supabase-js", () => ({
   createClient: vi.fn(() => ({
     from: mockFrom,
+    rpc: mockRpc,
   })),
 }));
 
@@ -407,87 +409,53 @@ describe("propertyStats", () => {
     mockGte.mockReturnValue(chainMethods);
   });
 
-  it("should return null when store is unavailable", async () => {
-    mockRange.mockResolvedValue({
-      data: null,
-      error: { message: "table does not exist" },
-    });
+  // propertyStats now reads the fast matviews via two RPCs (property_stats, property_state_counts).
+  const stubRpc = (
+    stats: { total: number; hot: number; warm: number }[],
+    states: { state: string; cnt: number }[],
+  ) =>
+    mockRpc.mockImplementation((name: string) =>
+      Promise.resolve({
+        data: name === "property_stats" ? stats : states,
+        error: null,
+      }),
+    );
 
-    const result = await propertyStats();
-    expect(result).toBeNull();
+  it("should return null when the stats RPC yields nothing", async () => {
+    stubRpc([], []);
+    expect(await propertyStats()).toBeNull();
   });
 
-  it("should return zero counts for empty store", async () => {
-    mockRange.mockResolvedValue({ data: [], error: null });
-
-    const result = await propertyStats();
-    expect(result).toEqual({
-      total: 0,
-      byTier: { hot: 0, warm: 0, standard: 0 },
-      byState: {},
-    });
+  it("should report the real total + tier counts from property_stats", async () => {
+    stubRpc([{ total: 1019636, hot: 42213, warm: 69385 }], []);
+    const r = await propertyStats();
+    expect(r?.total).toBe(1019636);
+    expect(r?.byTier).toEqual({ hot: 42213, warm: 69385, standard: 0 });
   });
 
-  it("should count properties by tier", async () => {
-    const mockData = [
-      { lead_tier: "hot", state: "MA" },
-      { lead_tier: "hot", state: "MA" },
-      { lead_tier: "warm", state: "CA" },
-      { lead_tier: "standard", state: "NY" },
-    ];
-    mockRange.mockResolvedValue({ data: mockData, error: null });
-
-    const result = await propertyStats();
-    expect(result?.byTier).toEqual({
-      hot: 2,
-      warm: 1,
-      standard: 1,
-    });
+  it("should map per-state counts from property_state_counts", async () => {
+    stubRpc(
+      [{ total: 4, hot: 2, warm: 1 }],
+      [
+        { state: "MA", cnt: 2 },
+        { state: "CA", cnt: 1 },
+        { state: "NY", cnt: 1 },
+      ],
+    );
+    const r = await propertyStats();
+    expect(r?.byState).toEqual({ MA: 2, CA: 1, NY: 1 });
   });
 
-  it("should count properties by state", async () => {
-    const mockData = [
-      { lead_tier: "hot", state: "MA" },
-      { lead_tier: "warm", state: "MA" },
-      { lead_tier: "hot", state: "CA" },
-      { lead_tier: "standard", state: "NY" },
-    ];
-    mockRange.mockResolvedValue({ data: mockData, error: null });
-
-    const result = await propertyStats();
-    expect(result?.byState).toEqual({
-      MA: 2,
-      CA: 1,
-      NY: 1,
-    });
-  });
-
-  it("should return correct total count", async () => {
-    const mockData = [
-      { lead_tier: "hot", state: "MA" },
-      { lead_tier: "warm", state: "CA" },
-      { lead_tier: "standard", state: "NY" },
-    ];
-    mockRange.mockResolvedValue({ data: mockData, error: null });
-
-    const result = await propertyStats();
-    expect(result?.total).toBe(3);
-  });
-
-  it("should handle properties with missing tier or state", async () => {
-    const mockData = [
-      { lead_tier: "hot", state: "MA" },
-      { lead_tier: null, state: "CA" },
-      { lead_tier: "warm", state: null },
-      { lead_tier: null, state: null },
-    ];
-    mockRange.mockResolvedValue({ data: mockData, error: null });
-
-    const result = await propertyStats();
-    expect(result?.total).toBe(4);
-    expect(result?.byTier.hot).toBe(1);
-    expect(result?.byTier.warm).toBe(1);
-    expect(result?.byState.MA).toBe(1);
-    expect(result?.byState.CA).toBe(1);
+  it("should drop non-US state keys (full names / provinces)", async () => {
+    stubRpc(
+      [{ total: 3, hot: 1, warm: 1 }],
+      [
+        { state: "TX", cnt: 100 },
+        { state: "CALIFORNIA", cnt: 2 }, // stray full name → dropped
+        { state: "ON", cnt: 9 }, // Canadian province → dropped
+      ],
+    );
+    const r = await propertyStats();
+    expect(r?.byState).toEqual({ TX: 100 });
   });
 });
