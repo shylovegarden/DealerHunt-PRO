@@ -9,15 +9,20 @@ export async function cached<T>(
   key: string,
   ttlMs: number,
   fn: () => Promise<T>,
+  // Optional guard: skip caching when this returns false (e.g. an empty/failed result that must NOT stick
+  // for the full TTL and starve every subsequent request — retry it next call instead). Default: cache all.
+  shouldCache?: (value: T) => boolean,
 ): Promise<T> {
   const now = Date.now();
   const hit = store.get(key);
   if (hit && hit.expires > now) return hit.value as T;
   const value = await fn();
-  store.set(key, { value, expires: now + ttlMs });
-  if (store.size > 300) {
-    for (const [k, e] of Array.from(store.entries()))
-      if (e.expires <= now) store.delete(k);
+  if (!shouldCache || shouldCache(value)) {
+    store.set(key, { value, expires: now + ttlMs });
+    if (store.size > 300) {
+      for (const [k, e] of Array.from(store.entries()))
+        if (e.expires <= now) store.delete(k);
+    }
   }
   return value;
 }
