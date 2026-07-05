@@ -68,34 +68,43 @@ export async function GET() {
   const [saved, watched, viewed] = await Promise.all([
     supabase
       .from("saved_cars")
-      .select("deal_id, price_at_save")
+      .select("deal_id, price_at_save, saved_at")
       .eq("user_id", user.id)
       .limit(300),
     supabase
       .from("watchlist")
-      .select("deal_id")
+      .select("deal_id, created_at")
       .eq("user_id", user.id)
       .limit(300),
     supabase
       .from("deal_views")
-      .select("deal_id")
+      .select("deal_id, created_at")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .limit(300),
   ]);
+  const now = Date.now();
   const weightById = new Map<string, number>();
   const priceById = new Map<string, number>();
-  const bump = (id: string | null, w: number) => {
+  const newestAtById = new Map<string, number>(); // most-recent interaction ts per deal → recency decay
+  const bump = (id: string | null, w: number, at?: string | null) => {
     if (!id) return;
     weightById.set(id, (weightById.get(id) || 0) + w);
+    if (at) {
+      const t = new Date(at).getTime();
+      if (Number.isFinite(t))
+        newestAtById.set(id, Math.max(newestAtById.get(id) || 0, t));
+    }
   };
   for (const r of saved.data || []) {
-    bump(r.deal_id, 3);
+    bump(r.deal_id, 3, (r as { saved_at?: string }).saved_at);
     if (r.deal_id && r.price_at_save)
       priceById.set(r.deal_id, Number(r.price_at_save));
   }
-  for (const r of watched.data || []) bump(r.deal_id, 2);
-  for (const r of viewed.data || []) bump(r.deal_id, 1);
+  for (const r of watched.data || [])
+    bump(r.deal_id, 2, (r as { created_at?: string }).created_at);
+  for (const r of viewed.data || [])
+    bump(r.deal_id, 1, (r as { created_at?: string }).created_at);
 
   let interest = extractInterestProfile([]);
   if (weightById.size) {
@@ -110,6 +119,9 @@ export async function GET() {
         price: priceById.get(d.id) ?? Number(d.ask_price) ?? null,
         source: d.source,
         weight: weightById.get(d.id) || 1,
+        ageDays: newestAtById.has(d.id)
+          ? (now - newestAtById.get(d.id)!) / 86_400_000
+          : undefined,
       })),
     );
   }
