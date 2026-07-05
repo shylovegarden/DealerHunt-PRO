@@ -5,6 +5,10 @@ import { createServerComponentClient } from "@/lib/supabase";
 import { getServerUser } from "@/lib/server-supabase";
 import { categorize } from "@/lib/discovery/categorize";
 import { extractWinPatterns, matchWin } from "@/lib/intelligence/win-patterns";
+import {
+  extractInterestProfile,
+  scoreInterest,
+} from "@/lib/intelligence/interest-patterns";
 
 // GET /api/recommendations — "Deals like your winners". Learns the make/models THIS dealer has
 // profited on (from logged outcomes) and surfaces active deals matching those patterns. Sharpens as
@@ -50,22 +54,82 @@ export async function GET() {
 
   const supabase = createServerComponentClient();
 
+  // 1) PROVEN-PROFIT patterns — what this dealer has actually made money on (logged outcomes). Sparse.
   const { data: outcomes } = await supabase
     .from("deal_outcomes")
     .select("make, model, actual_profit")
     .eq("user_id", user.id)
     .not("actual_profit", "is", null)
     .limit(200);
-
   const patterns = extractWinPatterns(outcomes || []);
-  if (patterns.length === 0) {
+
+  // 2) INTEREST patterns — what the dealer GRAVITATES to, from implicit behavior (saves≫watchlist≫views).
+  //    Plentiful + immediate, so recommendations sharpen from day one, before profit outcomes exist.
+  const [saved, watched, viewed] = await Promise.all([
+    supabase
+      .from("saved_cars")
+      .select("deal_id, price_at_save")
+      .eq("user_id", user.id)
+      .limit(300),
+    supabase
+      .from("watchlist")
+      .select("deal_id")
+      .eq("user_id", user.id)
+      .limit(300),
+    supabase
+      .from("deal_views")
+      .select("deal_id")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(300),
+  ]);
+  const weightById = new Map<string, number>();
+  const priceById = new Map<string, number>();
+  const bump = (id: string | null, w: number) => {
+    if (!id) return;
+    weightById.set(id, (weightById.get(id) || 0) + w);
+  };
+  for (const r of saved.data || []) {
+    bump(r.deal_id, 3);
+    if (r.deal_id && r.price_at_save)
+      priceById.set(r.deal_id, Number(r.price_at_save));
+  }
+  for (const r of watched.data || []) bump(r.deal_id, 2);
+  for (const r of viewed.data || []) bump(r.deal_id, 1);
+
+  let interest = extractInterestProfile([]);
+  if (weightById.size) {
+    const { data: sig } = await supabase
+      .from("deals")
+      .select("id, make, model, ask_price, source")
+      .in("id", Array.from(weightById.keys()));
+    interest = extractInterestProfile(
+      (sig || []).map((d: any) => ({
+        make: d.make,
+        model: d.model,
+        price: priceById.get(d.id) ?? Number(d.ask_price) ?? null,
+        source: d.source,
+        weight: weightById.get(d.id) || 1,
+      })),
+    );
+  }
+
+  if (patterns.length === 0 && interest.patterns.length === 0) {
     return NextResponse.json({
       deals: [],
-      reason: "no profitable sales logged yet",
+      reason: "save or sell a few deals to start learning your taste",
     });
   }
 
-  const makes = Array.from(new Set(patterns.slice(0, 8).map((p) => p.make)));
+  // 3) Candidate pool = makes from BOTH signals.
+  const makes = Array.from(
+    new Set(
+      [
+        ...patterns.slice(0, 8).map((p) => p.make),
+        ...interest.patterns.slice(0, 8).map((p) => p.make),
+      ].filter(Boolean),
+    ),
+  );
   const { data: rows } = await supabase
     .from("deals")
     .select(
@@ -77,20 +141,37 @@ export async function GET() {
     .order("profit_score", { ascending: false, nullsFirst: false })
     .limit(500);
 
+  // 4) Rank: proven-profit matches first (with the $ reason), then interest matches by affinity.
   const seen = new Set<string>();
-  const deals: any[] = [];
+  const scored: { deal: any; rank: number }[] = [];
   for (const r of rows || []) {
-    const m = matchWin(r.make, r.model, patterns);
-    if (!m.matched || seen.has(r.id)) continue;
-    seen.add(r.id);
-    deals.push(
-      mapDeal(
-        r,
-        `you've averaged ~$${m.avgProfit.toLocaleString()} on ${m.count} like this`,
-      ),
+    if (seen.has(r.id)) continue;
+    const w = matchWin(r.make, r.model, patterns);
+    const iv = scoreInterest(
+      {
+        make: r.make,
+        model: r.model,
+        price: Number(r.ask_price),
+        source: r.source,
+      },
+      interest,
     );
-    if (deals.length >= 24) break;
+    if (!w.matched && iv.affinity < 0.35) continue; // must meaningfully match at least one signal
+    seen.add(r.id);
+    const reason = w.matched
+      ? `you've averaged ~$${w.avgProfit.toLocaleString()} on ${w.count} like this`
+      : iv.reason || "matches what you keep saving";
+    // Proven profit outranks interest; stronger signal first within each tier.
+    const rank = w.matched
+      ? 1_000_000 + w.avgProfit
+      : Math.round(iv.affinity * 1000);
+    scored.push({ deal: mapDeal(r, reason), rank });
   }
+  scored.sort((a, b) => b.rank - a.rank);
 
-  return NextResponse.json({ deals, patterns: patterns.slice(0, 8) });
+  return NextResponse.json({
+    deals: scored.slice(0, 24).map((s) => s.deal),
+    patterns: patterns.slice(0, 8),
+    interest: interest.patterns.slice(0, 6),
+  });
 }
