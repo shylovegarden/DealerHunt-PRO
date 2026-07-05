@@ -105,6 +105,39 @@ export default function HomeIQSettingsPage() {
               </select>
             </Row>
 
+            <Row
+              label="My states (hunt list)"
+              hint="Pick every state you actively work — leads open to all of them at once via the ⭐ My states scope."
+            >
+              <div className="flex flex-wrap gap-1.5 max-w-md justify-end max-h-40 overflow-y-auto">
+                {STATE_CODES.map((c) => {
+                  const on = (prefs.homeiqStates || []).includes(c);
+                  return (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => {
+                        const cur = prefs.homeiqStates || [];
+                        set({
+                          homeiqStates: on
+                            ? cur.filter((x) => x !== c)
+                            : [...cur, c],
+                        });
+                      }}
+                      className="px-2 py-1 rounded-[var(--r1)] text-[11px] font-bold border transition-colors"
+                      style={{
+                        background: on ? "var(--home)" : "transparent",
+                        color: on ? "#04201d" : "var(--t4)",
+                        borderColor: on ? "var(--home)" : "var(--b1)",
+                      }}
+                    >
+                      {c}
+                    </button>
+                  );
+                })}
+              </div>
+            </Row>
+
             <Row label="Default tier" hint="Which lead quality to show first.">
               <select
                 className={selectCls}
