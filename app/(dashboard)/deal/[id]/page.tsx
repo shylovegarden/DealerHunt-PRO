@@ -20,6 +20,7 @@ import { useDealerId } from "@/hooks/useDealerId";
 import { Skeleton } from "@/components/shared/Skeleton";
 import { MaxBidWidget } from "@/components/deal/MaxBidWidget";
 import { ValuationBreakdown } from "@/components/deal/ValuationBreakdown";
+import { ForecastPanel } from "@/components/deal/ForecastPanel";
 import { ScoreBreakdown } from "@/components/deal/ScoreBreakdown";
 import { PriceSparkline } from "@/components/deal/PriceSparkline";
 import { SimilarDeals } from "@/components/deal/SimilarDeals";
@@ -523,6 +524,11 @@ export default function DealPage({
           profit={serverDeal.true_net_profit ?? engineNetProfit ?? 0}
           verdict={String(serverDeal.dealVerdict).toUpperCase()}
         />
+      )}
+
+      {/* PREDICTIVE — what's about to happen: time-to-sell, price-drop odds, urgency, projected ROI */}
+      {serverDeal?.dealAnalysis?.prediction && (
+        <ForecastPanel prediction={serverDeal.dealAnalysis.prediction} />
       )}
 
       {/* CONTACT SELLER — Call / Text / Email in-app + original listing, so the dealer never leaves */}

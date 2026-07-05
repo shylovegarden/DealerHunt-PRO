@@ -168,6 +168,8 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
           priceImplausible: analysis.priceImplausible,
           // Evidence + adjustments behind the resale number — powers the "How we valued this" card.
           valuation: analysis.valuation,
+          // Forward-looking forecasts (time-to-sell, price-drop odds, urgency, projected ROI).
+          prediction: analysis.prediction,
         },
         created_at: deal.created_at || now,
         updated_at: now,

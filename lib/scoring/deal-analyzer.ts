@@ -24,6 +24,7 @@ import {
   titleSeverityMultiplier,
 } from "./condition-value";
 import { checkPriceSanity } from "./price-sanity";
+import { predict, type Prediction } from "@/lib/intelligence/predict";
 import { isKnownMake } from "@/lib/scrapers/tools/deal-normalizer";
 
 // Home base used for transport-distance math (where you recondition/sell). Override via env.
@@ -216,6 +217,8 @@ export interface DealAnalysis extends ProfitResult {
   // (bait/deposit), or 'ok'. Lets the UI warn instead of showing fake profit.
   priceSanity: "ok" | "typo" | "implausible";
   inferredPrice?: number;
+  // Forward-looking forecasts — time-to-sell, price-drop likelihood, urgency, projected ROI.
+  prediction?: Prediction;
 }
 
 // Dealer financing / lease / payment bait: a "$999" 2024 truck isn't a sale price — it's a down
@@ -542,11 +545,28 @@ export function analyzeDeal(deal: Partial<Deal>): DealAnalysis {
     ];
   }
 
+  // Forecasting layer — what's ABOUT to happen, from data we already have (supply scarcity, days-on-market,
+  // ask-vs-market, prior cuts, margin). Pure + explainable; degrades to nulls when a signal is missing.
+  const firstSeen = (deal as { first_seen_at?: string }).first_seen_at;
+  const prediction = predict({
+    daysOnMarket: firstSeen
+      ? (Date.now() - new Date(firstSeen).getTime()) / 86_400_000
+      : null,
+    priceVsMarket:
+      comps?.retail && askPrice > 0 ? askPrice / comps.retail : null,
+    marketSupply: lookupSupply(deal.make ?? "", deal.model ?? ""),
+    priceDrops: (deal as { price_drops?: number }).price_drops ?? null,
+    netProfit: result.profit ?? null,
+    cost: recommendedMaxBid || (askPrice > 0 ? askPrice : null),
+    isBuy: verdict === "go",
+  });
+
   return {
     ...result,
     score,
     verdict,
     warnings,
+    prediction,
     sellEstimate,
     mmrValue: deal.mmr_value,
     sellBasis,

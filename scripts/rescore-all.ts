@@ -57,6 +57,7 @@ async function main() {
               priceSanity: a.priceSanity,
               inferredPrice: a.inferredPrice,
               warnings: a.warnings,
+              prediction: a.prediction,
             },
           })
           .eq("id", row.id);
