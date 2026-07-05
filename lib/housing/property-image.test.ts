@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { aerialThumb } from "./property-image";
+import { aerialThumb, resolvePropertyImage } from "./property-image";
 
 describe("aerialThumb", () => {
   it("should return null for invalid inputs", () => {
@@ -17,5 +17,27 @@ describe("aerialThumb", () => {
     expect(url).toContain("bbox=-71.060");
     expect(url).toContain("42.3586");
     expect(url).toContain("size=400,300");
+  });
+});
+
+describe("resolvePropertyImage (photo fallback chain)", () => {
+  it("prefers a real listing photo", () => {
+    const r = resolvePropertyImage({
+      image: "https://x.com/photo.jpg",
+      lat: 42.36,
+      lng: -71.05,
+    });
+    expect(r).toEqual({ url: "https://x.com/photo.jpg", kind: "listing" });
+  });
+
+  it("falls back to an aerial when there is no photo but coords exist", () => {
+    const r = resolvePropertyImage({ lat: 42.36, lng: -71.05 });
+    expect(r?.kind).toBe("aerial");
+    expect(r?.url).toContain("World_Imagery");
+  });
+
+  it("returns null when there is neither a photo nor usable coords", () => {
+    expect(resolvePropertyImage({ image: null, lat: 0, lng: 0 })).toBeNull();
+    expect(resolvePropertyImage({})).toBeNull();
   });
 });

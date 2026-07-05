@@ -15,7 +15,7 @@ import {
 } from "@/lib/housing/condition";
 import { LEAD_CATEGORIES, leadCategories } from "@/lib/housing/categories";
 import { usePreferences } from "@/hooks/usePreferences";
-import { aerialThumb } from "@/lib/housing/property-image";
+import { resolvePropertyImage } from "@/lib/housing/property-image";
 import { MarketPicker } from "@/components/shared/MarketPicker";
 import { RecentlyViewed } from "@/components/shared/RecentlyViewed";
 import { CompareToggle, CompareBar } from "@/components/shared/CompareControls";
@@ -942,21 +942,20 @@ const LeadCard = memo(function LeadCard({
         </div>
         <div className="relative shrink-0 w-36 h-28 sm:w-44 sm:h-32 rounded-[var(--r2)] overflow-hidden bg-[var(--s2)]">
           {(() => {
-            // Off-market records have no listing photo → fall back to a free aerial of the exact parcel.
-            const aerial = lead.image ? null : aerialThumb(lead.lat, lead.lng);
-            const photo = lead.image || aerial;
-            return photo ? (
+            // Photo fallback chain (listing → aerial → street map), badged honestly by provenance.
+            const img = resolvePropertyImage(lead);
+            return img ? (
               <>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={photo}
+                  src={img.url}
                   alt={lead.title}
                   className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                   loading="lazy"
                 />
-                {aerial && (
+                {img.kind !== "listing" && (
                   <span className="absolute bottom-1 left-1 text-[9px] font-bold px-1 py-0.5 rounded bg-black/60 text-white">
-                    🛰 Aerial
+                    {img.kind === "aerial" ? "🛰 Aerial" : "🗺 Map"}
                   </span>
                 )}
               </>
