@@ -8,9 +8,11 @@ import useSWR from "swr";
 
 export interface Prefs {
   homeiqState?: string; // default state to view in HomeIQ leads
+  homeiqStates?: string[]; // multi-state "hunt list" — the set of states you actively work
   homeiqTier?: string; // default tier filter ("", "hot", "warm")
   homeiqType?: string; // default property type ("", "single_family", ...)
   carsState?: string; // default state to view in DealerHunt
+  carsStates?: string[]; // multi-state "hunt list" for cars
   preferredVertical?: string; // "homeiq" | "cars" — which app to land on
 }
 

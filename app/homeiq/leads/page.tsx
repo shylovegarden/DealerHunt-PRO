@@ -263,10 +263,17 @@ function LeadsInner() {
   const urlState = (params.get("state") || "").toUpperCase();
   const [prefState, setPrefState] = useState("");
   const scopeState = urlState || prefState;
-  const [scopeMode, setScopeMode] = useState<"state" | "nearby" | "national">(
-    urlState ? "state" : "national",
-  );
+  const [scopeMode, setScopeMode] = useState<
+    "state" | "nearby" | "national" | "hunt"
+  >(urlState ? "state" : "national");
   const { prefs } = usePreferences();
+  // The user's multi-state "hunt list" — the set of states they actively work (settings). Powers a "My
+  // states" scope that queries all of them at once via the API's existing ?states= param.
+  const huntStates = useMemo(
+    () =>
+      (prefs.homeiqStates || []).map((v) => v.toUpperCase()).filter(Boolean),
+    [prefs.homeiqStates],
+  );
   const prefsApplied = useRef(false);
   // Initialize filters from the URL so deep-links from the Market dashboard land pre-filtered.
   const [tier, setTier] = useState(params.get("tier") || "");
@@ -291,9 +298,14 @@ function LeadsInner() {
   useEffect(() => {
     if (prefsApplied.current || !Object.keys(prefs).length) return;
     prefsApplied.current = true;
-    if (!urlState && prefs.homeiqState) {
-      setPrefState(prefs.homeiqState.toUpperCase());
-      setScopeMode("state");
+    if (!urlState) {
+      // A saved hunt list (2+ states) wins as the default view; else the single default market.
+      if ((prefs.homeiqStates || []).length >= 2) {
+        setScopeMode("hunt");
+      } else if (prefs.homeiqState) {
+        setPrefState(prefs.homeiqState.toUpperCase());
+        setScopeMode("state");
+      }
     }
     if (!params.get("tier") && prefs.homeiqTier) setTier(prefs.homeiqTier);
     if (!params.get("type") && prefs.homeiqType) setType(prefs.homeiqType);
@@ -303,11 +315,13 @@ function LeadsInner() {
   // SERVER-SIDE SCOPE: fetch the current scope from the full 54k (your state / nearby / national top),
   // then filter/sort/search instantly client-side WITHIN that slice. Re-fetches when the scope changes.
   const fetchUrl = useMemo(() => {
+    if (scopeMode === "hunt" && huntStates.length)
+      return `/api/homeiq/leads?states=${huntStates.join(",")}`;
     if (!scopeState || scopeMode === "national") return "/api/homeiq/leads";
     if (scopeMode === "nearby")
       return `/api/homeiq/leads?states=${Array.from(nearbyStates(scopeState, 6)).join(",")}`;
     return `/api/homeiq/leads?state=${scopeState}`;
-  }, [scopeState, scopeMode]);
+  }, [scopeState, scopeMode, huntStates]);
   const { data, isLoading } = useSWR(fetchUrl, fetcher, {
     revalidateOnFocus: false,
     dedupingInterval: 120_000,
@@ -331,11 +345,12 @@ function LeadsInner() {
 
   // The geographic scope set (null = nationwide).
   const scopeSet = useMemo<Set<string> | null>(() => {
+    if (scopeMode === "hunt" && huntStates.length) return new Set(huntStates);
     if (!scopeState || scopeMode === "national") return null;
     return scopeMode === "nearby"
       ? nearbyStates(scopeState, 6)
       : new Set([scopeState]);
-  }, [scopeState, scopeMode]);
+  }, [scopeState, scopeMode, huntStates]);
 
   const leads = useMemo(() => {
     let r = all; // already scoped server-side (state/nearby/national) — just refine within the slice
@@ -446,14 +461,24 @@ function LeadsInner() {
       </div>
       {/* Location scope — progressive: your state → nearby → nationwide */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-4 flex items-center justify-between gap-2 flex-wrap">
-        {scopeState ? (
+        {scopeState || huntStates.length ? (
           <div className="flex items-center gap-1.5 p-1 rounded-[var(--r3)] bg-[var(--s2)] border border-[var(--b1)] text-xs font-bold">
             {(
               [
-                ["state", `📍 ${ST[scopeState]?.[0] || scopeState}`],
-                ["nearby", `Nearby${nearbyCount ? ` (${nearbyCount})` : ""}`],
+                ...(huntStates.length
+                  ? [["hunt", `⭐ My states (${huntStates.length})`]]
+                  : []),
+                ...(scopeState
+                  ? [
+                      ["state", `📍 ${ST[scopeState]?.[0] || scopeState}`],
+                      [
+                        "nearby",
+                        `Nearby${nearbyCount ? ` (${nearbyCount})` : ""}`,
+                      ],
+                    ]
+                  : []),
                 ["national", "Nationwide"],
-              ] as const
+              ] as ["state" | "nearby" | "national" | "hunt", string][]
             ).map(([k, lbl]) => (
               <button
                 key={k}
