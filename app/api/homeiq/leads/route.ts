@@ -344,10 +344,11 @@ export async function GET(req: NextRequest) {
         // SERVER-SIDE SCOPE: a state / nearby view is queried from the FULL table (its own top-3000), not a
         // slice of the global top-2000 — so all 54k are reachable by location. National = global top-2000.
         const stored = await queryProperties(
-          // 2000 (not 3000) matches the reliably-fast national query — a 3rd 1000-row `select *` page was
-          // the one most likely to hit the DB statement timeout on a cold connection and strand a big state
-          // at partial/zero leads. 2000 top-by-score is still far more than the list surfaces.
-          scopeStates ? { states: scopeStates, limit: 2000 } : { limit: 2000 },
+          // ONE page (1000). PostgREST caps a response at 1000, so anything above pages a 2nd `select *`
+          // fetch — and on a cold DB connection that 2nd page reliably hit the statement timeout, stranding
+          // big states at 40s / partial data. The top 1000 by score is already far more than the list ever
+          // surfaces (60 + infinite scroll), so a single fast page is strictly better for the user.
+          scopeStates ? { states: scopeStates, limit: 1000 } : { limit: 1000 },
         );
         const rows =
           stored && stored.length
