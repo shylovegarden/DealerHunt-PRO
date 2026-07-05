@@ -10,6 +10,7 @@ import statePpsf from "./data/state-ppsf.json";
 import countyPpsf from "./data/county-ppsf.json";
 import zipPpsf from "./data/zip-ppsf.json";
 import zipCounty from "./data/zip-county.json";
+import { zipToState } from "./zip-state";
 
 type PpsfByType = Record<string, number>;
 
@@ -35,15 +36,52 @@ let LIVE_BY_ZIP: Record<string, PpsfByType> = {};
 // Per-ZIP count of the real closed comps behind each live median — the honesty signal we surface to users
 // ("ARV backed by 7 sold comps in this ZIP"). Parallel to LIVE_BY_ZIP; set together each refresh.
 let LIVE_COMPS_BY_ZIP: Record<string, number> = {};
+// Fresh per-ZIP medians rolled up to per-COUNTY (comp-weighted), so a property whose exact ZIP has no live
+// comp still gets FRESH pricing from its county's harvested sales before dropping to the stale snapshot.
+let LIVE_BY_COUNTY: Record<string, PpsfByType> = {};
 export function setLiveZipPsf(
   byZip: Record<string, PpsfByType>,
   comps?: Record<string, number>,
 ): void {
   LIVE_BY_ZIP = byZip || {};
   LIVE_COMPS_BY_ZIP = comps || {};
+  LIVE_BY_COUNTY = rollupCountyPsf(LIVE_BY_ZIP, LIVE_COMPS_BY_ZIP);
 }
 export function liveZipCount(): number {
   return Object.keys(LIVE_BY_ZIP).length;
+}
+
+// Roll per-ZIP live medians up to a comp-WEIGHTED per-county median, keyed `${county}|${state}` to match the
+// snapshot county index. State comes from zipToState (the ZIP→county file carries no state); a ZIP with no
+// resolvable county/state is skipped. Weighting by the ZIP's real closed-comp count keeps a 40-comp ZIP from
+// being drowned out by a 4-comp one. Pure + exported for tests.
+export function rollupCountyPsf(
+  byZip: Record<string, PpsfByType>,
+  comps: Record<string, number>,
+): Record<string, PpsfByType> {
+  const acc: Record<string, Record<string, { sum: number; w: number }>> = {};
+  for (const [zip, byType] of Object.entries(byZip)) {
+    const county = ZIP_COUNTY[zip];
+    const st = zipToState(zip);
+    if (!county || !st) continue;
+    const key = `${normCounty(county)}|${st}`;
+    const w = Math.max(1, comps[zip] || 1);
+    const c = (acc[key] ??= {});
+    for (const [type, psf] of Object.entries(byType)) {
+      if (typeof psf !== "number" || psf <= 0) continue;
+      const e = (c[type] ??= { sum: 0, w: 0 });
+      e.sum += psf * w;
+      e.w += w;
+    }
+  }
+  const out: Record<string, PpsfByType> = {};
+  for (const [key, byType] of Object.entries(acc)) {
+    const row: PpsfByType = {};
+    for (const [type, e] of Object.entries(byType))
+      if (e.w > 0) row[type] = Math.round(e.sum / e.w);
+    if (Object.keys(row).length) out[key] = row;
+  }
+  return out;
 }
 
 // Normalize a county name to match the county-ppsf keys ("Cook County" → "cook county").
@@ -102,11 +140,14 @@ export function marketPsfDetailed(
   }
   if (!st) return null;
 
-  // County-level next (zip→county crosswalk).
+  // County-level next (zip→county crosswalk) — our LIVE rollup (fresh harvested comps) beats the snapshot.
   if (z) {
     const county = ZIP_COUNTY[z];
     if (county) {
-      const v = pick(BY_COUNTY[`${normCounty(county)}|${st}`], propertyType);
+      const ckey = `${normCounty(county)}|${st}`;
+      const lc = pick(LIVE_BY_COUNTY[ckey], propertyType);
+      if (lc != null) return { psf: lc, level: "county", source: "live" };
+      const v = pick(BY_COUNTY[ckey], propertyType);
       if (v != null) return { psf: v, level: "county", source: "snapshot" };
     }
   }

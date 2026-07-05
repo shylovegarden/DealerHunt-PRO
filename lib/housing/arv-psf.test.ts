@@ -3,6 +3,7 @@ import {
   marketPsf,
   marketPsfDetailed,
   setLiveZipPsf,
+  rollupCountyPsf,
   PPSF_UPDATED,
 } from "./arv-psf";
 
@@ -85,5 +86,42 @@ describe("marketPsf", () => {
     const s = marketPsfDetailed("GA", "all", "30303")!;
     expect(s.source).toBe("snapshot");
     expect(s.comps).toBeUndefined();
+  });
+});
+
+describe("rollupCountyPsf (live ZIP → county roll-up)", () => {
+  // 10001 + 10002 both map to New York County, NY.
+  it("comp-weights per-ZIP medians into a county median keyed county|STATE", () => {
+    const r = rollupCountyPsf(
+      { "10001": { all: 800 }, "10002": { all: 600 } },
+      { "10001": 10, "10002": 2 }, // 10 comps vs 2 → weighted toward 800
+    );
+    // (800*10 + 600*2) / 12 = 766.67 → 767
+    expect(r["new york county|NY"].all).toBe(767);
+  });
+
+  it("defaults to equal weight when comp counts are absent", () => {
+    const r = rollupCountyPsf(
+      { "10001": { all: 800 }, "10002": { all: 600 } },
+      {},
+    );
+    expect(r["new york county|NY"].all).toBe(700); // plain mean
+  });
+
+  it("rolls up per property type independently", () => {
+    const r = rollupCountyPsf(
+      {
+        "10001": { all: 800, condo: 900 },
+        "10002": { all: 600, condo: 700 },
+      },
+      { "10001": 1, "10002": 1 },
+    );
+    expect(r["new york county|NY"].all).toBe(700);
+    expect(r["new york county|NY"].condo).toBe(800);
+  });
+
+  it("skips ZIPs with no resolvable county/state", () => {
+    const r = rollupCountyPsf({ "00000": { all: 500 } }, {});
+    expect(Object.keys(r)).toHaveLength(0);
   });
 });
