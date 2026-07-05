@@ -1,189 +1,119 @@
-import * as cheerio from "cheerio";
-import axios from "axios";
-import { getWorkingProxy } from "../tools/free-proxy-manager";
-import { ProxyManager } from "../tools/proxy-manager";
+import { smartFetch } from "../smart-fetch";
 import { enrichAndStore } from "./shared";
 
-const proxyManager = new ProxyManager();
+// IAA (Insurance Auto Auctions) — salvage / total-loss auction. The website SEARCH is Imperva-walled (0
+// rows via plain scrape), BUT the sitemap + per-lot `vehicledetail` pages serve real listing JSON with an
+// ordinary browser identity (Imperva only challenges some egress). So we enumerate live lots from the
+// sitemap, then pull each lot's embedded `inventoryView.attributes` JSON. smartFetch escalates to the
+// headed real-Chrome tier automatically when a fetch returns a challenge, so the sitemap resolves on the
+// worker fleet even though a flagged serverless IP gets "Pardon Our Interruption". FlareSolverr can't help
+// here (Imperva, not Cloudflare) — the headed tier is the right escalation, which smartFetch already owns.
+//
+// The obfuscated sitemap path is published in iaai.com/robots.txt.
+const SITEMAP_INDEX = "https://www.iaai.com/Xj9rDOVMEi0hc38S/sitemap_index.xml";
 
-function proxyConfigToAxios(p?: ReturnType<ProxyManager["getProxy"]>) {
-  if (!p) return undefined;
-  const ax: any = { host: p.host, port: p.port };
-  if (p.protocol) ax.protocol = p.protocol;
-  if (p.username)
-    ax.auth = { username: p.username, password: p.password || "" };
-  return ax;
+interface Attrs {
+  StockNumber?: string;
+  Year?: string;
+  Make?: string;
+  Model?: string;
+  Series?: string;
+  City?: string;
+  State?: string;
+  Zip?: string;
+  VIN?: string;
 }
 
-export async function scrapeIAA(searchTerm = "", limit = 100) {
-  // Prefer residential proxies from PROXY_URLS via ProxyManager (production-grade path)
-  let proxy = proxyManager.getProxy({ type: "residential" });
-  let useFreeFallback = false;
-  if (!proxy) {
-    const free = await getWorkingProxy();
-    if (free) {
-      useFreeFallback = true;
-      proxy = {
-        id: "free",
-        host: free.split(":")[0],
-        port: parseInt(free.split(":")[1]),
-        protocol: "http",
-        type: "datacenter",
-      } as any;
+// Pull the vehicle attributes out of a lot's embedded JSON (block with inventoryView.attributes).
+function parseDetail(html: string): Attrs | null {
+  const blocks =
+    html.match(
+      /<script[^>]*type="application\/json"[^>]*>[\s\S]*?<\/script>/gi,
+    ) || [];
+  for (const raw of blocks) {
+    const jsonStr = raw
+      .replace(/^<script[^>]*>/i, "")
+      .replace(/<\/script>\s*$/i, "");
+    let data: unknown;
+    try {
+      data = JSON.parse(jsonStr);
+    } catch {
+      continue;
     }
+    const a = (data as { inventoryView?: { attributes?: Attrs } })
+      ?.inventoryView?.attributes;
+    if (a && (a.VIN || a.StockNumber)) return a;
   }
+  return null;
+}
 
-  const url = `https://www.iaai.com/Search?SearchSpec=${encodeURIComponent(searchTerm)}&sortBy=saleDate&sortOrder=asc`;
-
-  const config: any = {
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
-      Accept: "text/html,application/xhtml+xml",
-      "Accept-Language": "en-US,en;q=0.9",
-      "Accept-Encoding": "gzip, deflate, br",
-      Referer: "https://www.iaai.com/",
-    },
-    timeout: 20000,
-  };
-
-  if (proxy) {
-    config.proxy = useFreeFallback
-      ? { host: (proxy as any).host, port: (proxy as any).port }
-      : proxyConfigToAxios(proxy);
-  }
-
-  let res;
-  try {
-    res = await axios.get(url, config);
-  } catch (e) {
-    // One retry with a different residential proxy if available
-    const nextProxy = proxyManager.getProxy({ type: "residential" });
-    if (nextProxy && !useFreeFallback) {
-      config.proxy = proxyConfigToAxios(nextProxy);
-      res = await axios.get(url, config);
-    } else {
-      throw e;
-    }
-  }
-
-  const $ = cheerio.load(res.data);
-  const vehicles: any[] = [];
-
-  // IAA uses both old and new layouts — handle both, more resilient selectors
-  const selectors = [
-    "[data-lot-number]",
-    ".lot-details-container",
-    ".search-result-card",
-    ".grid-item", // newer grid
-    "div[data-lotid]",
-    ".srp-results .result-card",
-  ];
-
-  for (const selector of selectors) {
-    if ($(selector).length > 0) {
-      $(selector).each((_, el) => {
-        const lotNum =
-          $(el).attr("data-lot-number") ||
-          $(el).find("[data-lot-number]").attr("data-lot-number") ||
-          $(el).attr("data-lotid") ||
-          String(Date.now() + Math.random());
-
-        const priceText = $(el)
-          .find('.bid-price, .current-bid, [class*="price"], .price')
-          .first()
-          .text();
-        const price = parseFloat(priceText.replace(/[^0-9.]/g, "")) || 0;
-
-        const odometerText = $(el)
-          .find('.odometer, [data-odometer], [class*="mileage"], .mileage')
-          .first()
-          .text();
-        const odometer = parseInt(odometerText.replace(/[^0-9]/g, "")) || 0;
-
-        const href =
-          $(el).find("a").attr("href") || $(el).closest("a").attr("href") || "";
-
-        if (price > 0 || href.includes("lot") || href.includes("/vehicle/")) {
-          const title = $(el)
-            .find('.lot-title, .vehicle-title, h2, h3, [class*="title"]')
-            .first()
-            .text()
-            .trim();
-          const vin =
-            $(el)
-              .find('[data-vin], .vin, [class*="vin"]')
-              .first()
-              .text()
-              .trim() ||
-            $(el).attr("data-vin") ||
-            "";
-          const damage = $(el)
-            .find(
-              '.damage-description, .primary-damage, [class*="damage"], .damage',
-            )
-            .first()
-            .text()
-            .trim();
-          const locCity = $(el)
-            .find('.location-city, [class*="city"], .city')
-            .first()
-            .text()
-            .trim();
-          const locState = $(el)
-            .find('.location-state, [class*="state"], .state')
-            .first()
-            .text()
-            .trim();
-          const saleDate = $(el)
-            .find('.sale-date, [class*="sale-date"], .ends')
-            .first()
-            .text()
-            .trim();
-          const imgs = $(el)
-            .find("img")
-            .map((_, img) => $(img).attr("src") || $(img).attr("data-src"))
-            .get()
-            .filter((s: string) => s && s.startsWith("http"));
-
-          vehicles.push({
-            source: "iaa",
-            source_category: "salvage",
-            external_id: lotNum,
-            title: title || "IAA Vehicle",
-            vin,
-            current_bid: price,
-            asking_price: price,
-            odometer,
-            damage_type: damage,
-            title_type:
-              $(el)
-                .find('.title-type, [class*="title-type"]')
-                .first()
-                .text()
-                .trim()
-                .toLowerCase() || "salvage",
-            location_city: locCity,
-            location_state: locState,
-            sale_date: saleDate,
-            images: imgs,
-            listing_url: href.startsWith("http")
-              ? href
-              : `https://www.iaai.com${href}`,
-          });
-        }
-      });
-      break; // Found a working selector, stop
-    }
-  }
-
-  // Enrich each vehicle and store in Supabase (real data path)
-  for (const v of vehicles.slice(0, limit)) {
-    await enrichAndStore(v);
-  }
-
-  console.log(
-    `[IAA] Found ${vehicles.length} lots (proxy: ${proxy ? (useFreeFallback ? "free" : "managed") : "none"})`,
+const locs = (xml: string): string[] =>
+  (xml.match(/<loc>([^<]+)<\/loc>/gi) || []).map((m) =>
+    m.replace(/<\/?loc>/gi, "").trim(),
   );
-  return vehicles.length;
+
+export async function scrapeIAA(
+  _searchTerm = "",
+  limit = 100,
+): Promise<number> {
+  // 1) Enumerate live lot URLs from the sitemap (index → sub-sitemaps).
+  const lotUrls: string[] = [];
+  try {
+    const { html: idx, blocked } = await smartFetch(SITEMAP_INDEX);
+    if (blocked || !idx) return 0;
+    const subs = locs(idx).filter((u) => /sitemap\d*\.xml/i.test(u));
+    // Fall back to the index itself if it already lists vehicledetail URLs directly.
+    const sitemaps = subs.length ? subs : [SITEMAP_INDEX];
+    for (const sub of sitemaps.slice(0, 3)) {
+      const { html: sm, blocked: b2 } = await smartFetch(sub);
+      if (b2 || !sm) continue;
+      for (const u of locs(sm)) {
+        if (/vehicledetail/i.test(u)) lotUrls.push(u);
+        if (lotUrls.length >= limit) break;
+      }
+      if (lotUrls.length >= limit) break;
+    }
+  } catch {
+    return 0;
+  }
+  if (!lotUrls.length) return 0;
+
+  // 2) Pull each lot's detail JSON → normalize → store. Bounded + polite.
+  let stored = 0;
+  for (const url of lotUrls.slice(0, limit)) {
+    try {
+      const { html, blocked } = await smartFetch(url);
+      if (blocked || !html) continue;
+      const a = parseDetail(html);
+      if (!a || !a.StockNumber) continue;
+      const yr = parseInt(String(a.Year || ""), 10) || undefined;
+      const title =
+        [yr, a.Make, a.Model, a.Series].filter(Boolean).join(" ").trim() ||
+        "IAA Vehicle";
+      await enrichAndStore({
+        source: "iaa",
+        source_category: "salvage",
+        external_id: String(a.StockNumber),
+        title,
+        // Logged-out VIN is masked (…******); only keep a full VIN.
+        vin: a.VIN && !a.VIN.includes("*") ? a.VIN.trim() : undefined,
+        year: yr,
+        make: a.Make ? String(a.Make).trim() : undefined,
+        model: a.Model ? String(a.Model).trim() : undefined,
+        title_type: "salvage", // IAA is a total-loss / salvage auction
+        location_city: a.City ? String(a.City).trim() : undefined,
+        location_state: a.State ? String(a.State).trim() : undefined,
+        location_zip: a.Zip ? String(a.Zip).trim() : undefined,
+        listing_url: url,
+      });
+      stored += 1;
+    } catch {
+      /* skip this lot, keep going */
+    }
+    await new Promise((r) => setTimeout(r, 300)); // polite between lots
+  }
+  console.log(
+    `[IAA] stored ${stored} salvage lots (of ${lotUrls.length} enumerated)`,
+  );
+  return stored;
 }
