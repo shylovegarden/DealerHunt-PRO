@@ -98,6 +98,14 @@ export default function WelcomePage() {
         }}
       >
         <Watermark side="house" dim={focus === "car"} />
+        <ProductMarquee
+          items={(stats?.feed || []).filter(
+            (i: FeedItem) => i.kind === "house",
+          )}
+          side="left"
+          accent="#2dd4bf"
+          speed={54}
+        />
         <Panel
           kicker="Real estate leads"
           title="HomeIQ"
@@ -120,6 +128,12 @@ export default function WelcomePage() {
         }}
       >
         <Watermark side="car" dim={focus === "house"} />
+        <ProductMarquee
+          items={(stats?.feed || []).filter((i: FeedItem) => i.kind === "car")}
+          side="right"
+          accent="#c4b5fd"
+          speed={62}
+        />
         <Panel
           kicker="Auto flip leads"
           title="DealerHunt Pro"
@@ -131,10 +145,6 @@ export default function WelcomePage() {
           stats={carStats}
         />
       </div>
-
-      {/* Live scrolling feed of real, current deals + leads — makes the door feel alive. Subtle + behind
-          the foreground titles; pointer-events-none so it never blocks the selector. */}
-      <BackgroundFeed items={stats?.feed} />
 
       {/* Keyboard/screen-reader entries (focusable, but mouse goes through to <main>). */}
       <button
@@ -213,7 +223,7 @@ function ProductMarquee({
   if (items.length < 2) return null;
   return (
     <div
-      className={`absolute inset-y-0 w-[46%] sm:w-[34%] overflow-hidden ${
+      className={`absolute inset-y-0 w-[46%] sm:w-[36%] overflow-hidden opacity-[0.55] ${
         side === "left" ? "left-0" : "right-0"
       }`}
       style={{
@@ -264,24 +274,6 @@ function ProductMarquee({
           </div>
         ))}
       </div>
-    </div>
-  );
-}
-
-// Live product board — REAL current houses on the HomeIQ side, REAL current cars on the DealerHunt side.
-function BackgroundFeed({ items }: { items?: FeedItem[] }) {
-  if (!items || items.length < 4) return null;
-  const houses = items.filter((i) => i.kind === "house").slice(0, 10);
-  const cars = items.filter((i) => i.kind === "car").slice(0, 10);
-  return (
-    <div className="pointer-events-none absolute inset-0 overflow-hidden opacity-40">
-      <ProductMarquee
-        items={houses}
-        side="left"
-        accent="var(--home)"
-        speed={52}
-      />
-      <ProductMarquee items={cars} side="right" accent="#c4b5fd" speed={60} />
     </div>
   );
 }
