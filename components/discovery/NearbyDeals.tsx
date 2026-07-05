@@ -5,6 +5,7 @@ import useSWR from "swr";
 import Link from "next/link";
 import { usePreferences } from "@/hooks/usePreferences";
 import { nearbyStates } from "@/lib/housing/us-states";
+import { proxiedImage } from "@/lib/image-url";
 
 // "Deals near you" — a customizable dashboard widget that surfaces engine-rated BUY deals in the user's
 // saved state + surrounding states (radius adjustable). Reads the saved carsState from /api/preferences,
@@ -111,7 +112,7 @@ export function NearbyDeals() {
                 {d.images?.[0] && d.images[0].startsWith("http") ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    src={d.images[0]}
+                    src={proxiedImage(d.images[0])}
                     alt=""
                     className="h-full w-full object-cover"
                     loading="lazy"

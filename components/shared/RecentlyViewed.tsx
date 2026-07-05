@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRecentlyViewed } from "@/hooks/useRecentlyViewed";
+import { proxiedImage } from "@/lib/image-url";
 
 // Horizontal "Recently viewed" strip for the feed pages — jump straight back to a deal/lead you just
 // looked at. Renders nothing until there are ≥2 items, so it never clutters a first-run screen.
@@ -32,7 +33,7 @@ export function RecentlyViewed({
               {it.image ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={it.image}
+                  src={proxiedImage(it.image)}
                   alt=""
                   className="w-full h-full object-cover"
                   loading="lazy"

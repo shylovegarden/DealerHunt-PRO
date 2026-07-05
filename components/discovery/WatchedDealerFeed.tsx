@@ -3,6 +3,7 @@
 import useSWR from "swr";
 import Link from "next/link";
 import { useDealerWatch } from "@/hooks/useDealerWatch";
+import { proxiedImage } from "@/lib/image-url";
 
 // The payoff of the dealer watchlist: newest listings across every shop you watch, so you catch their fresh
 // cars the moment they post — with the accurate title status + our resale, right here. Hides when empty.
@@ -66,7 +67,7 @@ export function WatchedDealerFeed() {
         {cars.map((c) => {
           const img =
             Array.isArray(c.images) && c.images[0]?.startsWith?.("http")
-              ? c.images[0]
+              ? proxiedImage(c.images[0])
               : null;
           return (
             <Link
