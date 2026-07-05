@@ -736,10 +736,17 @@ function LeadsInner() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 grid lg:grid-cols-[1fr_minmax(320px,38%)] gap-5">
         <div
-          className={`min-w-0 space-y-3 ${mobileView === "map" ? "hidden lg:block" : ""}`}
+          className={`min-w-0 ${mobileView === "map" ? "hidden lg:block" : ""}`}
         >
-          {isLoading &&
-            Array.from({ length: 6 }).map((_, i) => <CardSkeleton key={i} />)}
+          {/* Responsive card grid: 2-up on tablet (map hidden), 1-up beside the map at lg, 2-up on wide
+              desktop — so many listings show at once instead of one giant full-width card per row. */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-3">
+            {isLoading &&
+              Array.from({ length: 6 }).map((_, i) => <CardSkeleton key={i} />)}
+            {shown.map((l, i) => (
+              <LeadCard key={l.id} lead={l} index={i} />
+            ))}
+          </div>
           {!isLoading && leads.length === 0 && (
             <div className="py-16 text-center">
               <div className="text-4xl mb-3">🔍</div>
@@ -749,9 +756,6 @@ function LeadsInner() {
               </p>
             </div>
           )}
-          {shown.map((l, i) => (
-            <LeadCard key={l.id} lead={l} index={i} />
-          ))}
           <div ref={sentinel} className="h-8" />
           {visible < leads.length && (
             <button
