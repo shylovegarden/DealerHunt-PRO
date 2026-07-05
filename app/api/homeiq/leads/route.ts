@@ -10,6 +10,7 @@ import { loadLivePsf } from "@/lib/housing/live-psf";
 import { loadCalibration } from "@/lib/housing/calibration";
 import { flagPriceAnomalies } from "@/lib/housing/anomaly";
 import { cached } from "@/lib/cache";
+import * as Sentry from "@sentry/nextjs";
 import { neighborhoodScore } from "@/lib/housing/neighborhood";
 import {
   queryProperties,
@@ -380,6 +381,10 @@ export async function GET(req: NextRequest) {
       (rows) => rows.length > 0 || !scopeStates,
     );
   } catch (e) {
+    // Surface the failure to Sentry — this path returns a graceful 502 instead of throwing, so the
+    // instrumentation never sees it otherwise (exactly how the leads-API outage went unnoticed). Once
+    // NEXT_PUBLIC_SENTRY_DSN is set in Vercel, a recurrence pages instead of failing silently.
+    Sentry.captureException(e, { tags: { route: "homeiq/leads" } });
     return NextResponse.json(
       { error: (e as Error).message, leads: [], points: [] },
       { status: 502 },
