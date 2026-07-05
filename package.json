@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "DealerHunt — Multi-source vehicle sourcing intelligence platform",
   "private": true,
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "next dev --turbo",
     "build": "next build",

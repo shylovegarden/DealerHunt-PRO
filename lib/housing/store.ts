@@ -91,20 +91,35 @@ function service(): SupabaseClient {
 // owner / institutional landlord" triage signal — public county-record ownership rolled up. Non-fatal:
 // degrades to an empty map on any error, so leads never break if the aggregate is unavailable.
 let _ownerPortfolio: { at: number; map: Map<string, number> } | null = null;
+// Bounded retry for the matview RPCs on the hot leads path — a transient PostgREST hiccup (schema-cache
+// lag right after a migration, a brief timeout) shouldn't blank owner-portfolio or state-count data.
+// Retries with a short linear backoff, treats error OR empty as retryable, and never throws.
+async function rpcRows<T>(
+  call: () => PromiseLike<{ data: unknown; error: unknown }>,
+  tries = 3,
+): Promise<T[]> {
+  for (let i = 0; i < tries; i++) {
+    try {
+      const { data, error } = await call();
+      if (!error && Array.isArray(data) && data.length) return data as T[];
+    } catch {
+      /* fall through to retry */
+    }
+    if (i < tries - 1) await new Promise((r) => setTimeout(r, 150 * (i + 1)));
+  }
+  return [];
+}
+
 export async function ownerPortfolioMap(): Promise<Map<string, number>> {
   const now = Date.now();
   if (_ownerPortfolio && now - _ownerPortfolio.at < 15 * 60 * 1000)
     return _ownerPortfolio.map;
   const map = new Map<string, number>();
-  try {
-    // Parameterless RPC (matches dealer_inventory, which resolves reliably in prod — the parameterized
-    // variant's signature wasn't resolving via PostgREST).
-    const { data } = await service().rpc("owner_portfolios");
-    for (const r of (data as { owner: string; cnt: number }[]) || [])
-      if (r.owner) map.set(String(r.owner), Number(r.cnt));
-  } catch {
-    /* non-fatal */
-  }
+  // Parameterless RPC (matches dealer_inventory, which resolves reliably in prod), with bounded retry.
+  const rows = await rpcRows<{ owner: string; cnt: number }>(() =>
+    service().rpc("owner_portfolios"),
+  );
+  for (const r of rows) if (r.owner) map.set(String(r.owner), Number(r.cnt));
   // Only cache a NON-empty result — a transient RPC failure (e.g. PostgREST schema-cache lag right after
   // the migration) must not stick for the full TTL; retry on the next call until it populates.
   if (map.size) _ownerPortfolio = { at: now, map };
@@ -380,13 +395,11 @@ export async function countByState(): Promise<Record<string, number>> {
   // that hit 50s once the visibility map went stale from harvest churn, timing out the whole leads API.
   const sb = service();
   const counts: Record<string, number> = {};
-  try {
-    const { data } = await sb.rpc("property_state_counts");
-    for (const r of (data as { state: string; cnt: number }[]) || [])
-      if (r.state) counts[String(r.state).toUpperCase()] = Number(r.cnt);
-  } catch {
-    /* non-fatal — the scope selector just shows no per-state counts */
-  }
+  const rows = await rpcRows<{ state: string; cnt: number }>(() =>
+    sb.rpc("property_state_counts"),
+  );
+  for (const r of rows)
+    if (r.state) counts[String(r.state).toUpperCase()] = Number(r.cnt);
   return counts;
 }
 
