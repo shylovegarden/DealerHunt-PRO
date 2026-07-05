@@ -5,7 +5,7 @@ import {
   createServerComponentClient,
 } from "@/lib/supabase";
 import { getServerUser } from "@/lib/server-supabase";
-import { DealScoringService } from "@/lib/scrapers/tools/deal-scoring";
+import { upsertDeals } from "@/lib/scrapers/pipeline";
 import { queueForAIParsing } from "@/lib/ai/queue";
 import * as crypto from "crypto";
 import axios from "axios";
@@ -109,27 +109,8 @@ export async function POST(request: NextRequest) {
     const repairEstimate = scrapedData.repair_estimate ?? null;
     const mmrValue = scrapedData.mmr_value ?? null;
 
-    // 4. Compute deal score only when we have a market value to score against.
-    let profitEstimate: number | null = null;
-    let profitScore: number | null = null;
-    let arbitrage = false;
-    if (mmrValue) {
-      const scorer = new DealScoringService();
-      const scored = scorer.score({
-        askPrice,
-        wholesaleEstimate: mmrValue * 0.9,
-        retailEstimate: mmrValue,
-        transportCost: transportCost ?? 0,
-        repairEstimate: repairEstimate ?? 0,
-        mileage: scrapedData.mileage,
-        year: scrapedData.year,
-        condition: scrapedData.condition,
-        source,
-      });
-      profitEstimate = scored.profitEstimate;
-      profitScore = scored.profitScore;
-      arbitrage = scored.arbitrage;
-    }
+    // 4. Scoring is handled inside upsertDeals → analyzeDeal (see step 5 below).
+    // No manual DealScoringService call here — keeps all routes consistent.
 
     // Coerce to a valid deal_source enum (detectSource may return hyphenated/unknown values).
     const VALID_SOURCES = new Set([
@@ -157,7 +138,7 @@ export async function POST(request: NextRequest) {
       ? source
       : "independent_dealer";
 
-    const newDeal = {
+    const dealPayload = {
       source: safeSource,
       source_deal_id: scrapedData.external_id || String(Date.now()),
       source_url: url,
@@ -176,39 +157,31 @@ export async function POST(request: NextRequest) {
       location_state: scrapedData.location_state ?? null,
       images: scrapedData.images ?? [],
       auction_end_at: scrapedData.auction_end ?? null,
-      mmr_value: mmrValue,
-      // profit_estimate is a generated column — do not insert it.
-      profit_score: profitScore,
-      is_arbitrage_opportunity: arbitrage,
       estimated_transport_cost: transportCost,
       estimated_repair_cost: repairEstimate,
       active: true,
-      first_seen_at: new Date().toISOString(),
-      last_seen_at: new Date().toISOString(),
-    };
+    } as any;
 
-    // 5. Upsert Deal
+    // 5. Run through the full pipeline: normalize → analyzeDeal → upsert + dedupe + saved-search match.
+    // This gives every saved URL the same deal_verdict, true_net_profit, sell_estimate, and
+    // recommended_max_bid as deals ingested via the scraper — guaranteed consistent valuation.
     let actualDealId: string | null = null;
-    const { data: upsertData, error: upsertErr } = await supabase
-      .from("deals")
-      .upsert(newDeal, { onConflict: "source, source_deal_id" })
-      .select("id")
-      .maybeSingle();
-
-    if (upsertErr) {
-      // If deals table doesn't exist, log but continue — we still try to save
-      if (
-        upsertErr.code !== "42P01" &&
-        upsertErr.code !== "PGRST205" &&
-        upsertErr.code !== "PGRST204"
-      )
-        throw upsertErr;
-      console.warn(
-        "[SAVE-FROM-URL] deals table not found or missing columns, skipping upsert",
-      );
-    } else if (upsertData) {
-      actualDealId = upsertData.id;
+    try {
+      await upsertDeals([dealPayload]);
+      // Fetch back the id so we can link the saved_cars row.
+      const { data: row } = await supabase
+        .from("deals")
+        .select("id")
+        .eq("source", safeSource)
+        .eq("source_deal_id", dealPayload.source_deal_id)
+        .maybeSingle();
+      actualDealId = row?.id ?? null;
+    } catch (pipeErr: any) {
+      console.warn("[SAVE-FROM-URL] pipeline upsert failed:", pipeErr.message);
     }
+
+    // Expose newDeal-compatible shape for downstream steps.
+    const newDeal = { ...dealPayload, id: actualDealId, mmr_value: mmrValue };
 
     // 6. Save in URL Cache
     await supabase.from("source_url_cache").upsert({
