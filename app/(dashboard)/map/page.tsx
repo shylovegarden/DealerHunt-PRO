@@ -18,7 +18,7 @@ const DealerMap = dynamic(() => import("@/components/map/DealerMap"), {
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 const FILTERS = [
-  { key: "go", label: "GO" },
+  { key: "go", label: "BUY" },
   { key: "hold", label: "Hold" },
   { key: "all", label: "All" },
 ];

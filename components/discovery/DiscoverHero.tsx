@@ -58,7 +58,7 @@ export function DiscoverHero({ state }: { state?: string }) {
             <span className="font-black text-[var(--t1)]">
               {data.goCount.toLocaleString()}
             </span>{" "}
-            GO deals live right now
+            BUY deals live right now
           </p>
         </div>
 

@@ -29,7 +29,7 @@ function SystemPulse() {
       tone: "var(--t1)",
     },
     {
-      label: "GO now",
+      label: "BUY now",
       value: (q?.goDeals ?? 0).toLocaleString(),
       tone: "var(--green)",
     },
@@ -115,7 +115,7 @@ export default function TodayPage() {
       <IntelRail
         endpoint="/api/deals/near"
         title="📍 Near you"
-        subtitle="Closest GO deals to your home base"
+        subtitle="Closest BUY deals to your home base"
       />
       <IntelRail
         endpoint="/api/mispricing"

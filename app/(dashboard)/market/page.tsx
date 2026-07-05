@@ -38,7 +38,7 @@ const CONDITIONS = [
 ];
 
 const VERDICTS = [
-  { key: "go", label: "GO" },
+  { key: "go", label: "BUY" },
   { key: "hold", label: "Hold" },
   { key: "pass", label: "Pass" },
 ];
