@@ -100,7 +100,7 @@ export default function StatusPage() {
               tone="var(--green)"
             />
             <Stat
-              label="GO deals"
+              label="BUY deals"
               value={(q?.goDeals ?? 0).toLocaleString()}
               tone="var(--amber)"
             />

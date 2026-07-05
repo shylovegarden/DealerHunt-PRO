@@ -258,7 +258,7 @@ export default function SearchesPage() {
                 onChange={(e) => setFormRequireGo(e.target.checked)}
                 className="accent-[var(--amber)]"
               />
-              GO deals only
+              BUY deals only
             </label>
             <label className="flex items-center gap-2 text-sm text-[var(--t2)] cursor-pointer">
               <input
@@ -337,7 +337,7 @@ export default function SearchesPage() {
                         color: "var(--green)",
                       }}
                     >
-                      GO only
+                      BUY only
                     </span>
                   )}
                 </div>

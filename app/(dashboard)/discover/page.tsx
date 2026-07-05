@@ -232,7 +232,7 @@ export default function DiscoverPage() {
       <IntelRail
         endpoint="/api/deals/near"
         title="📍 Near you"
-        subtitle="Closest GO deals to your home base — set your ZIP in Settings"
+        subtitle="Closest BUY deals to your home base — set your ZIP in Settings"
       />
 
       {/* Body */}
