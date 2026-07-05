@@ -188,37 +188,100 @@ export default function WelcomePage() {
   );
 }
 
-// Subtle vertical-marquee columns of REAL current items (interleaved houses/cars) — a living backdrop.
-function BackgroundFeed({
+interface FeedItem {
+  kind: "car" | "house";
+  text: string;
+  sub: string;
+  loc?: string;
+  price?: string;
+  image?: string | null;
+}
+
+// One vertical marquee of REAL live product cards for a single vertical — photo, title, 📍 location, price.
+// This is what makes the door feel like a live enterprise board instead of a static splash.
+function ProductMarquee({
   items,
+  side,
+  accent,
+  speed,
 }: {
-  items?: { kind: "car" | "house"; text: string; sub: string }[];
+  items: FeedItem[];
+  side: "left" | "right";
+  accent: string;
+  speed: number;
 }) {
-  if (!items || items.length < 3) return null;
-  const cols = [items, [...items].slice().reverse(), items];
+  if (items.length < 2) return null;
   return (
-    <div className="pointer-events-none absolute inset-0 overflow-hidden flex justify-around opacity-[0.13]">
-      {cols.map((col, ci) => (
-        <div
-          key={ci}
-          className="flex flex-col gap-7 py-6 will-change-transform"
-          style={{
-            animation: `feedScroll ${46 + ci * 10}s linear infinite`,
-            animationDirection: ci % 2 ? "reverse" : "normal",
-          }}
-        >
-          {[...col, ...col].map((it, i) => (
-            <div
-              key={i}
-              className="whitespace-nowrap text-white text-[13px] font-semibold"
-            >
-              {it.kind === "car" ? "🚗 " : "🏠 "}
-              {it.text}
-              <span className="opacity-50"> · {it.sub}</span>
+    <div
+      className={`absolute inset-y-0 w-[46%] sm:w-[34%] overflow-hidden ${
+        side === "left" ? "left-0" : "right-0"
+      }`}
+      style={{
+        maskImage:
+          "linear-gradient(180deg, transparent, #000 14%, #000 86%, transparent)",
+        WebkitMaskImage:
+          "linear-gradient(180deg, transparent, #000 14%, #000 86%, transparent)",
+      }}
+    >
+      <div
+        className="flex flex-col gap-2.5 px-2.5 py-6 will-change-transform"
+        style={{ animation: `feedScroll ${speed}s linear infinite` }}
+      >
+        {[...items, ...items].map((it, i) => (
+          <div
+            key={i}
+            className="flex items-center gap-2.5 rounded-xl border border-white/10 bg-black/40 px-2 py-2 backdrop-blur-sm"
+          >
+            {it.image ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={it.image}
+                alt=""
+                loading="lazy"
+                className="h-11 w-11 shrink-0 rounded-lg object-cover"
+              />
+            ) : (
+              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-white/5 text-sm">
+                {it.kind === "car" ? "🚗" : "🏠"}
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-[12px] font-bold text-white/90">
+                {it.text}
+              </div>
+              <div className="truncate text-[10.5px] text-white/55">
+                📍 {it.loc || it.sub}
+              </div>
             </div>
-          ))}
-        </div>
-      ))}
+            {it.price && (
+              <div
+                className="shrink-0 text-[12px] font-black"
+                style={{ color: accent }}
+              >
+                {it.price}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Live product board — REAL current houses on the HomeIQ side, REAL current cars on the DealerHunt side.
+function BackgroundFeed({ items }: { items?: FeedItem[] }) {
+  if (!items || items.length < 4) return null;
+  const houses = items.filter((i) => i.kind === "house").slice(0, 10);
+  const cars = items.filter((i) => i.kind === "car").slice(0, 10);
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden opacity-40">
+      <ProductMarquee
+        items={houses}
+        side="left"
+        accent="var(--home)"
+        speed={52}
+      />
+      <ProductMarquee items={cars} side="right" accent="#c4b5fd" speed={60} />
     </div>
   );
 }

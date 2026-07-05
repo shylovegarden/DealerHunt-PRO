@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { createServerComponentClient } from "@/lib/supabase";
 import { propertyStats } from "@/lib/housing/store";
+import { aerialThumb } from "@/lib/housing/property-image";
 
 // GET /api/stats/verticals — headline live counts for both verticals, for the /welcome selector.
 // Cars: active deals + GO-verdict deals. Houses: total scored leads + hot tier. Public, read-only,
@@ -37,7 +38,14 @@ export async function GET() {
     : null;
 
   // A few recent items from BOTH verticals for the live scrolling background feed on /welcome.
-  type FeedItem = { kind: "car" | "house"; text: string; sub: string };
+  type FeedItem = {
+    kind: "car" | "house";
+    text: string; // title (address / year make model)
+    sub: string; // "$X · ST" (kept for back-compat)
+    loc: string; // "City, ST" — the prominent location line
+    price: string; // formatted price
+    image: string | null; // real photo, or a free aerial for off-market houses
+  };
   let feed: FeedItem[] = [];
   try {
     const sb = createServerComponentClient();
@@ -45,14 +53,17 @@ export async function GET() {
     const [carRows, houseRows] = await Promise.all([
       sb
         .from("deals")
-        .select("year, make, model, ask_price, location_state")
+        .select(
+          "year, make, model, ask_price, location_city, location_state, images",
+        )
         .eq("active", true)
         .eq("deal_verdict", "go")
+        .not("images", "is", null)
         .order("last_seen_at", { ascending: false })
         .limit(40),
       sb
         .from("properties")
-        .select("address, city, state, price")
+        .select("address, city, state, price, images, lat, lng")
         .eq("active", true)
         .eq("lead_tier", "hot")
         .order("scraped_at", { ascending: false })
@@ -76,6 +87,8 @@ export async function GET() {
       return out;
     };
 
+    const loc = (city?: string | null, state?: string | null) =>
+      [city, state].filter(Boolean).join(", ");
     const cars_ = dedupe(
       (carRows.data || []).map((d) => ({
         kind: "car" as const,
@@ -83,6 +96,9 @@ export async function GET() {
           .replace(/\s+/g, " ")
           .trim(),
         sub: [money(d.ask_price), d.location_state].filter(Boolean).join(" · "),
+        loc: loc(d.location_city, d.location_state),
+        price: money(d.ask_price),
+        image: Array.isArray(d.images) && d.images[0] ? d.images[0] : null,
       })),
       12,
     );
@@ -95,6 +111,13 @@ export async function GET() {
           .trim()
           .slice(0, 40),
         sub: [money(p.price), p.state].filter(Boolean).join(" · "),
+        loc: loc(p.city, p.state),
+        price: money(p.price),
+        // Real listing photo, else a free aerial of the exact parcel so every card has a visual.
+        image:
+          (Array.isArray(p.images) && p.images[0]) ||
+          aerialThumb(p.lat, p.lng) ||
+          null,
       })),
       12,
     );
