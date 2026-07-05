@@ -692,13 +692,56 @@ export default function ScanPage() {
     },
   });
 
-  // Derive state from SWR
+  // Client-driven infinite scroll: SWR fetches page 0; "load more" APPENDS further pages so the grid
+  // surfaces ALL matching inventory, not just the first screen. `extra` resets when the filter key changes.
+  const [extra, setExtra] = useState<any[]>([]);
+  const [morePage, setMorePage] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
+  useEffect(() => {
+    setExtra([]);
+    setMorePage(0);
+  }, [swrKey]);
+
+  // Derive state from SWR + the appended pages.
   const results = useMemo(
-    () => (swrData?.vehicles || []).map(mapDealToResult),
-    [swrData],
+    () => [...(swrData?.vehicles || []), ...extra].map(mapDealToResult),
+    [swrData, extra],
   );
   const total = swrData?.total || 0;
   const loading = dealerLoading || swrLoading;
+  const hasMore = !loading && !!swrKey && results.length < total;
+  const loadMore = useCallback(async () => {
+    if (!swrKey || loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    try {
+      const next = morePage + 1;
+      const res = await fetch(`${swrKey}&page=${next}`).then((r) => r.json());
+      const v = res?.vehicles || [];
+      if (v.length) {
+        setExtra((prev) => [...prev, ...v]);
+        setMorePage(next);
+      }
+    } catch {
+      /* transient — the sentinel will retry on next scroll */
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [swrKey, loadingMore, hasMore, morePage]);
+
+  // Auto-load the next page when the sentinel scrolls into view (top-app infinite scroll).
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) loadMore();
+      },
+      { rootMargin: "800px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [loadMore]);
   const error =
     !dealerId && !dealerLoading
       ? "Please sign in to view scan results."
@@ -1449,6 +1492,21 @@ export default function ScanPage() {
               />
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Infinite scroll — auto-append more inventory as you near the bottom (grid + table views). */}
+      {!loading && !error && hasMore && (
+        <div ref={sentinelRef} className="flex justify-center py-8">
+          <button
+            onClick={loadMore}
+            disabled={loadingMore}
+            className="px-5 py-2.5 rounded-full text-sm font-bold border border-[var(--b2)] text-[var(--t2)] hover:border-[var(--b3)] transition-colors disabled:opacity-50"
+          >
+            {loadingMore
+              ? "Loading…"
+              : `Load more — ${(total - results.length).toLocaleString()} more`}
+          </button>
         </div>
       )}
 
