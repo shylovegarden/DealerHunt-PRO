@@ -14,6 +14,12 @@ const STAGES = [
   // eslint exits non-zero only on ERRORS (warnings are allowed), matching the CI gate.
   { name: "Lint", cmd: "npx", args: ["eslint", "."] },
   { name: "Tests", cmd: "npx", args: ["vitest", "run"] },
+  // `next build` — the ONLY stage that catches build-only breaks (RSC serialization, server/client
+  // boundary, a route that fails page-data collection). Typecheck+lint+tests all pass on those, so they
+  // used to reach main and fail on Vercel. Skippable for fast local loops: VERIFY_SKIP_BUILD=1.
+  ...(process.env.VERIFY_SKIP_BUILD
+    ? []
+    : [{ name: "Build", cmd: "npx", args: ["next", "build"] }]),
 ];
 
 const isWin = process.platform === "win32";

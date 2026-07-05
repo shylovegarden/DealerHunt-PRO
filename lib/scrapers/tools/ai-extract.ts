@@ -10,6 +10,7 @@
 
 import { generateText } from "ai";
 import { getTextModel, hasTextModel } from "@/lib/ai/text-model";
+import { fitText } from "./content-clean";
 
 export interface ExtractedVehicle {
   year?: number;
@@ -30,16 +31,27 @@ export function aiExtractEnabled(): boolean {
   return process.env.AI_SCRAPE_EXTRACT !== "off" && hasTextModel();
 }
 
-// Strip scripts/styles/markup down to visible text + anchors so we don't waste tokens on noise.
+// Strip a page down to the LISTING content before spending LLM tokens on it. First pass: fitText (our
+// Crawl4AI PruningContentFilter port) drops nav / footer / ads / boilerplate by DOM scoring, so the token
+// budget goes to actual vehicles, not chrome — denser input = cheaper + better extraction. Falls back to a
+// plain tag-strip if the pruner over-trims a one-big-div page.
 function cleanPage(html: string, maxChars = 14000): string {
-  const text = html
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<!--[\s\S]*?-->/g, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  const tagStrip = (h: string) =>
+    h
+      .replace(/<script[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style[\s\S]*?<\/style>/gi, " ")
+      .replace(/<!--[\s\S]*?-->/g, " ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&nbsp;/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  let text = "";
+  try {
+    text = fitText(html);
+  } catch {
+    /* fall through to tag-strip */
+  }
+  if (text.length < 200) text = tagStrip(html); // pruner under-yielded → use the raw text
   return text.slice(0, maxChars);
 }
 
