@@ -242,6 +242,7 @@ interface Lead {
   arv?: number | null;
   equity?: number | null;
   verdict?: string;
+  arvConfidence?: "high" | "medium" | "low" | "none";
   capRate?: number | null;
   cashflowMo?: number | null;
   cashflowRating?: string;
@@ -1235,6 +1236,26 @@ const LeadCard = memo(function LeadCard({
                     )}
                 </span>
               )}
+              {lead.mao != null &&
+                lead.arvConfidence &&
+                lead.arvConfidence !== "none" && (
+                  <span
+                    className="inline-flex items-center text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-[var(--s2)]"
+                    style={{
+                      color:
+                        lead.arvConfidence === "low"
+                          ? "var(--t4)"
+                          : "var(--green)",
+                    }}
+                    title={
+                      lead.arvConfidence === "low"
+                        ? "ARV from a coarse regional estimate — verify before offering"
+                        : "ARV backed by real sold comps"
+                    }
+                  >
+                    {lead.arvConfidence === "low" ? "~est" : "✓ comps"}
+                  </span>
+                )}
               {lead.capRate != null && (
                 <span
                   className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-[var(--s2)] border"
