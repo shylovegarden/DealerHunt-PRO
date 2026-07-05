@@ -367,6 +367,9 @@ export async function GET(req: NextRequest) {
         }
         return rows;
       },
+      // Never cache an EMPTY scoped result — a transient query failure must not starve that scope for the
+      // full TTL (the bug that pinned big states at 0 leads). National top-N may legitimately cache as-is.
+      (rows) => rows.length > 0 || !scopeStates,
     );
   } catch (e) {
     return NextResponse.json(
