@@ -96,6 +96,24 @@ async function geocodeOnline(
 }
 
 /**
+ * Resolve a SINGLE place (ZIP, or city/state) to coords — cache-first, one network call at most. The
+ * building block for ZIP-driven "nearest listings" search in both apps.
+ */
+export async function geocodeZip(
+  supabase: SupabaseClient,
+  place: PlaceInput,
+  opts: { fetchImpl?: FetchLike } = {},
+): Promise<LatLng | null> {
+  const k = placeKey(place);
+  if (!k) return null;
+  const map = await resolvePlaces(supabase, [place], {
+    maxLookups: 1,
+    fetchImpl: opts.fetchImpl,
+  });
+  return map.get(k) ?? null;
+}
+
+/**
  * Resolve many places to coords, hitting the cache first and the network only for misses.
  * @param maxLookups hard cap on network calls per batch (protects the scraper loop). Default 25.
  */

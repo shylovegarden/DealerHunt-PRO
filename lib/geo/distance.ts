@@ -29,6 +29,26 @@ export function haversineMiles(
   return EARTH_RADIUS_MILES * c;
 }
 
+/**
+ * A lat/lng bounding box roughly `miles` around a point. Used as a cheap SQL pre-filter (lat/lng BETWEEN)
+ * so a ZIP-radius search over a huge table only haversine-sorts a small candidate set, not the whole table.
+ * Longitude degrees shrink with latitude (cos), so the box widens in lng toward the equator.
+ */
+export function boundingBox(
+  lat: number,
+  lng: number,
+  miles: number,
+): { minLat: number; maxLat: number; minLng: number; maxLng: number } {
+  const latDelta = miles / 69; // ~69 miles per degree of latitude
+  const lngDelta = miles / (69 * Math.max(0.05, Math.cos(toRad(lat))));
+  return {
+    minLat: lat - latDelta,
+    maxLat: lat + latDelta,
+    minLng: lng - lngDelta,
+    maxLng: lng + lngDelta,
+  };
+}
+
 /** True when point B is within `miles` of point A. Missing/invalid coords → false (never matches). */
 export function withinMiles(
   a: { lat?: number | null; lng?: number | null },
