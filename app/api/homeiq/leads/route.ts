@@ -112,6 +112,9 @@ interface Lead {
   arv?: number | null;
   verdict?: string;
   equity?: number | null;
+  // How trustworthy the ARV is (comp-backed vs coarse regional guess) — surfaced so the list can be
+  // triaged by valuation quality, not just score.
+  arvConfidence?: "high" | "medium" | "low" | "none";
   // Buy-and-hold math (rent → cap rate) — present only when the ZIP has rent data.
   capRate?: number | null;
   cashflowMo?: number | null;
@@ -164,6 +167,7 @@ function withAnalysis<T extends Lead>(lead: T, p: Property): T {
     lead.arv = a.arv;
     lead.verdict = a.verdict;
     lead.equity = a.equitySpread;
+    lead.arvConfidence = a.arvConfidence;
   }
   const cf = rentCashflow(p.price, p.zip, {
     basis:
