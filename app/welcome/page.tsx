@@ -319,7 +319,7 @@ function Panel({
           scale: active ? 1.04 : 1,
         }}
         transition={{ duration: 0.6, ease: "easeOut" }}
-        className={`px-[clamp(24px,6vw,84px)] flex flex-col gap-4 ${
+        className={`m-3 rounded-[28px] border border-white/10 bg-black/60 p-[clamp(22px,4vw,44px)] shadow-2xl backdrop-blur-xl flex flex-col gap-4 ${
           align === "right" ? "text-right items-end" : ""
         }`}
         style={{
