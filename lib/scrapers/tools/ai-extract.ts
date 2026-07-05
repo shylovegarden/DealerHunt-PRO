@@ -11,6 +11,12 @@
 import { generateText } from "ai";
 import { getTextModel, hasTextModel } from "@/lib/ai/text-model";
 import { fitText } from "./content-clean";
+import {
+  extractJsonLd,
+  extractEmbeddedJson,
+  firstNonEmpty,
+  type StructuredItem,
+} from "./structured-extract";
 
 export interface ExtractedVehicle {
   year?: number;
@@ -85,11 +91,51 @@ function coerce(v: any): ExtractedVehicle[] {
  * Extract vehicle listings from a raw HTML page using the LLM. Returns [] on any failure or when no
  * provider is configured — never throws into the scraper. Best used as a fallback after selectors fail.
  */
+const toVehicle = (i: StructuredItem): ExtractedVehicle => ({
+  year: i.year,
+  make: i.make,
+  model: i.model,
+  trim: i.trim,
+  price: i.price,
+  mileage: i.mileage,
+  vin: i.vin,
+  title: i.title,
+  url: i.url,
+});
+
+// The extraction fallback LADDER. Cheap + markup-change-proof structured data first (JSON-LD → framework
+// hydration blob), the LLM only as the last resort — so a site redesign that breaks a source's CSS
+// selectors self-heals for free, and we spend LLM tokens only when the page carries no structured data.
 export async function aiExtractVehicles(
   html: string,
   sourceUrl?: string,
 ): Promise<ExtractedVehicle[]> {
-  if (!aiExtractEnabled() || !html) return [];
+  if (!html) return [];
+  return firstNonEmpty<ExtractedVehicle>([
+    {
+      name: "json-ld",
+      run: () =>
+        extractJsonLd(html)
+          .filter((i) => i.make || i.vin)
+          .map(toVehicle),
+    },
+    {
+      name: "embedded-json",
+      run: () =>
+        extractEmbeddedJson(html)
+          .filter((i) => i.make || i.vin)
+          .map(toVehicle),
+    },
+    { name: "llm", run: () => llmExtractVehicles(html, sourceUrl) },
+  ]);
+}
+
+// Last-resort tier: the LLM. Returns [] when no provider is configured — never throws into the scraper.
+async function llmExtractVehicles(
+  html: string,
+  sourceUrl?: string,
+): Promise<ExtractedVehicle[]> {
+  if (!aiExtractEnabled()) return [];
 
   const page = cleanPage(html);
   if (page.length < 200) return [];
