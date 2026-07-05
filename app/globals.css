@@ -466,6 +466,45 @@ input[type="number"] {
   }
 }
 
+/* Welcome-page cinematic map: a slow Ken-Burns push-in on the aerial, so the door reads like a satellite
+   descending onto a real listing rather than a static splash. */
+@keyframes mapZoom {
+  from {
+    transform: scale(1.02);
+  }
+  to {
+    transform: scale(1.32);
+  }
+}
+@keyframes pinDrop {
+  0% {
+    transform: translate(-50%, -160%);
+    opacity: 0;
+  }
+  55% {
+    transform: translate(-50%, -50%);
+    opacity: 1;
+  }
+  70% {
+    transform: translate(-50%, -60%);
+  }
+  100% {
+    transform: translate(-50%, -50%);
+    opacity: 1;
+  }
+}
+@keyframes pinPulse {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0.55;
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(2.2);
+    opacity: 0;
+  }
+}
+
 /* Hide scrollbar for horizontal scroll areas */
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
