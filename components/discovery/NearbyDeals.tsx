@@ -24,6 +24,7 @@ interface NearbyDeal {
   true_net_profit?: number;
   locationState?: string;
   images?: string[];
+  distanceMiles?: number;
 }
 
 const RADII = [
@@ -36,61 +37,90 @@ export function NearbyDeals() {
   const { prefs, authed } = usePreferences();
   const home = (prefs.carsState || "").toUpperCase();
   const [radius, setRadius] = useState(4);
+  const [zip, setZip] = useState("");
+  // A typed 5-digit ZIP switches to the PRECISE distance endpoint (geocode → haversine nearest-first),
+  // instead of the coarse state-expansion — and works even with no saved home market.
+  const zipMode = /^\d{5}$/.test(zip);
 
   const states = home ? [home, ...Array.from(nearbyStates(home, radius))] : [];
-  const key = home
-    ? `/api/scan?states=${states.join(",")}&verdict=go&sort=profit`
-    : null;
+  const key = zipMode
+    ? `/api/deals/near?zip=${zip}&verdict=go`
+    : home
+      ? `/api/scan?states=${states.join(",")}&verdict=go&sort=profit`
+      : null;
   const { data, isLoading } = useSWR(key, fetcher, {
     revalidateOnFocus: false,
     dedupingInterval: 120_000,
-    keepPreviousData: true, // keep deals visible while changing radius — no flash
+    keepPreviousData: true, // keep deals visible while changing radius/zip — no flash
   });
 
-  // No saved location → nudge to Settings instead of showing an empty widget.
-  if (authed && !home) {
+  const zipBox = (
+    <input
+      inputMode="numeric"
+      maxLength={5}
+      value={zip}
+      onChange={(e) => setZip(e.target.value.replace(/\D/g, "").slice(0, 5))}
+      placeholder="ZIP"
+      aria-label="Search deals near a ZIP code"
+      className="w-16 rounded-full border border-[var(--b1)] bg-[var(--s2)] px-3 py-1 text-[12px] font-semibold text-[var(--t1)] outline-none focus:border-[var(--b3)]"
+    />
+  );
+
+  // No saved location AND no ZIP typed → nudge, but let them search a ZIP right here.
+  if (authed && !home && !zipMode) {
     return (
       <div className="rounded-[var(--r3)] border border-dashed border-[var(--b2)] p-4 text-sm text-[var(--t4)]">
-        Set your home market in{" "}
+        <div className="mb-2 flex items-center gap-2">
+          {zipBox}
+          <span>search a ZIP for the nearest BUY deals,</span>
+        </div>
+        or set your home market in{" "}
         <Link href="/settings" className="font-semibold text-[var(--t2)]">
           Settings
-        </Link>{" "}
-        to see BUY deals near you.
+        </Link>
+        .
       </div>
     );
   }
-  if (!home) return null;
+  if (!home && !zipMode) return null;
 
-  const deals: NearbyDeal[] = (data?.vehicles || data?.deals || []).slice(0, 8);
+  const deals: NearbyDeal[] = (
+    zipMode ? data?.deals || [] : data?.vehicles || data?.deals || []
+  ).slice(0, 8);
 
   return (
     <div className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] p-4">
       <div className="flex items-center justify-between gap-3 mb-3">
         <h2 className="text-sm font-black text-[var(--t1)]">
-          BUY deals near {home}
+          BUY deals near {zipMode ? zip : home}
         </h2>
-        {/* Customizable radius */}
-        <div
-          className="flex items-center gap-0.5 p-0.5 rounded-full"
-          style={{ background: "var(--s2)" }}
-        >
-          {RADII.map((r) => {
-            const active = radius === r.n;
-            return (
-              <button
-                key={r.n}
-                onClick={() => setRadius(r.n)}
-                className="text-[11px] font-bold px-2.5 py-1 rounded-full transition-colors"
-                style={{
-                  background: active ? "var(--s0)" : "transparent",
-                  color: active ? "var(--t1)" : "var(--t4)",
-                  boxShadow: active ? "var(--shadow2)" : "none",
-                }}
-              >
-                {r.label}
-              </button>
-            );
-          })}
+        <div className="flex items-center gap-2">
+          {zipBox}
+          {/* Radius selector — only meaningful in the state-expansion (non-ZIP) mode. */}
+          {!zipMode && (
+            <div
+              className="flex items-center gap-0.5 p-0.5 rounded-full"
+              style={{ background: "var(--s2)" }}
+            >
+              {RADII.map((r) => {
+                const active = radius === r.n;
+                return (
+                  <button
+                    key={r.n}
+                    onClick={() => setRadius(r.n)}
+                    className="text-[11px] font-bold px-2.5 py-1 rounded-full transition-colors"
+                    style={{
+                      background: active ? "var(--s0)" : "transparent",
+                      color: active ? "var(--t1)" : "var(--t4)",
+                      boxShadow: active ? "var(--shadow2)" : "none",
+                    }}
+                  >
+                    {r.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 
@@ -98,7 +128,9 @@ export function NearbyDeals() {
         <p className="text-xs text-[var(--t4)] py-6 text-center">Loading…</p>
       ) : deals.length === 0 ? (
         <p className="text-xs text-[var(--t4)] py-6 text-center">
-          No BUY deals in {states.join(", ")} right now — widen the radius.
+          {zipMode
+            ? `No BUY deals near ${zip} yet — try a nearby ZIP or clear it.`
+            : `No BUY deals in ${states.join(", ")} right now — widen the radius.`}
         </p>
       ) : (
         <div className="grid sm:grid-cols-2 gap-2">
@@ -129,7 +161,10 @@ export function NearbyDeals() {
                   {d.year} {d.make} {d.model}
                 </div>
                 <div className="text-[11px] text-[var(--t4)]">
-                  {money(d.askPrice)} · {d.locationState}
+                  {money(d.askPrice)} ·{" "}
+                  {d.distanceMiles != null
+                    ? `${d.distanceMiles} mi`
+                    : d.locationState}
                   {d.true_net_profit != null && d.true_net_profit > 0 && (
                     <span className="text-[var(--green)] font-bold">
                       {" "}

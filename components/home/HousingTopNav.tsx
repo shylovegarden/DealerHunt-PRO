@@ -9,6 +9,7 @@ import {
   Map as MapIcon,
   BarChart3,
   Bookmark,
+  Columns3,
   Search,
   Bell,
   Settings,
@@ -25,6 +26,7 @@ const PRIMARY = [
   { name: "Leads", href: "/homeiq/leads", icon: List },
   { name: "States", href: "/homeiq/states", icon: MapIcon },
   { name: "Market", href: "/homeiq/market", icon: BarChart3 },
+  { name: "Compare", href: "/homeiq/compare", icon: Columns3 },
   { name: "Pipeline", href: "/homeiq/saved", icon: Bookmark },
 ];
 
