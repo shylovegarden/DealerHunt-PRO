@@ -344,7 +344,10 @@ export async function GET(req: NextRequest) {
         // SERVER-SIDE SCOPE: a state / nearby view is queried from the FULL table (its own top-3000), not a
         // slice of the global top-2000 — so all 54k are reachable by location. National = global top-2000.
         const stored = await queryProperties(
-          scopeStates ? { states: scopeStates, limit: 3000 } : { limit: 2000 },
+          // 2000 (not 3000) matches the reliably-fast national query — a 3rd 1000-row `select *` page was
+          // the one most likely to hit the DB statement timeout on a cold connection and strand a big state
+          // at partial/zero leads. 2000 top-by-score is still far more than the list surfaces.
+          scopeStates ? { states: scopeStates, limit: 2000 } : { limit: 2000 },
         );
         const rows =
           stored && stored.length

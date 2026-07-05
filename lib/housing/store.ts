@@ -362,20 +362,33 @@ export async function queryProperties(
   const states = q.states?.map((s) => s.toUpperCase()).filter(Boolean);
   const out: StoredProperty[] = [];
   for (let offset = 0; offset < want; offset += PAGE) {
-    let query = sb.from("properties").select("*").eq("active", true);
-    if (states?.length) query = query.in("state", states);
-    else if (q.state) query = query.eq("state", q.state.toUpperCase());
-    if (q.tier) query = query.eq("lead_tier", q.tier);
-    if (q.source) query = query.eq("source", q.source);
-    if (q.minScore != null) query = query.gte("lead_score", q.minScore);
-    const { data, error } = await query
-      .order("lead_score", { ascending: false, nullsFirst: false })
-      .order("source_listing_id", { ascending: true }) // stable tiebreak across pages
-      .range(offset, Math.min(want, offset + PAGE) - 1);
-    if (error) {
+    let data: unknown = null;
+    let error: { message: string } | null = null;
+    // Retry a page on a TRANSIENT failure (a statement timeout on a cold DB connection) instead of letting
+    // one flaky page collapse the whole scope to null/partial — the intermittent "0 leads on a big state"
+    // bug. The query builder is single-use, so rebuild it each attempt.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      let query = sb.from("properties").select("*").eq("active", true);
+      if (states?.length) query = query.in("state", states);
+      else if (q.state) query = query.eq("state", q.state.toUpperCase());
+      if (q.tier) query = query.eq("lead_tier", q.tier);
+      if (q.source) query = query.eq("source", q.source);
+      if (q.minScore != null) query = query.gte("lead_score", q.minScore);
+      const res = await query
+        .order("lead_score", { ascending: false, nullsFirst: false })
+        .order("source_listing_id", { ascending: true }) // stable tiebreak across pages
+        .range(offset, Math.min(want, offset + PAGE) - 1);
+      data = res.data;
+      error = res.error;
+      if (!error) break;
+      // A missing table/column won't fix itself — bail immediately, don't waste retries.
       if (/does not exist|could not find the table/i.test(error.message))
         return offset === 0 ? null : out;
-      console.warn("[queryProperties] failed:", error.message);
+      if (attempt < 2)
+        await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+    }
+    if (error) {
+      console.warn("[queryProperties] failed after retries:", error.message);
       return offset === 0 ? null : out;
     }
     const rows = (data as StoredProperty[]) || [];
