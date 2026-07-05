@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import useSWR from "swr";
+import { aerialThumb } from "@/lib/housing/property-image";
 
 // The vertical selector — the first thing a user sees after login. One full-screen surface split on a
 // diagonal: houses (HomeIQ) on one side, cars (DealerHunt Pro) on the other. Both run on the same engine
@@ -98,13 +99,12 @@ export default function WelcomePage() {
         }}
       >
         <Watermark side="house" dim={focus === "car"} />
-        <ProductMarquee
+        <CinematicMap
           items={(stats?.feed || []).filter(
             (i: FeedItem) => i.kind === "house",
           )}
           side="left"
           accent="#2dd4bf"
-          speed={54}
         />
         <Panel
           kicker="Real estate leads"
@@ -128,11 +128,10 @@ export default function WelcomePage() {
         }}
       >
         <Watermark side="car" dim={focus === "house"} />
-        <ProductMarquee
+        <CinematicMap
           items={(stats?.feed || []).filter((i: FeedItem) => i.kind === "car")}
           side="right"
           accent="#c4b5fd"
-          speed={62}
         />
         <Panel
           kicker="Auto flip leads"
@@ -205,74 +204,144 @@ interface FeedItem {
   loc?: string;
   price?: string;
   image?: string | null;
+  lat?: number | null;
+  lng?: number | null;
 }
 
-// One vertical marquee of REAL live product cards for a single vertical — photo, title, 📍 location, price.
-// This is what makes the door feel like a live enterprise board instead of a static splash.
-function ProductMarquee({
+// The cinematic "door" background for a vertical: a satellite/aerial view of a REAL live listing that slowly
+// pushes in (Ken-Burns), a pin dropping on the exact spot, the listing card, and an "up next" list — cycling
+// through live inventory every few seconds. Reads like an enterprise map console descending onto real deals,
+// not a static splash. Uses free keyless Esri aerials (aerialThumb), so it's $0 and needs no map token.
+function CinematicMap({
   items,
   side,
   accent,
-  speed,
 }: {
   items: FeedItem[];
   side: "left" | "right";
   accent: string;
-  speed: number;
 }) {
-  if (items.length < 2) return null;
+  const geo = items.filter((i) => i.lat != null && i.lng != null);
+  const list = geo.length >= 2 ? geo : items;
+  const [idx, setIdx] = useState(0);
+  useEffect(() => {
+    if (list.length < 2) return;
+    const t = setInterval(() => setIdx((i) => (i + 1) % list.length), 7000);
+    return () => clearInterval(t);
+  }, [list.length]);
+  if (list.length === 0) return null;
+
+  const active = list[idx % list.length];
+  const mapUrl =
+    active.lat != null && active.lng != null
+      ? aerialThumb(active.lat, active.lng, 720, 960)
+      : active.image || null;
+  const upNext = list.filter((_, i) => i !== idx % list.length).slice(0, 3);
+  const edgeFade =
+    side === "left"
+      ? "linear-gradient(90deg, rgba(6,23,21,0.15), rgba(6,23,21,0.9))"
+      : "linear-gradient(270deg, rgba(12,8,24,0.15), rgba(12,8,24,0.9))";
+
   return (
     <div
-      className={`absolute inset-y-0 w-[46%] sm:w-[36%] overflow-hidden opacity-[0.55] ${
+      className={`absolute inset-y-0 w-[52%] sm:w-[42%] overflow-hidden ${
         side === "left" ? "left-0" : "right-0"
       }`}
-      style={{
-        maskImage:
-          "linear-gradient(180deg, transparent, #000 14%, #000 86%, transparent)",
-        WebkitMaskImage:
-          "linear-gradient(180deg, transparent, #000 14%, #000 86%, transparent)",
-      }}
     >
-      <div
-        className="flex flex-col gap-2.5 px-2.5 py-6 will-change-transform"
-        style={{ animation: `feedScroll ${speed}s linear infinite` }}
-      >
-        {[...items, ...items].map((it, i) => (
+      {/* Slowly zooming aerial — remounts per listing (key) so the push-in restarts each cycle. */}
+      {mapUrl && (
+        <div key={`${idx}-${active.text}`} className="absolute inset-0">
           <div
-            key={i}
-            className="flex items-center gap-2.5 rounded-xl border border-white/10 bg-black/40 px-2 py-2 backdrop-blur-sm"
-          >
-            {it.image ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={it.image}
-                alt=""
-                loading="lazy"
-                className="h-11 w-11 shrink-0 rounded-lg object-cover"
-              />
-            ) : (
-              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-white/5 text-sm">
-                {it.kind === "car" ? "🚗" : "🏠"}
-              </div>
-            )}
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-[12px] font-bold text-white/90">
-                {it.text}
-              </div>
-              <div className="truncate text-[10.5px] text-white/55">
-                📍 {it.loc || it.sub}
-              </div>
-            </div>
-            {it.price && (
-              <div
-                className="shrink-0 text-[12px] font-black"
-                style={{ color: accent }}
-              >
-                {it.price}
-              </div>
-            )}
+            className="absolute inset-0 will-change-transform"
+            style={{
+              backgroundImage: `url(${mapUrl})`,
+              backgroundSize: "cover",
+              backgroundPosition: "center",
+              opacity: 0.5,
+              animation: "mapZoom 8s ease-out forwards",
+            }}
+          />
+          <div className="absolute inset-0" style={{ background: edgeFade }} />
+          {/* Pin dropping + pulsing on the exact parcel. */}
+          <div className="absolute left-1/2 top-[40%]">
+            <span
+              className="absolute left-1/2 top-1/2 block h-5 w-5 rounded-full"
+              style={{
+                background: accent,
+                animation: "pinPulse 2.4s ease-out infinite",
+              }}
+            />
+            <span
+              className="relative block text-3xl drop-shadow-lg"
+              style={{ animation: "pinDrop 0.9s ease-out" }}
+            >
+              📍
+            </span>
           </div>
-        ))}
+        </div>
+      )}
+
+      {/* Active listing card + "up next" list, docked at the bottom of the panel. */}
+      <div
+        className={`absolute bottom-[13%] w-[86%] max-w-[320px] ${
+          side === "left" ? "left-[6%]" : "right-[6%]"
+        }`}
+      >
+        <div
+          key={active.text}
+          className="flex items-center gap-3 rounded-2xl border border-white/15 bg-black/65 p-2.5 backdrop-blur-md"
+          style={{ animation: "fadeUp 0.6s ease-out" }}
+        >
+          {active.image ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={active.image}
+              alt=""
+              className="h-16 w-16 shrink-0 rounded-xl object-cover"
+            />
+          ) : (
+            <div className="grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-white/5 text-xl">
+              {active.kind === "car" ? "🚗" : "🏠"}
+            </div>
+          )}
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-sm font-bold text-white">
+              {active.text}
+            </div>
+            <div className="truncate text-xs text-white/60">
+              📍 {active.loc || active.sub}
+            </div>
+          </div>
+          {active.price && (
+            <div
+              className="shrink-0 text-base font-black"
+              style={{ color: accent }}
+            >
+              {active.price}
+            </div>
+          )}
+        </div>
+
+        {upNext.length > 0 && (
+          <div className="mt-2 space-y-1">
+            {upNext.map((it, i) => (
+              <div
+                key={i}
+                className="flex items-center gap-2 rounded-lg bg-black/40 px-2.5 py-1.5 text-[11px] backdrop-blur-sm"
+              >
+                <span className="truncate flex-1 text-white/60">{it.text}</span>
+                {it.price && (
+                  <span
+                    className="shrink-0 font-bold"
+                    style={{ color: accent }}
+                  >
+                    {it.price}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

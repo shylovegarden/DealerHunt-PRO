@@ -45,6 +45,8 @@ export async function GET() {
     loc: string; // "City, ST" — the prominent location line
     price: string; // formatted price
     image: string | null; // real photo, or a free aerial for off-market houses
+    lat?: number | null; // for the welcome-page aerial map zoom
+    lng?: number | null;
   };
   let feed: FeedItem[] = [];
   try {
@@ -54,7 +56,7 @@ export async function GET() {
       sb
         .from("deals")
         .select(
-          "year, make, model, ask_price, location_city, location_state, images",
+          "year, make, model, ask_price, location_city, location_state, images, lat, lng",
         )
         .eq("active", true)
         .eq("deal_verdict", "go")
@@ -99,6 +101,8 @@ export async function GET() {
         loc: loc(d.location_city, d.location_state),
         price: money(d.ask_price),
         image: Array.isArray(d.images) && d.images[0] ? d.images[0] : null,
+        lat: d.lat,
+        lng: d.lng,
       })),
       12,
     );
@@ -118,6 +122,8 @@ export async function GET() {
           (Array.isArray(p.images) && p.images[0]) ||
           aerialThumb(p.lat, p.lng) ||
           null,
+        lat: p.lat,
+        lng: p.lng,
       })),
       12,
     );
