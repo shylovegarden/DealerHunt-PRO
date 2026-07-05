@@ -139,7 +139,12 @@ export async function GET(req: NextRequest) {
   const madeInUsa = searchParams.get("madeInUsa") === "1";
   const drivetrain = searchParams.get("drivetrain") || "";
   const page = parseInt(searchParams.get("page") || "0");
-  const pageSize = 20;
+  // Bigger page + client-driven infinite scroll (append) so the grid surfaces ALL matching inventory,
+  // not just the first screen. Capped to keep any single payload reasonable.
+  const pageSize = Math.min(
+    100,
+    Math.max(12, parseInt(searchParams.get("pageSize") || "48")),
+  );
 
   let query = supabase
     .from("deals")

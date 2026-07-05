@@ -9,6 +9,7 @@ import { rentCashflow } from "@/lib/housing/rent";
 import { loadLivePsf } from "@/lib/housing/live-psf";
 import { loadCalibration } from "@/lib/housing/calibration";
 import { flagPriceAnomalies } from "@/lib/housing/anomaly";
+import { cached } from "@/lib/cache";
 import { neighborhoodScore } from "@/lib/housing/neighborhood";
 import {
   queryProperties,
@@ -329,36 +330,44 @@ export async function GET(req: NextRequest) {
 
   let all: Lead[];
   try {
-    // SERVER-SIDE SCOPE: a state / nearby view is queried from the FULL table (its own top-3000), not a
-    // slice of the global top-2000 — so all 54k are reachable by location. National = global top-2000.
-    const stored = await queryProperties(
-      scopeStates ? { states: scopeStates, limit: 3000 } : { limit: 2000 },
+    // Cache the whole scored+stacked+enriched slice per SCOPE (45s) — re-scoring 3000 rows, the stacking
+    // pass, the owner-portfolio DB rollup and the anomaly test on EVERY request was the main server cost.
+    // Repeat loads of the same scope now skip all of it. Keyed by scope only (tier/source are client-side).
+    all = await cached(
+      `homeiq-leads:${scopeStates ? scopeStates.join(",") : "national"}`,
+      45_000,
+      async () => {
+        // SERVER-SIDE SCOPE: a state / nearby view is queried from the FULL table (its own top-3000), not a
+        // slice of the global top-2000 — so all 54k are reachable by location. National = global top-2000.
+        const stored = await queryProperties(
+          scopeStates ? { states: scopeStates, limit: 3000 } : { limit: 2000 },
+        );
+        const rows =
+          stored && stored.length
+            ? stored.map(fromStored)
+            : scopeStates
+              ? [] // empty scope = no leads there yet (don't fall back to the live harvest)
+              : await liveHarvest();
+        rows.sort((a, b) => b.score - a.score);
+        applyStacking(rows); // cross-source list-stacking → each lead's `stack` count
+        // Portfolio-owner triage — how many active properties this owner holds (public-record rollup).
+        await stampOwnerPortfolio(rows);
+        // Statistical underpricing flag ("🎯 priced N% below comps") vs same state+type $/sqft peers.
+        const anomalies = flagPriceAnomalies(rows);
+        for (const l of rows) {
+          const a = anomalies.get(l.id);
+          if (a) {
+            l.anomaly = true;
+            l.anomalyPct = a.pctBelow;
+            l.signals = [
+              ...(l.signals || []),
+              `🎯 Priced ${a.pctBelow}% below comps`,
+            ];
+          }
+        }
+        return rows;
+      },
     );
-    all =
-      stored && stored.length
-        ? stored.map(fromStored)
-        : scopeStates
-          ? [] // empty scope = no leads there yet (don't fall back to the cars-ish live harvest)
-          : await liveHarvest();
-    all.sort((a, b) => b.score - a.score);
-    applyStacking(all); // cross-source list-stacking → each lead's `stack` count
-    // Portfolio-owner triage — stamp how many active properties this owner holds (public-record rollup,
-    // cached, disposition sources excluded). >=5 = a portfolio/institutional landlord, not a motivated seller.
-    await stampOwnerPortfolio(all);
-    // Statistical underpricing flag ("🎯 priced N% below comps") — robust MAD test vs same state+type
-    // $/sqft peers, independent of the distress scorer. Display + filter only (score already rewards equity).
-    const anomalies = flagPriceAnomalies(all);
-    for (const l of all) {
-      const a = anomalies.get(l.id);
-      if (a) {
-        l.anomaly = true;
-        l.anomalyPct = a.pctBelow;
-        l.signals = [
-          ...(l.signals || []),
-          `🎯 Priced ${a.pctBelow}% below comps`,
-        ];
-      }
-    }
   } catch (e) {
     return NextResponse.json(
       { error: (e as Error).message, leads: [], points: [] },
