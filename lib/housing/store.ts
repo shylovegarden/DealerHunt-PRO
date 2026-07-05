@@ -375,16 +375,17 @@ export async function queryProperties(
  * the scope selector reflects all 54k, not just whatever made a top-N slice. Cache the result upstream.
  */
 export async function countByState(): Promise<Record<string, number>> {
+  // Reads the precomputed property_state_counts_mv (via a parameterless RPC, refreshed by pg_cron every
+  // 30 min). The old path scanned every active row's state per request — a full GROUP BY over ~930k rows
+  // that hit 50s once the visibility map went stale from harvest churn, timing out the whole leads API.
   const sb = service();
-  const rows = await fetchAllRows<{ state: string | null }>(
-    (from, to) =>
-      sb.from("properties").select("state").eq("active", true).range(from, to),
-    { max: 200_000 },
-  ).catch(() => [] as { state: string | null }[]);
   const counts: Record<string, number> = {};
-  for (const r of rows) {
-    const s = (r.state || "").toUpperCase();
-    if (s) counts[s] = (counts[s] || 0) + 1;
+  try {
+    const { data } = await sb.rpc("property_state_counts");
+    for (const r of (data as { state: string; cnt: number }[]) || [])
+      if (r.state) counts[String(r.state).toUpperCase()] = Number(r.cnt);
+  } catch {
+    /* non-fatal — the scope selector just shows no per-state counts */
   }
   return counts;
 }
