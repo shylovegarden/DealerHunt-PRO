@@ -222,7 +222,7 @@ export interface DealAnalysis extends ProfitResult {
 // payment ("WE FINANCE/FINANCIAMOS/BHPH"), a monthly ("$/mo"), or a lease takeover. These flood
 // the cheap end of a marketplace and would otherwise score as fake GO steals. Title-based, free.
 const BAIT_RE =
-  /\b(we ?finance|financiamos|buy here pay here|bhph|lease ?(take ?over|takeover|transfer|assumption)|take ?over (the )?lease|down ?payment|\$\d+\s*down|per month|a month|\/mo\b|\bo\.?a\.?c\.?\b|on approved credit|no credit|bad credit)\b/i;
+  /\b(we ?finance|financiamos|buy ?here ?pay ?here|bhph|in[-\s]?house|as low as|lease ?(take ?over|takeover|transfer|assumption)|take ?over (the )?lease|down ?payment|\$\d+\s*down|per month|a month|\/mo\b|\bo\.?a\.?c\.?\b|\bw\.?a\.?c\.?\b|on approved credit|no credit|bad credit)\b/i;
 
 // A listing's price is implausible (not a real purchase price) when it sits too far below the
 // vehicle's resale baseline. A plain listing under ~8% of resale is a teaser/deposit/scam. Financing

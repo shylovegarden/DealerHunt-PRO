@@ -10,6 +10,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { estimateBaselineValue } from "./baseline-value";
 import { looksLikePlaceholderPrice } from "./placeholder-price";
+import { looksLikePaymentPrice } from "./payment-price";
 
 const RETAIL_SOURCES = new Set([
   "cars_com",
@@ -40,9 +41,6 @@ const YEAR_BAND = 2;
 // comp median keeps it anchored to true cash value (financed deals price HIGH/teaser, not market).
 // Note: a plain "we finance" mention is NOT excluded — a legit dealer can list a real cash price and
 // also offer financing; only payment-denominated numbers are dropped.
-const PAYMENT_PRICE_RE =
-  /\$\s?\d[\d,]*\s*down|\bdown ?payment\b|\bper month\b|\ba month\b|\/mo\b|\bo\.?a\.?c\.?\b|lease ?(take ?over|takeover|transfer|assumption)|take ?over (the )?lease/i;
-
 // Salvage/parts/rebuilt conditions that must NOT pollute the clean-retail resale bucket.
 const SALVAGE_CONDITIONS = [
   "salvage",
@@ -257,7 +255,7 @@ export async function loadMarketIndex(
         SALVAGE_CONDITIONS.some((s) => cond.includes(s)) ||
         (dmg !== "" && dmg !== "none");
       // Drop financing/lease teaser prices so the cash-market median isn't inflated/distorted.
-      const isPaymentPrice = PAYMENT_PRICE_RE.test(r.title || "");
+      const isPaymentPrice = looksLikePaymentPrice(r.title);
       if (!isSalvage && !isPaymentPrice) {
         b.retail.push(r.ask_price);
         if (typeof r.mileage === "number" && r.mileage > 0)
