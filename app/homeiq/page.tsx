@@ -7,6 +7,7 @@ import useSWR from "swr";
 import { stateName, nearestState } from "@/lib/housing/us-states";
 import { HomeIQSearch } from "@/components/home/HomeIQSearch";
 import { HousingTicker } from "@/components/home/HousingTicker";
+import { HomeIntelRail } from "@/components/home/HomeIntelRail";
 import { useCountUp } from "@/hooks/useCountUp";
 
 // HomeIQ command center — the live, location-aware home. Real totals, the hottest markets, and featured
@@ -203,6 +204,9 @@ export default function HomeIQHome() {
           </div>
         </section>
       )}
+
+      {/* Personalized — learns from what you save (hides until you've saved a few) */}
+      <HomeIntelRail />
 
       {/* Featured hot leads */}
       {hot.length > 0 && (
