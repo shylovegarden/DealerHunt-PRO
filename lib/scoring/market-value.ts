@@ -64,6 +64,11 @@ export interface MarketComps {
   // Confidence in the retail figure, derived from sample count, so callers can tell
   // a thin (2-3 comp) estimate from a deep (50+ comp) one.
   confidence: "high" | "medium" | "low" | "none";
+  // The statistical LOWER outlier fence (Tukey q1 − 1.5·IQR) of the ask comps — the price below which a
+  // listing is a genuine outlier for THIS specific market. Adapts per make/model (a tight Corolla bucket
+  // vs a wide Silverado one) instead of a fixed ratio, so the analyzer can flag "priced below anything this
+  // vehicle actually sells for" with no keywords. Null when there aren't enough comps to be meaningful.
+  retailLowFence?: number | null;
 }
 
 let computed: Map<string, MarketComps> | null = null;
@@ -160,6 +165,18 @@ function confidenceFor(
     else if (qcd > 0.32) tier -= 1; // meaningfully mixed → one tier down
   }
   return tier >= 3 ? "high" : tier >= 2 ? "medium" : tier >= 1 ? "low" : "none";
+}
+
+// Tukey lower outlier fence (q1 − 1.5·IQR) of a price set — the adaptive, per-market "below this is an
+// outlier" line. Null under 6 comps (too thin to trust a spread) or when the fence lands ≤0 (a very wide
+// bucket where nothing is a low outlier). Computed on RAW ask comps so a listing's ask compares like-for-like.
+export function lowFence(prices: number[]): number | null {
+  if (prices.length < 6) return null;
+  const s = [...prices].sort((a, b) => a - b);
+  const q1 = s[Math.floor(s.length * 0.25)];
+  const q3 = s[Math.floor(s.length * 0.75)];
+  const fence = q1 - 1.5 * (q3 - q1);
+  return fence > 0 ? Math.round(fence) : null;
 }
 
 function median(prices: number[]): number | null {
@@ -300,6 +317,7 @@ export async function loadMarketIndex(
       nWholesale: b.wholesale.length,
       mileageMed: milesMed != null ? Math.round(milesMed) : null,
       confidence: confidenceFor(b.retail.length, b.retail),
+      retailLowFence: lowFence(b.retail),
     };
   };
   const next = new Map<string, MarketComps>();

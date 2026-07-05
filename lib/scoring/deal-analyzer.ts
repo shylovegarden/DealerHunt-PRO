@@ -489,7 +489,20 @@ export function analyzeDeal(deal: Partial<Deal>): DealAnalysis {
   // "Too good to be true": a clean late-model car priced at a fraction of its value is a dropped-digit
   // typo or bait, NOT a +$40k steal. Catch it against the (condition-adjusted) sell estimate.
   const sanity = checkPriceSanity(askPrice, sellEstimate, deal.condition);
-  const priceImplausible = priceBait || unknownMake || sanity.status !== "ok";
+  // Distribution-aware outlier: priced below the LOWER statistical fence (q1−1.5·IQR) of THIS market's ask
+  // comps — adaptive per make/model, no keyword required, so it catches teasers/typos the fixed-ratio check
+  // misses in a tight bucket. Salvage/parts can legitimately sit below the clean-comp fence, so exempt them.
+  const salvageForFence =
+    /salvage|parts|rebuilt|repairable|flood|non[- ]?run|not running|mechanic special/.test(
+      `${deal.condition || ""} ${deal.title || ""}`.toLowerCase(),
+    );
+  const belowMarketFence =
+    !salvageForFence &&
+    askPrice > 0 &&
+    comps?.retailLowFence != null &&
+    askPrice < comps.retailLowFence;
+  const priceImplausible =
+    priceBait || unknownMake || belowMarketFence || sanity.status !== "ok";
   if (priceImplausible) {
     verdict = "pass";
     score = Math.min(score, 20);
