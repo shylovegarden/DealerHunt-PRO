@@ -266,7 +266,7 @@ function LeadsInner() {
   const [scopeMode, setScopeMode] = useState<
     "state" | "nearby" | "national" | "hunt"
   >(urlState ? "state" : "national");
-  const { prefs } = usePreferences();
+  const { prefs, save } = usePreferences();
   // The user's multi-state "hunt list" — the set of states they actively work (settings). Powers a "My
   // states" scope that queries all of them at once via the API's existing ?states= param.
   const huntStates = useMemo(
@@ -309,6 +309,8 @@ function LeadsInner() {
     }
     if (!params.get("tier") && prefs.homeiqTier) setTier(prefs.homeiqTier);
     if (!params.get("type") && prefs.homeiqType) setType(prefs.homeiqType);
+    if (prefs.homeiqMaxPrice) setMaxPrice(prefs.homeiqMaxPrice);
+    if (prefs.homeiqHideInstitutional) setHideInstitutional(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefs]);
 
@@ -614,6 +616,7 @@ function LeadsInner() {
               inputMode="numeric"
               value={maxPrice || ""}
               onChange={(e) => setMaxPrice(Number(e.target.value) || 0)}
+              onBlur={() => save({ homeiqMaxPrice: maxPrice || 0 })}
               placeholder="Max"
               className="w-16 bg-transparent focus:outline-none"
               aria-label="Max price"
@@ -685,7 +688,12 @@ function LeadsInner() {
           if (inst === 0) return null;
           return (
             <button
-              onClick={() => setHideInstitutional((v) => !v)}
+              onClick={() =>
+                setHideInstitutional((v) => {
+                  save({ homeiqHideInstitutional: !v });
+                  return !v;
+                })
+              }
               className="shrink-0 px-3 py-1.5 rounded-full text-xs font-bold transition-colors whitespace-nowrap"
               style={{
                 background: hideInstitutional ? "var(--t1)" : "var(--s2)",
