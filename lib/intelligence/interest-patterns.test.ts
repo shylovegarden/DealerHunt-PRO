@@ -61,6 +61,25 @@ describe("interest-patterns (implicit learning)", () => {
     expect(sameMake.affinity).toBeGreaterThan(unrelated.affinity);
   });
 
+  it("weights recent signals above stale ones (recency decay)", () => {
+    const p = extractInterestProfile([
+      { make: "Toyota", model: "Tacoma", weight: 3, ageDays: 0 }, // fresh
+      { make: "Honda", model: "Civic", weight: 3, ageDays: 180 }, // ~4 half-lives old
+    ]);
+    // Same base weight, but the fresh signal wins.
+    expect(p.patterns[0].make).toBe("Toyota");
+    const tacoma = p.patterns.find((x) => x.make === "Toyota")!;
+    const civic = p.patterns.find((x) => x.make === "Honda")!;
+    expect(tacoma.score).toBeGreaterThan(civic.score);
+  });
+
+  it("floors very old signals instead of zeroing them (taste is sticky)", () => {
+    const p = extractInterestProfile([
+      { make: "Ford", model: "F-150", weight: 4, ageDays: 3650 },
+    ]);
+    expect(p.patterns[0].score).toBeGreaterThan(0);
+  });
+
   it("is empty-safe (no signals → zero affinity)", () => {
     const p = extractInterestProfile([]);
     expect(p.patterns).toHaveLength(0);

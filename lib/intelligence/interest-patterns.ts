@@ -12,6 +12,15 @@ export interface InterestSignal {
   price?: number | null;
   source?: string | null;
   weight?: number; // caller sets: saved=3, watchlist=2, viewed=1
+  ageDays?: number; // how long ago the signal happened — recent behavior reflects current intent more
+}
+
+// Recency decay: a signal's weight halves every ~6 weeks, so what a user saved LAST WEEK outranks what
+// they glanced at months ago. Floored so an old signal still counts a little (taste is sticky, not amnesiac).
+const RECENCY_HALF_LIFE_DAYS = 45;
+function recencyFactor(ageDays?: number): number {
+  if (ageDays == null || !Number.isFinite(ageDays) || ageDays <= 0) return 1;
+  return Math.max(0.15, Math.pow(0.5, ageDays / RECENCY_HALF_LIFE_DAYS));
 }
 
 export interface InterestPattern {
@@ -56,7 +65,8 @@ export function extractInterestProfile(
   const sourceScore = new Map<string, number>();
 
   for (const s of signals) {
-    const w = Number.isFinite(Number(s.weight)) ? Number(s.weight) : 1;
+    const base = Number.isFinite(Number(s.weight)) ? Number(s.weight) : 1;
+    const w = base * recencyFactor(s.ageDays); // recent signals count for more
     const p = Number(s.price);
     if (Number.isFinite(p) && p > 0) prices.push(p);
     if (s.source)

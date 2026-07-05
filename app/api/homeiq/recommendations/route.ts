@@ -40,23 +40,30 @@ export async function GET() {
   // Learn from saved properties — the snapshot holds the property as it was when saved.
   const { data: saved } = await supabase
     .from("saved_properties")
-    .select("snapshot")
+    .select("snapshot, saved_at")
     .eq("user_id", user.id)
     .limit(300);
 
   // Map homes attributes onto the shared interest engine: source(=distress type)→"make",
-  // property_type→"model", plus price + source affinity. Saves are the strongest implicit signal.
+  // property_type→"model", plus price + source affinity. Saves are the strongest implicit signal, and a
+  // RECENT save reflects current intent more than an old one (recency decay in the engine).
+  const now = Date.now();
   const signals = (saved || [])
-    .map((r: { snapshot: Record<string, unknown> | null }) => {
-      const s = r.snapshot || {};
-      return {
-        make: (s.source as string) || null,
-        model: (s.property_type as string) || null,
-        price: Number(s.price) || null,
-        source: (s.source as string) || null,
-        weight: 3,
-      };
-    })
+    .map(
+      (r: { snapshot: Record<string, unknown> | null; saved_at?: string }) => {
+        const s = r.snapshot || {};
+        return {
+          make: (s.source as string) || null,
+          model: (s.property_type as string) || null,
+          price: Number(s.price) || null,
+          source: (s.source as string) || null,
+          weight: 3,
+          ageDays: r.saved_at
+            ? (now - new Date(r.saved_at).getTime()) / 86_400_000
+            : undefined,
+        };
+      },
+    )
     .filter((x) => x.source || x.price);
 
   const profile = extractInterestProfile(signals);
