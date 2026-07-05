@@ -105,9 +105,8 @@ module.exports = withSentryConfig(nextConfig, {
   project: process.env.SENTRY_PROJECT,
   authToken: process.env.SENTRY_AUTH_TOKEN,
   widenClientFileUpload: true,
-  transpileClientSDK: true,
   tunnelRoute: '/monitoring',
-  hideSourceMaps: true,
   disableLogger: true,
+  // Sentry auto-instruments Vercel Cron jobs → missed/failed scheduled jobs (our harvest crons) surface.
   automaticVercelMonitors: true,
 })
