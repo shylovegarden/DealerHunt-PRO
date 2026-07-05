@@ -4,7 +4,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerComponentClient } from "@/lib/supabase";
 import { getServerUser } from "@/lib/server-supabase";
 import { categorize } from "@/lib/discovery/categorize";
-import { haversineMiles } from "@/lib/geo/distance";
+import { haversineMiles, boundingBox } from "@/lib/geo/distance";
+import { geocodeZip } from "@/lib/geo/geocode";
 
 // GET /api/deals/near?verdict=go&radius= — closest deals to the dealer's geocoded home base.
 // Unlocked by the geocoding work: reads home_lat/home_lng from the profile, computes haversine
@@ -57,14 +58,26 @@ export async function GET(req: NextRequest) {
     .eq("id", user.id)
     .maybeSingle();
 
-  if (profile?.home_lat == null || profile?.home_lng == null) {
-    // No geocoded home yet → the rail simply hides. Set a ZIP in Settings to enable it.
-    return NextResponse.json({ deals: [], needsHome: true });
-  }
-
   const sp = new URL(req.url).searchParams;
   const verdict = sp.get("verdict") || "go";
-  const radius = Number(sp.get("radius")) || 0; // 0 = no cap
+  const zip = sp.get("zip");
+  // A ZIP search casts a 150mi net by default so it ALWAYS surfaces the nearest inventory; explicit wins.
+  const radius = Number(sp.get("radius")) || (zip ? 150 : 0); // 0 = no cap
+
+  // Center on the searched ZIP (geocoded, cache-first) if given, else the dealer's saved home base.
+  let centerLat = profile?.home_lat != null ? Number(profile.home_lat) : null;
+  let centerLng = profile?.home_lng != null ? Number(profile.home_lng) : null;
+  if (zip) {
+    const c = await geocodeZip(supabase, { zip });
+    if (c) {
+      centerLat = c.lat;
+      centerLng = c.lng;
+    }
+  }
+  if (centerLat == null || centerLng == null) {
+    // No ZIP and no geocoded home → the rail hides. Set a ZIP in Settings (or pass ?zip=) to enable it.
+    return NextResponse.json({ deals: [], needsHome: true });
+  }
 
   let q = supabase
     .from("deals")
@@ -73,17 +86,26 @@ export async function GET(req: NextRequest) {
     )
     .eq("active", true)
     .gt("ask_price", 0)
-    .not("lat", "is", null)
-    .limit(500);
+    .not("lat", "is", null);
   if (verdict && verdict !== "all") q = q.eq("deal_verdict", verdict);
+  // Bounding-box pre-filter so we only haversine-sort listings actually near the center (not 500 random rows).
+  if (radius > 0) {
+    const bb = boundingBox(centerLat, centerLng, radius);
+    q = q
+      .gte("lat", bb.minLat)
+      .lte("lat", bb.maxLat)
+      .gte("lng", bb.minLng)
+      .lte("lng", bb.maxLng);
+  }
+  q = q.limit(500);
 
   const { data: rows } = await q;
 
   const withDist: { d: any; miles: number }[] = [];
   for (const r of rows || []) {
     const miles = haversineMiles(
-      Number(profile.home_lat),
-      Number(profile.home_lng),
+      centerLat,
+      centerLng,
       Number(r.lat),
       Number(r.lng),
     );

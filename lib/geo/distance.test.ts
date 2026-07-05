@@ -1,5 +1,27 @@
 import { describe, it, expect } from "vitest";
-import { haversineMiles, withinMiles } from "./distance";
+import { haversineMiles, withinMiles, boundingBox } from "./distance";
+
+describe("boundingBox (ZIP-radius pre-filter)", () => {
+  it("brackets the center and every corner is within ~radius·√2", () => {
+    const lat = 29.76,
+      lng = -95.37; // Houston
+    const bb = boundingBox(lat, lng, 50);
+    expect(bb.minLat).toBeLessThan(lat);
+    expect(bb.maxLat).toBeGreaterThan(lat);
+    expect(bb.minLng).toBeLessThan(lng);
+    expect(bb.maxLng).toBeGreaterThan(lng);
+    // A point just outside the box in latitude is beyond the radius (box half-height ≈ 50mi).
+    expect(haversineMiles(lat, lng, bb.maxLat, lng)!).toBeGreaterThan(49);
+    expect(haversineMiles(lat, lng, bb.maxLat, lng)!).toBeLessThan(52);
+  });
+
+  it("widens in longitude at higher latitude (cos correction)", () => {
+    const north = boundingBox(61, -149, 50); // Anchorage
+    const equatorish = boundingBox(10, -84, 50); // Costa Rica
+    const lngSpan = (b: ReturnType<typeof boundingBox>) => b.maxLng - b.minLng;
+    expect(lngSpan(north)).toBeGreaterThan(lngSpan(equatorish));
+  });
+});
 
 describe("haversineMiles", () => {
   it("is ~0 for identical points", () => {
