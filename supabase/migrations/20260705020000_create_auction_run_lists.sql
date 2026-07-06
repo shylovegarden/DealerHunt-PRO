@@ -7,6 +7,9 @@ CREATE TABLE IF NOT EXISTS public.auction_run_lists (
   vins TEXT[] NOT NULL DEFAULT '{}'::TEXT[],
   processed_count INT NOT NULL DEFAULT 0,
   total_count INT NOT NULL DEFAULT 0,
+  -- Per-VIN match results (which uploaded VINs we already track as real scored deals + their verdict/profit).
+  -- We MATCH against real inventory — we never fabricate a deal from an uploaded VIN.
+  results JSONB NOT NULL DEFAULT '[]'::JSONB,
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'completed', 'failed')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()

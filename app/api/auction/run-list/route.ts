@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerComponentClient } from "@/lib/supabase";
 import { getServerUser } from "@/lib/server-supabase";
 import { isValidVin, normalizeVin } from "@/lib/vehicle/vin";
-import { maintenanceQueue } from "@/lib/queue";
+import { matchRunList } from "@/lib/auction/run-list-processor";
 
 export const dynamic = "force-dynamic";
 
@@ -80,23 +80,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Trigger the background job
+    // Match inline against our REAL inventory — a single fast VIN IN-query, so no Redis/queue is needed
+    // (and no fabricated deals). Best-effort: if it hiccups, the row stays 'pending' and can be re-run.
     try {
-      await maintenanceQueue.add("run-list-process", { runListId: data.id });
-    } catch (qErr: any) {
-      console.error("[API] Failed to queue run-list-process job:", qErr);
-      // Update status to failed since we can't queue it
-      await supabase
-        .from("auction_run_lists")
-        .update({ status: "failed" })
-        .eq("id", data.id);
-      return NextResponse.json(
-        { error: "Failed to queue job for background processing" },
-        { status: 500 },
-      );
+      await matchRunList(supabase, data.id);
+    } catch (mErr) {
+      console.error("[API] run-list match failed:", mErr);
     }
 
-    return NextResponse.json(data);
+    // Return the completed row (now carrying per-VIN match results).
+    const { data: done } = await supabase
+      .from("auction_run_lists")
+      .select("*")
+      .eq("id", data.id)
+      .single();
+    return NextResponse.json(done ?? data);
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

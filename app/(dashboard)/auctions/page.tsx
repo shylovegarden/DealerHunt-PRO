@@ -341,6 +341,36 @@ export default function AuctionsPage() {
                         />
                       </div>
                     )}
+
+                    {/* Match results — how many uploaded VINs we already track as scored deals, and how
+                        many are actionable BUYs to bid on. Real matches only; nothing fabricated. */}
+                    {list.status === "completed" &&
+                      Array.isArray(list.results) &&
+                      list.results.length > 0 &&
+                      (() => {
+                        const found = list.results.filter((r: any) => r.found);
+                        const buys = found.filter(
+                          (r: any) => r.verdict === "go",
+                        );
+                        return (
+                          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-bold">
+                            <span
+                              className="px-2 py-1 rounded-[var(--r3)]"
+                              style={{
+                                background: "rgba(46,204,113,0.15)",
+                                color: "var(--green)",
+                              }}
+                            >
+                              🎯 {buys.length} BUY{buys.length === 1 ? "" : "s"}
+                            </span>
+                            <span className="text-[var(--t3)]">
+                              {found.length} tracked ·{" "}
+                              {list.results.length - found.length} not in our
+                              data yet
+                            </span>
+                          </div>
+                        );
+                      })()}
                   </div>
 
                   <div className="flex flex-wrap items-center gap-3 shrink-0">
