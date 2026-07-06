@@ -176,6 +176,12 @@ const worker = new Worker(
         console.log(`[Worker] Housing pricing: ${n} ZIP sold-$/sqft medians`);
         return;
       }
+      case "run-list-process": {
+        const { processRunList } =
+          await import("../lib/auction/run-list-processor");
+        await processRunList(job.data.runListId);
+        return;
+      }
       default:
         console.warn(`[Worker] Unknown job: ${job.name}`);
     }
