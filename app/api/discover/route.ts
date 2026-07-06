@@ -104,36 +104,21 @@ export async function GET(request: NextRequest) {
       45_000,
       async (): Promise<{ merged: any[]; rowCount: number }> => {
         const supabase = createServerComponentClient();
-        const COLS =
-          "id, source, source_url, title, year, make, model, trim, vin, mileage, condition, damage_type, ask_price, sell_estimate, mmr_value, deal_analysis, profit_score, true_net_profit, recommended_max_bid, deal_verdict, location_city, location_state, images, last_seen_at, first_seen_at, auction_end_at, options";
-        // PostgREST caps a single response at 1000 rows, so a plain `.limit(5000)` silently returned just
-        // the 1000 freshest — which is one recent source's batch (e.g. all copart), burying the other 12
-        // sources and ~31k cars. Page with `.range()` until we've pulled the whole market (up to MAX_ROWS)
-        // so every source + the best deals nationwide actually feed the rails. Cached 45s upstream.
-        const MAX_ROWS = 24000;
-        const PAGE = 1000;
-        // The pages are independent .range() pulls, so fetch them CONCURRENTLY instead of one-after-another —
-        // this was the cold-start cost (24 sequential round-trips ≈ 18s). Parallel, the pull is bounded by
-        // the slowest single page (~1-2s). Cached 45s upstream, so this cold compute runs at most ~once/45s.
-        const pageQueries = Array.from({ length: MAX_ROWS / PAGE }, (_, i) => {
-          let q = supabase
-            .from("deals")
-            .select(COLS)
-            .eq("active", true)
-            .gt("ask_price", 0)
-            .order("last_seen_at", { ascending: false })
-            .order("id", { ascending: true }) // stable tiebreak across pages
-            .range(i * PAGE, (i + 1) * PAGE - 1);
-          if (state) q = q.eq("location_state", state);
-          if (maxPrice > 0) q = q.lte("ask_price", maxPrice);
-          return q;
-        });
-        const pages = await Promise.all(pageQueries);
-        const rows: any[] = [];
-        for (const { data, error } of pages) {
-          if (error) throw new Error(error.message);
-          if (data?.length) rows.push(...data);
-        }
+        // ONE index-driven pull via the discover_deals RPC. The old approach paged .range() up to 24k rows
+        // across 24 round-trips — but the real cost was serializing 24k heavy rows (deal_analysis + options
+        // JSONB) at ~10s. The RPC uses the idx_deals_last_seen_active partial index for the ORDER BY and caps
+        // at 10k — verified to still cover all live sources (freshest 10k spans every one) — so it's ~2s, not
+        // 18s. Returns one jsonb array (not row-capped by PostgREST). Cached 45s upstream.
+        const { data: rpcData, error: rpcErr } = await supabase.rpc(
+          "discover_deals",
+          {
+            p_state: state ?? null,
+            p_max_price: maxPrice || 0,
+            p_limit: 10000,
+          },
+        );
+        if (rpcErr) throw new Error(rpcErr.message);
+        const rows: any[] = Array.isArray(rpcData) ? rpcData : [];
 
         const byVin = new Map<string, any[]>();
         const noVin: any[] = [];
