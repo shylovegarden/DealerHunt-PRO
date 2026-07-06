@@ -32,6 +32,7 @@ interface FeedItem {
     daysToSell?: number | null;
     velocity?: string;
   } | null;
+  forYouReason?: string;
 }
 
 const money = (n?: number | null) =>
@@ -145,17 +146,27 @@ function FeedCard({ it }: { it: FeedItem }) {
         }}
       />
 
-      {/* Top-left: verdict / score badge. */}
-      <div className="absolute left-4 top-4 flex items-center gap-2">
-        {it.verdict === "go" ? (
-          <span className="rounded-full bg-[var(--green)] px-3 py-1 text-sm font-black text-black shadow-lg">
-            🔥 BUY
+      {/* Top-left: verdict / score badge + a "For you" reason when the feed matched your taste. */}
+      <div className="absolute left-4 top-4 flex max-w-[70%] flex-col items-start gap-2">
+        <div className="flex items-center gap-2">
+          {it.verdict === "go" ? (
+            <span className="rounded-full bg-[var(--green)] px-3 py-1 text-sm font-black text-black shadow-lg">
+              🔥 BUY
+            </span>
+          ) : it.score != null ? (
+            <span className="rounded-full bg-black/55 px-3 py-1 text-sm font-black text-white backdrop-blur">
+              {it.score}
+            </span>
+          ) : null}
+        </div>
+        {it.forYouReason && (
+          <span
+            className="rounded-full px-2.5 py-1 text-xs font-black text-black shadow"
+            style={{ background: "var(--home, #2dd4bf)" }}
+          >
+            ✨ {it.forYouReason}
           </span>
-        ) : it.score != null ? (
-          <span className="rounded-full bg-black/55 px-3 py-1 text-sm font-black text-white backdrop-blur">
-            {it.score}
-          </span>
-        ) : null}
+        )}
       </div>
 
       {/* Right action rail. */}
