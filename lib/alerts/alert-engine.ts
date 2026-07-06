@@ -1,6 +1,9 @@
 import { createServerComponentClient } from "@/lib/supabase";
+import { sendPushToUser } from "@/lib/notifications/push";
 
 const supabase = createServerComponentClient();
+
+const money = (n: unknown) => `$${Math.round(Number(n) || 0).toLocaleString()}`;
 
 export async function checkAlerts() {
   console.log("[ALERT-ENGINE] Running alert engine...");
@@ -88,6 +91,33 @@ export async function checkAlerts() {
               trigger_count: currentCount + 1,
             })
             .eq("id", alert.id);
+
+          // PUSH — the retention moment: ping the dealer the instant a matching deal lands. No-ops cleanly
+          // if push isn't configured (no VAPID key) or they haven't subscribed a device.
+          try {
+            const title = `🔥 ${[deal.year, deal.make, deal.model].filter(Boolean).join(" ") || "New match"}`;
+            const parts = [money(deal.ask_price)];
+            if (
+              deal.true_net_profit != null &&
+              Number(deal.true_net_profit) > 0
+            )
+              parts.push(`+${money(deal.true_net_profit)} profit`);
+            if (deal.location_state) parts.push(deal.location_state);
+            const n = await sendPushToUser(supabase, alert.dealer_id, {
+              title,
+              body: parts.join(" · "),
+              url: `/deal/${deal.id}`,
+              tag: String(deal.id),
+            });
+            if (n > 0)
+              await supabase
+                .from("alert_matches")
+                .update({ notified: true })
+                .eq("alert_id", alert.id)
+                .eq("deal_id", deal.id);
+          } catch (e) {
+            console.error("[ALERT-ENGINE] push send failed:", e);
+          }
         }
       }
     }

@@ -10,6 +10,7 @@ import { US_STATES } from "@/lib/utils/titleRules";
 import { useDealerId } from "@/hooks/useDealerId";
 import { Skeleton } from "@/components/shared/Skeleton";
 import { usePreferences } from "@/hooks/usePreferences";
+import { EnablePush } from "@/components/EnablePush";
 
 // Fetcher function for SWR
 const fetcher = (url: string) =>
@@ -70,6 +71,19 @@ function CarsViewPrefs() {
       <p className="text-[12px] text-[var(--t4)] mt-4">
         Saves instantly to your account and syncs across devices.
       </p>
+
+      <div className="mt-6 pt-6 border-t border-[var(--b1)] flex items-center justify-between gap-4">
+        <div className="min-w-0">
+          <div className="text-sm font-black text-[var(--t1)]">Deal alerts</div>
+          <p className="text-[12px] text-[var(--t4)]">
+            Get a push the instant a hot deal matching your saved searches drops
+            — even when the app is closed.
+          </p>
+        </div>
+        <div className="shrink-0">
+          <EnablePush />
+        </div>
+      </div>
     </div>
   );
 }

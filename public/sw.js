@@ -1,6 +1,6 @@
-const CACHE_NAME = 'dealerhunt-v1'
-const STATIC_CACHE = 'dealerhunt-static-v1'
-const DYNAMIC_CACHE = 'dealerhunt-dynamic-v1'
+const CACHE_NAME = 'dealerhunt-v2'
+const STATIC_CACHE = 'dealerhunt-static-v2'
+const DYNAMIC_CACHE = 'dealerhunt-dynamic-v2'
 
 const STATIC_ASSETS = [
   '/',
@@ -114,43 +114,47 @@ self.addEventListener('sync', (event) => {
 
 // Push notification handling
 self.addEventListener('push', (event) => {
+  // Payload is JSON { title, body, url, tag }; fall back to plain text for older senders.
+  let payload = { title: 'DealerHunt', body: 'New deal matches found', url: '/feed' }
+  try {
+    if (event.data) payload = Object.assign(payload, event.data.json())
+  } catch (e) {
+    if (event.data) payload.body = event.data.text()
+  }
+
   const options = {
-    body: event.data ? event.data.text() : 'New vehicle matches found!',
+    body: payload.body,
     icon: '/icon-192x192.png',
-    badge: '/icon-96x96.png',
+    badge: '/icon-192x192.png',
     vibrate: [100, 50, 100],
-    data: {
-      dateOfArrival: Date.now(),
-      primaryKey: 1
-    },
+    tag: payload.tag,
+    renotify: !!payload.tag,
+    data: { url: payload.url || '/feed' },
     actions: [
-      {
-        action: 'explore',
-        title: 'View Matches',
-        icon: '/icon-96x96.png'
-      },
-      {
-        action: 'close',
-        title: 'Close',
-        icon: '/icon-96x96.png'
-      }
+      { action: 'explore', title: 'View' },
+      { action: 'close', title: 'Dismiss' }
     ]
   }
-  
-  event.waitUntil(
-    self.registration.showNotification('DealerHunt', options)
-  )
+
+  event.waitUntil(self.registration.showNotification(payload.title, options))
 })
 
-// Notification click handling
+// Notification click → focus an existing tab (navigating it to the target) or open a new one.
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
-  
-  if (event.action === 'explore') {
-    event.waitUntil(
-      clients.openWindow('/find')
-    )
-  }
+  if (event.action === 'close') return
+  const url = (event.notification.data && event.notification.data.url) || '/feed'
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {
+      for (const w of wins) {
+        if ('focus' in w) {
+          if ('navigate' in w) w.navigate(url)
+          return w.focus()
+        }
+      }
+      return clients.openWindow(url)
+    })
+  )
 })
 
 // Background sync function
