@@ -5,6 +5,7 @@ import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { SWRProvider } from "@/components/providers/SWRProvider";
 import { ToastProvider } from "@/components/providers/ToastProvider";
 import { PWARegister } from "@/components/PWARegister";
+import { InstallPrompt } from "@/components/InstallPrompt";
 import { Inter, Fraunces } from "next/font/google";
 import { cn } from "@/lib/utils";
 import { SpeedInsights } from "@vercel/speed-insights/next";
@@ -70,7 +71,15 @@ export default function RootLayout({
           }}
         />
         <link rel="manifest" href="/manifest.json" />
-        <link rel="apple-touch-icon" href="/icon.svg" />
+        {/* iOS renders PNG (not SVG) for the home-screen icon. */}
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        <link
+          rel="icon"
+          type="image/png"
+          sizes="32x32"
+          href="/favicon-32x32.png"
+        />
+        <meta name="apple-mobile-web-app-title" content="DealerHunt" />
         <meta name="theme-color" content="#f25b9a" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta
@@ -88,6 +97,7 @@ export default function RootLayout({
               <SpeedInsights />
               <ToastProvider />
               <PWARegister />
+              <InstallPrompt />
             </ResponsiveProvider>
           </ErrorBoundary>
         </SWRProvider>
