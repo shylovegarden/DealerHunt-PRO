@@ -112,8 +112,10 @@ export async function GET(request: NextRequest) {
         // so every source + the best deals nationwide actually feed the rails. Cached 45s upstream.
         const MAX_ROWS = 24000;
         const PAGE = 1000;
-        const rows: any[] = [];
-        for (let off = 0; off < MAX_ROWS; off += PAGE) {
+        // The pages are independent .range() pulls, so fetch them CONCURRENTLY instead of one-after-another —
+        // this was the cold-start cost (24 sequential round-trips ≈ 18s). Parallel, the pull is bounded by
+        // the slowest single page (~1-2s). Cached 45s upstream, so this cold compute runs at most ~once/45s.
+        const pageQueries = Array.from({ length: MAX_ROWS / PAGE }, (_, i) => {
           let q = supabase
             .from("deals")
             .select(COLS)
@@ -121,14 +123,16 @@ export async function GET(request: NextRequest) {
             .gt("ask_price", 0)
             .order("last_seen_at", { ascending: false })
             .order("id", { ascending: true }) // stable tiebreak across pages
-            .range(off, off + PAGE - 1);
+            .range(i * PAGE, (i + 1) * PAGE - 1);
           if (state) q = q.eq("location_state", state);
           if (maxPrice > 0) q = q.lte("ask_price", maxPrice);
-          const { data, error } = await q;
+          return q;
+        });
+        const pages = await Promise.all(pageQueries);
+        const rows: any[] = [];
+        for (const { data, error } of pages) {
           if (error) throw new Error(error.message);
-          const page = data || [];
-          rows.push(...page);
-          if (page.length < PAGE) break; // last page
+          if (data?.length) rows.push(...data);
         }
 
         const byVin = new Map<string, any[]>();
