@@ -63,6 +63,13 @@ export function CommandPalette() {
         keywords: ["intelligence", "outcomes", "calibration", "roi"],
       },
       {
+        id: "auctions",
+        label: "Auctions & Lane Mode",
+        icon: "list",
+        href: "/auctions",
+        keywords: ["auction", "runlist", "lane", "copart", "vin", "scanner"],
+      },
+      {
         id: "fleet",
         label: "Fleet",
         icon: "fleet",

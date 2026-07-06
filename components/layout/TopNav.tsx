@@ -34,6 +34,7 @@ import {
   Layers,
   Banknote,
   Store,
+  Gavel,
 } from "lucide-react";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { AccountMenu } from "@/components/home/AccountMenu";
@@ -72,6 +73,7 @@ const MORE_GROUPS = [
   {
     group: "Operations",
     items: [
+      { name: "Auctions", href: "/auctions", icon: Gavel },
       { name: "Transport", href: "/move", icon: Truck },
       { name: "Recon", href: "/recon", icon: Hammer },
       { name: "List a car", href: "/list", icon: ListPlus },

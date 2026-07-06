@@ -27,6 +27,7 @@ import {
   Sparkles,
   FileText,
   Settings,
+  Gavel,
 } from "lucide-react";
 
 // Core 5 tabs — identical to the desktop TopNav primary so nav is consistent across mobile/desktop.
@@ -62,6 +63,7 @@ const MORE_GROUPS = [
   {
     group: "Operations",
     items: [
+      { name: "Auctions", href: "/auctions", icon: Gavel },
       { name: "Transport", href: "/move", icon: Truck },
       { name: "Recon", href: "/recon", icon: Hammer },
       { name: "List a car", href: "/list", icon: ListPlus },
