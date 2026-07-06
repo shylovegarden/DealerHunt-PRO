@@ -5,6 +5,7 @@ import useSWR from "swr";
 import Link from "next/link";
 import { usePreferences } from "@/hooks/usePreferences";
 import { nearbyStates } from "@/lib/housing/us-states";
+import { zipToState } from "@/lib/housing/zip-state";
 import { proxiedImage } from "@/lib/image-url";
 
 // "Deals near you" — a customizable dashboard widget that surfaces engine-rated BUY deals in the user's
@@ -38,16 +39,20 @@ export function NearbyDeals() {
   const home = (prefs.carsState || "").toUpperCase();
   const [radius, setRadius] = useState(4);
   const [zip, setZip] = useState("");
-  // A typed 5-digit ZIP switches to the PRECISE distance endpoint (geocode → haversine nearest-first),
-  // instead of the coarse state-expansion — and works even with no saved home market.
   const zipMode = /^\d{5}$/.test(zip);
 
-  const states = home ? [home, ...Array.from(nearbyStates(home, radius))] : [];
-  const key = zipMode
-    ? `/api/deals/near?zip=${zip}&verdict=go`
-    : home
-      ? `/api/scan?states=${states.join(",")}&verdict=go&sort=profit`
-      : null;
+  // A ZIP resolves to its STATE — which works for EVERY car (via location_state); only ~15% of cars are
+  // geocoded, so a pure lat/lng distance search misses most and reads "nothing here". We then widen to
+  // nearby states by radius, so entering a ZIP is "smart enough to bring near" instead of empty. Sorted by
+  // profit (best first) and NOT hard-filtered to BUY — real BUYs are scarce, so a BUY-only filter looked
+  // broken; the card still badges each deal's verdict.
+  const center = (zipMode ? zipToState(zip) : home) || "";
+  const states = center
+    ? [center, ...Array.from(nearbyStates(center, radius))]
+    : [];
+  const key = states.length
+    ? `/api/scan?states=${states.join(",")}&sort=profit`
+    : null;
   const { data, isLoading } = useSWR(key, fetcher, {
     revalidateOnFocus: false,
     dedupingInterval: 120_000,
@@ -66,13 +71,13 @@ export function NearbyDeals() {
     />
   );
 
-  // No saved location AND no ZIP typed → nudge, but let them search a ZIP right here.
-  if (authed && !home && !zipMode) {
+  // No saved market AND no usable ZIP → nudge, but let them search a ZIP right here.
+  if (authed && !center) {
     return (
       <div className="rounded-[var(--r3)] border border-dashed border-[var(--b2)] p-4 text-sm text-[var(--t4)]">
         <div className="mb-2 flex items-center gap-2">
           {zipBox}
-          <span>search a ZIP for the nearest BUY deals,</span>
+          <span>enter a ZIP to see deals near you,</span>
         </div>
         or set your home market in{" "}
         <Link href="/settings" className="font-semibold text-[var(--t2)]">
@@ -82,22 +87,20 @@ export function NearbyDeals() {
       </div>
     );
   }
-  if (!home && !zipMode) return null;
+  if (!center) return null;
 
-  const deals: NearbyDeal[] = (
-    zipMode ? data?.deals || [] : data?.vehicles || data?.deals || []
-  ).slice(0, 8);
+  const deals: NearbyDeal[] = (data?.vehicles || data?.deals || []).slice(0, 8);
 
   return (
     <div className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] p-4">
       <div className="flex items-center justify-between gap-3 mb-3">
         <h2 className="text-sm font-black text-[var(--t1)]">
-          BUY deals near {zipMode ? zip : home}
+          Best deals near {zipMode ? zip : home}
         </h2>
         <div className="flex items-center gap-2">
           {zipBox}
-          {/* Radius selector — only meaningful in the state-expansion (non-ZIP) mode. */}
-          {!zipMode && (
+          {/* Radius selector — how far to widen from the home/ZIP state. */}
+          {
             <div
               className="flex items-center gap-0.5 p-0.5 rounded-full"
               style={{ background: "var(--s2)" }}
@@ -120,7 +123,7 @@ export function NearbyDeals() {
                 );
               })}
             </div>
-          )}
+          }
         </div>
       </div>
 
@@ -128,9 +131,8 @@ export function NearbyDeals() {
         <p className="text-xs text-[var(--t4)] py-6 text-center">Loading…</p>
       ) : deals.length === 0 ? (
         <p className="text-xs text-[var(--t4)] py-6 text-center">
-          {zipMode
-            ? `No BUY deals near ${zip} yet — try a nearby ZIP or clear it.`
-            : `No BUY deals in ${states.join(", ")} right now — widen the radius.`}
+          No deals in {states.join(", ")} yet — widen the radius
+          {zipMode ? " or try a nearby ZIP" : ""}.
         </p>
       ) : (
         <div className="grid sm:grid-cols-2 gap-2">
