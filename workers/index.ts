@@ -36,15 +36,23 @@ export const maintenanceQueue = new Queue("maintenance", { connection });
 
 async function scheduleJobs() {
   try {
+    // Clear existing repeatables FIRST. BullMQ keys a repeatable by its cron pattern, so changing a pattern
+    // ADDS a second schedule instead of replacing it — the old + new cadence would both fire. Removing them
+    // up front makes the schedule below the single source of truth (so the cadence reductions actually apply).
+    const existingRepeatables = await maintenanceQueue.getRepeatableJobs();
+    for (const r of existingRepeatables) {
+      await maintenanceQueue.removeRepeatableByKey(r.key);
+    }
+
     await maintenanceQueue.add(
       "alert-check",
       {},
-      { repeat: { pattern: "*/5 * * * *" }, attempts: 3 },
+      { repeat: { pattern: "*/15 * * * *" }, attempts: 3 },
     );
     await maintenanceQueue.add(
       "price-track",
       {},
-      { repeat: { pattern: "*/10 * * * *" }, attempts: 2 },
+      { repeat: { pattern: "*/20 * * * *" }, attempts: 2 },
     );
     await maintenanceQueue.add(
       "market-intelligence",
@@ -54,12 +62,12 @@ async function scheduleJobs() {
     await maintenanceQueue.add(
       "saved-car-check",
       {},
-      { repeat: { pattern: "*/5 * * * *" }, attempts: 2 },
+      { repeat: { pattern: "*/15 * * * *" }, attempts: 2 },
     );
     await maintenanceQueue.add(
       "flash-deal-scan",
       {},
-      { repeat: { pattern: "*/5 * * * *" }, attempts: 3 },
+      { repeat: { pattern: "*/15 * * * *" }, attempts: 3 },
     );
     await maintenanceQueue.add(
       "photo-storage-sync",
@@ -71,13 +79,15 @@ async function scheduleJobs() {
       {},
       { repeat: { pattern: "0 3 * * *" }, attempts: 2 },
     );
-    // HOUSING HARVEST — every 30 min, ingest all free housing sources into `properties`. This is the
-    // home for ingestion now that GitHub Actions is dead; runs here (always-on box, no serverless timeout).
+    // HOUSING HARVEST — every 3h, ingest all free housing sources into `properties`. Off-market distress
+    // data (tax liens, foreclosures, code violations, county records) changes slowly — daily at most — so a
+    // 30-min re-scrape was ~6× more DB write volume than the data warrants (it dominated Supabase requests:
+    // /rest/v1/properties). 3h keeps leads fresh while cutting the biggest usage driver by ~6×.
     await maintenanceQueue.add(
       "housing-harvest",
       {},
       {
-        repeat: { pattern: "*/30 * * * *" },
+        repeat: { pattern: "0 */3 * * *" },
         attempts: 2,
         backoff: { type: "exponential", delay: 60_000 },
       },

@@ -75,7 +75,7 @@ export default function OrchestratorDashboard() {
     "/api/scrape/health",
     fetcher,
     {
-      refreshInterval: 30000,
+      refreshInterval: 90000,
     },
   );
 

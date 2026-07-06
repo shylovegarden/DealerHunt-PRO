@@ -59,7 +59,7 @@ export function HousingTopNav() {
       }
     };
     load();
-    const t = setInterval(load, 120_000);
+    const t = setInterval(load, 300_000);
     return () => {
       cancelled = true;
       clearInterval(t);
