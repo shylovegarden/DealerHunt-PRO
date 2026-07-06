@@ -85,7 +85,7 @@ export default function AuctionsPage() {
       });
 
       if (res.ok) {
-        toast.success("Run list uploaded and queued for processing!");
+        toast.success("Run list uploaded — matched against live inventory.");
         setAuctionName("");
         setAuctionDate("");
         setVinText("");
