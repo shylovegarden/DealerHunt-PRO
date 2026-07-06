@@ -4,6 +4,7 @@ import { getServerUserAndVertical } from "@/lib/server-supabase";
 import { Ico } from "@/components/shared/Ico";
 import { LiveCount } from "@/components/landing/LiveCount";
 import { ProofBand } from "@/components/landing/ProofBand";
+import { LiveDealShowcase } from "@/components/landing/LiveDealShowcase";
 
 export const metadata = {
   title: "AutoVerse — Underpriced cars & distressed homes, deal-scored",
@@ -159,6 +160,9 @@ export default async function Home() {
           ))}
         </div>
       </section>
+
+      {/* SHOW, don't tell — real live deals scored right now (server-rendered, the strongest proof) */}
+      <LiveDealShowcase />
 
       {/* PROOF IN NUMBERS — real live figures, animated */}
       <ProofBand />
