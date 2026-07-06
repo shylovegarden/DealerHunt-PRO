@@ -78,6 +78,8 @@ function mapDeal(
     // cross-source merge ("also found on N sites")
     alsoOn,
     listingCount: alsoOn.length + 1,
+    // Forward-looking forecast for the card chip (time-to-sell, urgency, price-drop odds).
+    prediction: d.deal_analysis?.prediction,
   };
 }
 
