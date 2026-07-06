@@ -269,6 +269,36 @@ export const DiscoveryCard = memo(function DiscoveryCard({
             </span>
           )}
 
+          {/* Forecast chip — the predictive layer surfaced on the card: urgency + time-to-sell, so the
+              engine's forward-looking read shows in the browse, not just the detail page. */}
+          {deal.prediction &&
+            (deal.prediction.urgency === "act_now" ||
+              deal.prediction.urgency === "soon" ||
+              deal.prediction.velocity === "fast") && (
+              <span
+                className="inline-flex w-fit items-center gap-1 rounded-[var(--r1)] px-2 py-0.5 text-[10px] font-black"
+                style={
+                  deal.prediction.urgency === "act_now"
+                    ? { background: "var(--rlo)", color: "var(--red)" }
+                    : {
+                        background:
+                          "color-mix(in srgb, var(--green) 14%, transparent)",
+                        color: "var(--green)",
+                      }
+                }
+                title="Forecast: how fast this market clears + whether to act now"
+              >
+                {deal.prediction.urgency === "act_now"
+                  ? "🔥 Act now"
+                  : deal.prediction.velocity === "fast"
+                    ? "⚡ Fast market"
+                    : "⏱ Move soon"}
+                {deal.prediction.daysToSell != null
+                  ? ` · ~${deal.prediction.daysToSell}d`
+                  : ""}
+              </span>
+            )}
+
           {/* Meta: lane · mileage · location */}
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[var(--t4)]">
             {deal.lane && deal.laneColor && (

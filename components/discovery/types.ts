@@ -53,6 +53,13 @@ export interface DiscoveryDeal {
   /** VIN-graph cross-market history red flags + severity (the proprietary moat, surfaced). */
   vinFlags?: string[];
   vinFlagSeverity?: "high" | "info";
+  /** Forward-looking forecast (time-to-sell, urgency, price-drop odds) — surfaced as a card chip. */
+  prediction?: {
+    daysToSell: number | null;
+    velocity: "fast" | "normal" | "slow" | "unknown";
+    urgency: "act_now" | "soon" | "watch" | "none";
+    priceDropChance: number | null;
+  };
 }
 
 export interface DiscoveryRail {
