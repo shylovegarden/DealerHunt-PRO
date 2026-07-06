@@ -290,6 +290,8 @@ function LeadsInner() {
   // Mobile is list-OR-map (Zillow pattern), so the listings lead instead of a map shoving them down the
   // page; desktop always shows the split. Default to the list — that's what the user came for.
   const [mobileView, setMobileView] = useState<"list" | "map">("list");
+  // Desktop layout: "split" = dense list beside the map; "grid" = full-width photo-forward gallery.
+  const [gridView, setGridView] = useState(false);
   // Secondary filters (type/source/price/sort) collapse behind a "Filters" button on mobile so the bar
   // doesn't wrap into 4 cramped rows; always shown on desktop.
   const [showFilters, setShowFilters] = useState(false);
@@ -717,36 +719,68 @@ function LeadsInner() {
           {leads.length.toLocaleString()} leads{scopeSet ? "" : " (top)"} ·
           showing {shown.length}
         </span>
-        {/* Mobile list/map toggle — desktop shows both, so this is mobile-only. */}
-        <div className="lg:hidden flex items-center p-0.5 rounded-full bg-[var(--s2)] border border-[var(--b1)] text-xs font-bold">
-          {(["list", "map"] as const).map((v) => (
-            <button
-              key={v}
-              onClick={() => setMobileView(v)}
-              className="px-3 py-1 rounded-full capitalize transition-colors"
-              style={{
-                background: mobileView === v ? "var(--home)" : "transparent",
-                color: mobileView === v ? "#04201d" : "var(--t3)",
-              }}
-            >
-              {v === "list" ? "☰ List" : "🗺 Map"}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          {/* Desktop split/grid toggle — dense list+map vs a full-width photo gallery. */}
+          <div className="hidden lg:flex items-center p-0.5 rounded-full bg-[var(--s2)] border border-[var(--b1)] text-xs font-bold">
+            {(["split", "grid"] as const).map((v) => (
+              <button
+                key={v}
+                onClick={() => setGridView(v === "grid")}
+                className="px-3 py-1 rounded-full capitalize transition-colors"
+                style={{
+                  background:
+                    (v === "grid") === gridView ? "var(--home)" : "transparent",
+                  color: (v === "grid") === gridView ? "#04201d" : "var(--t3)",
+                }}
+              >
+                {v === "split" ? "☰ Split" : "▦ Grid"}
+              </button>
+            ))}
+          </div>
+          {/* Mobile list/map toggle — desktop shows both, so this is mobile-only. */}
+          <div className="lg:hidden flex items-center p-0.5 rounded-full bg-[var(--s2)] border border-[var(--b1)] text-xs font-bold">
+            {(["list", "map"] as const).map((v) => (
+              <button
+                key={v}
+                onClick={() => setMobileView(v)}
+                className="px-3 py-1 rounded-full capitalize transition-colors"
+                style={{
+                  background: mobileView === v ? "var(--home)" : "transparent",
+                  color: mobileView === v ? "#04201d" : "var(--t3)",
+                }}
+              >
+                {v === "list" ? "☰ List" : "🗺 Map"}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 grid lg:grid-cols-[1fr_minmax(320px,38%)] gap-5">
+      <div
+        className={`max-w-7xl mx-auto px-4 sm:px-6 py-4 grid gap-5 ${
+          gridView ? "" : "lg:grid-cols-[1fr_minmax(320px,38%)]"
+        }`}
+      >
         <div
           className={`min-w-0 ${mobileView === "map" ? "hidden lg:block" : ""}`}
         >
-          {/* Responsive card grid: 2-up on tablet (map hidden), 1-up beside the map at lg, 2-up on wide
-              desktop — so many listings show at once instead of one giant full-width card per row. */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-3">
+          {/* Split: dense list beside the map. Grid: a full-width photo-forward gallery (more columns). */}
+          <div
+            className={`grid gap-3 ${
+              gridView
+                ? "grid-cols-2 md:grid-cols-3 xl:grid-cols-4"
+                : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2"
+            }`}
+          >
             {isLoading &&
               Array.from({ length: 6 }).map((_, i) => <CardSkeleton key={i} />)}
-            {shown.map((l, i) => (
-              <LeadCard key={l.id} lead={l} index={i} />
-            ))}
+            {shown.map((l, i) =>
+              gridView ? (
+                <PhotoLeadCard key={l.id} lead={l} index={i} />
+              ) : (
+                <LeadCard key={l.id} lead={l} index={i} />
+              ),
+            )}
           </div>
           {!isLoading && leads.length === 0 && (
             <div className="py-16 text-center">
@@ -769,7 +803,7 @@ function LeadsInner() {
         </div>
         <div
           className={`min-w-0 lg:sticky lg:top-5 h-[70vh] lg:h-[78vh] ${
-            mobileView === "list" ? "hidden lg:block" : ""
+            gridView ? "hidden" : mobileView === "list" ? "hidden lg:block" : ""
           }`}
         >
           <DealerMap points={mapPoints} />
@@ -915,6 +949,118 @@ function CardSkeleton() {
     </div>
   );
 }
+
+// Photo-forward grid card — the aerial/photo is the HERO (4:3), with score + save overlaid and the
+// price/address on a scrim. This is the "premium gallery" view; the horizontal LeadCard is the dense list.
+const PhotoLeadCard = memo(function PhotoLeadCard({
+  lead,
+  index = 0,
+}: {
+  lead: Lead;
+  index?: number;
+}) {
+  const color = TIER_COLOR[lead.tier] || "var(--blue)";
+  const img = resolvePropertyImage(lead);
+  const topSignal =
+    lead.distress?.foreclosure || lead.distress?.sheriffSale
+      ? "⚖️ Foreclosure"
+      : lead.distress?.totalDue
+        ? `Owes $${Math.round(lead.distress.totalDue / 1000)}k`
+        : lead.anomaly
+          ? `🎯 ${lead.anomalyPct}% below`
+          : (lead.priceDrops || 0) > 0
+            ? "↓ Price cut"
+            : lead.distress?.belowMarket
+              ? "↓ Below market"
+              : lead.distress?.violations
+                ? `${lead.distress.violations} violations`
+                : null;
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, delay: Math.min(index, 8) * 0.03 }}
+      whileHover={{ y: -3 }}
+    >
+      <Link
+        href={`/homeiq/leads/${encodeURIComponent(lead.id)}`}
+        className="group relative block overflow-hidden rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] transition-shadow hover:shadow-[var(--shadow)] hover:border-[var(--home-bd)]"
+      >
+        <div className="relative aspect-[4/3] overflow-hidden bg-[var(--s2)]">
+          {img ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={img.url}
+              alt={lead.title}
+              loading="lazy"
+              className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+            />
+          ) : (
+            <div
+              className="grid h-full w-full place-items-center"
+              style={{
+                background: "linear-gradient(135deg, var(--s2), var(--s0))",
+              }}
+            >
+              <span className="text-3xl opacity-50" aria-hidden>
+                🏡
+              </span>
+            </div>
+          )}
+          {/* bottom scrim for legible price/address over any image */}
+          <div
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-2/3"
+            style={{
+              background:
+                "linear-gradient(to top, rgba(0,0,0,0.82), transparent)",
+            }}
+          />
+          <span
+            className="absolute left-2 top-2 rounded-full px-2 py-0.5 text-[12px] font-black text-white"
+            style={{ background: color }}
+          >
+            {lead.score}
+          </span>
+          <div className="absolute right-1.5 top-1.5">
+            <QuickSave listingId={lead.id} />
+          </div>
+          {img && img.kind !== "listing" && (
+            <span className="absolute bottom-1.5 right-1.5 rounded bg-black/55 px-1 py-0.5 text-[9px] font-bold text-white">
+              {img.kind === "aerial" ? "🛰 Aerial" : "🗺 Map"}
+            </span>
+          )}
+          <div className="absolute inset-x-0 bottom-0 p-3">
+            <div className="text-lg font-black leading-tight text-white drop-shadow">
+              {lead.price ? `$${lead.price.toLocaleString()}` : "Off-market"}
+            </div>
+            <div className="truncate text-xs font-semibold text-white/90 drop-shadow">
+              {lead.title}
+            </div>
+            <div className="truncate text-[11px] text-white/65">
+              {[lead.city, lead.state].filter(Boolean).join(", ")}
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center justify-between gap-2 px-3 py-2">
+          <span
+            className="text-[10px] font-black uppercase tracking-widest"
+            style={{ color }}
+          >
+            {lead.tier}
+          </span>
+          {topSignal && (
+            <span
+              className="truncate text-[11px] font-black"
+              style={{ color: "var(--amber)" }}
+            >
+              {topSignal}
+            </span>
+          )}
+        </div>
+      </Link>
+    </motion.div>
+  );
+});
 
 // Memoized so typing in search, infinite-scroll appends, and filter toggles don't re-render every
 // already-rendered card (each card carries framer-motion + an image) — keeps scrolling/typing at high FPS.
