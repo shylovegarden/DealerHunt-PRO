@@ -66,6 +66,43 @@ describe("parseAutotraderNextData", () => {
     expect(items[0].trim).toBeUndefined();
   });
 
+  it("uses explicit listing location when present", () => {
+    const html = page({
+      x: {
+        listingType: "USED",
+        vin: "USED222",
+        year: 2021,
+        make: { name: "Kia" },
+        model: { name: "Telluride" },
+        mileage: { value: "20000" },
+        pricingDetail: { displayPrice: 35000 },
+        owner: { city: "Austin", state: "TX" },
+      },
+    });
+    const d = parseAutotraderNextData(html, "30301")!; // seed is GA — explicit TX must win
+    expect(d[0].location_city).toBe("Austin");
+    expect(d[0].location_state).toBe("TX");
+  });
+
+  it("falls back to the search-region state (seed ZIP) when the listing has no location", () => {
+    const html = page({
+      y: {
+        listingType: "USED",
+        vin: "USED333",
+        year: 2020,
+        make: { name: "Subaru" },
+        model: { name: "Outback" },
+        mileage: { value: "40000" },
+        pricingDetail: { displayPrice: 22000 },
+      },
+    });
+    // 77002 = Houston, TX → the car with no explicit location gets TX (better than null).
+    const d = parseAutotraderNextData(html, "77002")!;
+    expect(d[0].location_state).toBe("TX");
+    // No seed ZIP → stays undefined (no fabrication).
+    expect(parseAutotraderNextData(html)[0].location_state).toBeUndefined();
+  });
+
   it("returns [] when there is no __NEXT_DATA__", () => {
     expect(parseAutotraderNextData("<html>nope</html>")).toEqual([]);
   });

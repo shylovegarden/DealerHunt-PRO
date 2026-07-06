@@ -8,6 +8,7 @@ import { type ScraperConfig } from "../engine";
 import { smartFetch } from "../smart-fetch";
 import { upsertDeals } from "../pipeline";
 import { STATE_SEED_ZIPS } from "@/lib/geo";
+import { zipToState } from "@/lib/housing/zip-state";
 
 export const AUTOTRADER_CONFIG: ScraperConfig = {
   name: "AutoTrader",
@@ -26,7 +27,10 @@ export const AUTOTRADER_CONFIG: ScraperConfig = {
 };
 
 /** Parse an AutoTrader SRP into listing rows from the embedded __NEXT_DATA__ inventory. */
-export function parseAutotraderNextData(html: string): Partial<Deal>[] {
+export function parseAutotraderNextData(
+  html: string,
+  seedZip = "",
+): Partial<Deal>[] {
   const m = html.match(
     /<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/,
   );
@@ -73,6 +77,22 @@ export function parseAutotraderNextData(html: string): Partial<Deal>[] {
         : `https://www.autotrader.com${o.vdpBaseUrl}`
       : `https://www.autotrader.com/cars-for-sale/vehicle/${id}`;
 
+    // LOCATION: AutoTrader nests the dealer's place under a few possible keys depending on the response
+    // shape — pull it defensively. If none are present, fall back to the SEARCH region: every listing here
+    // is within ~100mi of the seed ZIP, so its state is a reliable approximation (far better than null,
+    // which left 25k AutoTrader cars off the map + out of every location filter). ZIP → state when needed.
+    const owner = o.owner || o.location || o.dealer || {};
+    const rawZip =
+      o.zip || owner.zip || owner.postalCode || o.postalCode || undefined;
+    const locCity = o.city || owner.city || owner.cityName || undefined;
+    const locState =
+      o.state ||
+      owner.state ||
+      owner.stateCode ||
+      (rawZip ? zipToState(String(rawZip)) : null) ||
+      (seedZip ? zipToState(seedZip) : null) ||
+      undefined;
+
     // AutoTrader ships free KBB Fair Purchase Price (market value) + a price rating on every listing.
     const pd = o.pricingDetail || {};
     const kbbFpp = Number(pd.kbbFppAmount) || undefined;
@@ -92,6 +112,8 @@ export function parseAutotraderNextData(html: string): Partial<Deal>[] {
       mileage,
       condition: listingType === "CERTIFIED" ? "certified" : "clean",
       images,
+      location_city: locCity,
+      location_state: locState,
       seller_type: "dealer",
       seller: o.ownerName || "AutoTrader",
       // Free KBB market value — a Manheim-MMR-equivalent benchmark we already had in hand.
@@ -147,7 +169,7 @@ export async function scrapeAutoTrader(
       console.warn(`[AutoTrader] blocked near ${zip} (no tier passed)`);
       break;
     }
-    const items = parseAutotraderNextData(html);
+    const items = parseAutotraderNextData(html, zip);
     if (!items.length) break;
     allDeals.push(...items);
     if (items.length < 20) break;
