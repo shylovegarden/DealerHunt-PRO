@@ -15,7 +15,7 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
 /** The one cohesive front door: the autonomous system's live pulse, then everything worth acting on. */
 function SystemPulse() {
   const { data } = useSWR("/api/system/status", fetcher, {
-    refreshInterval: 120_000,
+    refreshInterval: 300_000,
   });
   const f = data?.freshness;
   const q = data?.quality;

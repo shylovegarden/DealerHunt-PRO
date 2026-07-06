@@ -158,7 +158,7 @@ export function TopNav() {
       }
     }
     fetchAlerts();
-    const interval = setInterval(fetchAlerts, 120_000);
+    const interval = setInterval(fetchAlerts, 300_000);
     return () => {
       cancelled = true;
       clearInterval(interval);

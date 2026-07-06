@@ -40,7 +40,7 @@ export default function ListPage() {
       ? `/api/inventory?dealerId=${dealerId}&stage=listed&limit=100`
       : null,
     fetcher,
-    { refreshInterval: 60000 },
+    { refreshInterval: 180000 },
   );
 
   const loading = authLoading || isSwrLoading;

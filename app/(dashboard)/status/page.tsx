@@ -56,7 +56,7 @@ function Bar({ label, pct }: { label: string; pct: number }) {
 
 export default function StatusPage() {
   const { data } = useSWR("/api/system/status", fetcher, {
-    refreshInterval: 60_000,
+    refreshInterval: 180_000,
   });
   const f = data?.freshness;
   const q = data?.quality;

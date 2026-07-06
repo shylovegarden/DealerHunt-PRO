@@ -9,7 +9,7 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
 export function DealTicker() {
   const { data } = useSWR("/api/market/ticker", fetcher, {
     revalidateOnFocus: false,
-    refreshInterval: 120_000,
+    refreshInterval: 300_000,
   });
   const items: any[] = data?.items ?? [];
   if (items.length === 0) return null;
