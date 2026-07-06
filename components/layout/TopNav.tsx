@@ -35,6 +35,7 @@ import {
   Banknote,
   Store,
   Gavel,
+  Flame,
 } from "lucide-react";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { AccountMenu } from "@/components/home/AccountMenu";
@@ -44,6 +45,7 @@ import { VerticalSwitch } from "@/components/shared/VerticalSwitch";
 // the grouped "More" menu so the bar stays uncluttered on desktop and mobile.
 const PRIMARY = [
   { name: "Discover", href: "/discover", icon: Compass },
+  { name: "Feed", href: "/feed", icon: Flame },
   { name: "Scan", href: "/scan", icon: Search },
   { name: "Market", href: "/market", icon: SlidersHorizontal },
   { name: "Deal Check", href: "/deal-check", icon: FileCheck },
