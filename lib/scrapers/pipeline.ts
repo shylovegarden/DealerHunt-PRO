@@ -125,6 +125,10 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
         location_city: cleanCity(deal.location_city),
         location_state: deal.location_state,
         location_zip: deal.location_zip,
+        // A listing we just re-observed IS available → force active. This is what makes the staleness prune
+        // SELF-HEALING: if a still-listed car was wrongly deactivated (a scraper missed it one cycle), the
+        // next scrape that sees it flips it back on. Without this, deactivation was permanent + unsafe.
+        active: true,
         // Listing photos (the `images` text[] column exists). Without this every scraped/ingested
         // deal showed a placeholder card.
         images: Array.isArray(deal.images) ? deal.images.slice(0, 12) : [],
