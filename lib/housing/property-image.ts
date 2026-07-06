@@ -22,8 +22,8 @@ const bboxFor = (lat: number, lng: number): string =>
 export function aerialThumb(
   lat?: number | null,
   lng?: number | null,
-  w = 400,
-  h = 300,
+  w = 640,
+  h = 480,
 ): string | null {
   if (!validLatLng(lat, lng)) return null;
   return `https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export?bbox=${bboxFor(lat!, lng!)}&bboxSR=4326&size=${w},${h}&format=jpg&f=image`;
@@ -34,8 +34,8 @@ export function aerialThumb(
 export function streetMapThumb(
   lat?: number | null,
   lng?: number | null,
-  w = 400,
-  h = 300,
+  w = 640,
+  h = 480,
 ): string | null {
   if (!validLatLng(lat, lng)) return null;
   return `https://services.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/export?bbox=${bboxFor(lat!, lng!)}&bboxSR=4326&size=${w},${h}&format=jpg&f=image`;

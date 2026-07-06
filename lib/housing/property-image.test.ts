@@ -16,7 +16,7 @@ describe("aerialThumb", () => {
     expect(url).not.toBeNull();
     expect(url).toContain("bbox=-71.060");
     expect(url).toContain("42.3586");
-    expect(url).toContain("size=400,300");
+    expect(url).toContain("size=640,480");
   });
 });
 

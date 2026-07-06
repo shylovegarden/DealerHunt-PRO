@@ -961,8 +961,21 @@ const LeadCard = memo(function LeadCard({
                 )}
               </>
             ) : (
-              <div className="w-full h-full grid place-items-center text-[var(--t4)] text-[10px]">
-                No photo
+              <div
+                className="w-full h-full grid place-items-center"
+                style={{
+                  background:
+                    "linear-gradient(135deg, var(--s2), var(--s1) 60%, var(--s0))",
+                }}
+              >
+                <div className="flex flex-col items-center gap-1 text-[var(--t4)]">
+                  <span className="text-2xl opacity-50" aria-hidden>
+                    🏡
+                  </span>
+                  <span className="text-[9px] font-bold uppercase tracking-wider">
+                    Off-market
+                  </span>
+                </div>
               </div>
             );
           })()}
