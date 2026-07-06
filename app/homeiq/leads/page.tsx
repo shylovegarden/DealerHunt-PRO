@@ -950,6 +950,22 @@ function CardSkeleton() {
   );
 }
 
+// The homes analogue of the cars forecast chip: a seller-MOTIVATION read. Off-market distress leads don't
+// have a market-velocity "time to sell" — the forward-looking signal is how motivated the owner is (imminent
+// foreclosure, escalating tax debt, a price cut on a stale listing). One clear "should I move on this" headline.
+function homeUrgency(lead: Lead): { label: string; color: string } | null {
+  const d = lead.distress;
+  if (d?.foreclosure || d?.sheriffSale)
+    return { label: "🔥 Act now · foreclosure", color: "var(--red)" };
+  if (d?.totalDue && (d.yearsOwed ?? 0) >= 2)
+    return { label: "🔥 Act now · tax debt", color: "var(--red)" };
+  if ((lead.priceDrops || 0) > 0 && (lead.daysOnMarket ?? 0) > 60)
+    return { label: "⚡ Motivated · price cut", color: "var(--amber)" };
+  if (d?.outOfState || d?.belowMarket)
+    return { label: "⚡ Motivated seller", color: "var(--amber)" };
+  return null;
+}
+
 // Photo-forward grid card — the aerial/photo is the HERO (4:3), with score + save overlaid and the
 // price/address on a scrim. This is the "premium gallery" view; the horizontal LeadCard is the dense list.
 const PhotoLeadCard = memo(function PhotoLeadCard({
@@ -975,6 +991,7 @@ const PhotoLeadCard = memo(function PhotoLeadCard({
               : lead.distress?.violations
                 ? `${lead.distress.violations} violations`
                 : null;
+  const urgency = homeUrgency(lead);
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
@@ -1030,6 +1047,15 @@ const PhotoLeadCard = memo(function PhotoLeadCard({
             </span>
           )}
           <div className="absolute inset-x-0 bottom-0 p-3">
+            {/* Motivation forecast — the homes twin of the cars 'Act now' chip. */}
+            {urgency && (
+              <span
+                className="mb-1 inline-flex w-fit items-center rounded-full px-2 py-0.5 text-[10px] font-black text-white"
+                style={{ background: urgency.color }}
+              >
+                {urgency.label}
+              </span>
+            )}
             <div className="text-lg font-black leading-tight text-white drop-shadow">
               {lead.price ? `$${lead.price.toLocaleString()}` : "Off-market"}
             </div>
@@ -1048,14 +1074,26 @@ const PhotoLeadCard = memo(function PhotoLeadCard({
           >
             {lead.tier}
           </span>
-          {topSignal && (
-            <span
-              className="truncate text-[11px] font-black"
-              style={{ color: "var(--amber)" }}
-            >
-              {topSignal}
-            </span>
-          )}
+          <div className="flex items-center gap-1.5">
+            {/* Cross-source: appears on N distress lists — the homes 'N sources' signal. */}
+            {(lead.stack || 0) >= 2 && (
+              <span
+                className="text-[10px] font-black"
+                style={{ color: "var(--red)" }}
+                title="Appears on multiple distress lists — high motivation"
+              >
+                📚 {lead.stack}
+              </span>
+            )}
+            {topSignal && (
+              <span
+                className="truncate text-[11px] font-black"
+                style={{ color: "var(--amber)" }}
+              >
+                {topSignal}
+              </span>
+            )}
+          </div>
         </div>
       </Link>
     </motion.div>
