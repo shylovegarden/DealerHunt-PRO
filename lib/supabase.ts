@@ -14,9 +14,12 @@ function resolvedUrl(): string {
 }
 
 export function getSupabaseClient(): SupabaseClient {
+  const isNode = typeof process !== "undefined" && process.versions?.node;
+  const ws = isNode ? eval("require")("ws") : undefined;
   return createClient(
     resolvedUrl(),
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || PLACEHOLDER_KEY,
+    ws ? { realtime: { transport: ws } } : undefined,
   );
 }
 
@@ -28,6 +31,8 @@ export function createClientComponentClient(): SupabaseClient {
 }
 
 export function createServerComponentClient(): SupabaseClient {
+  const isNode = typeof process !== "undefined" && process.versions?.node;
+  const ws = isNode ? eval("require")("ws") : undefined;
   return createClient(
     resolvedUrl(),
     process.env.SUPABASE_SERVICE_ROLE_KEY || PLACEHOLDER_KEY,
@@ -36,6 +41,7 @@ export function createServerComponentClient(): SupabaseClient {
         autoRefreshToken: false,
         persistSession: false,
       },
+      ...(ws ? { realtime: { transport: ws } } : {}),
     },
   );
 }
