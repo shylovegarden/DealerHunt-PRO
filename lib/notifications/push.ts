@@ -3,13 +3,27 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { VAPID_PUBLIC_KEY } from "./vapid";
 
 // Server-side Web Push. Sends a notification to every device a user has subscribed. Gracefully NO-OPS if the
-// private key isn't set (so the app never crashes for lack of a secret — push just stays off until configured).
+// private key isn't available anywhere (so the app never crashes for lack of a secret — push just stays off).
 // Dead subscriptions (410/404) are pruned automatically.
 
+// The private key resolves from the env var FIRST (standard), then falls back to the locked app_secrets table
+// (service-role only) so push works with zero env config. Resolved once per process, then cached.
 let configured: boolean | null = null;
-function ensureConfigured(): boolean {
+async function ensureConfigured(sb: SupabaseClient): Promise<boolean> {
   if (configured !== null) return configured;
-  const priv = process.env.VAPID_PRIVATE_KEY;
+  let priv = process.env.VAPID_PRIVATE_KEY || "";
+  if (!priv) {
+    try {
+      const { data } = await sb
+        .from("app_secrets")
+        .select("value")
+        .eq("key", "vapid_private_key")
+        .maybeSingle();
+      priv = (data as { value?: string } | null)?.value || "";
+    } catch {
+      /* table missing / no access → push stays off */
+    }
+  }
   if (!priv) {
     configured = false;
     return false;
@@ -40,7 +54,7 @@ export async function sendPushToUser(
   userId: string,
   payload: PushPayload,
 ): Promise<number> {
-  if (!ensureConfigured()) return 0;
+  if (!(await ensureConfigured(sb))) return 0;
 
   const { data: subs } = await sb
     .from("push_subscriptions")
