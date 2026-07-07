@@ -2,13 +2,17 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { US_STATES, stateName, nearestState } from "@/lib/housing/us-states";
+import {
+  US_STATES,
+  stateName,
+  nearestState,
+  nearbyStates,
+} from "@/lib/housing/us-states";
 import { usePreferences } from "@/hooks/usePreferences";
 
-// "My States" — the location-aware, multi-state curation control. Apple-clean sheet, Netflix-informative
-// (every state shows its live inventory count so you pick where there's actually something to see). Detects
-// your location, pins it, and lets you add as many states as you want. Saves to carsStates / homeiqStates;
-// the feeds/discover then scope to exactly these — no unrelated states.
+// "My States" — the location-aware, multi-state curation control. Apple-clean sheet with a spring entrance,
+// a drag handle, selected-state tokens, a "Suggested" quick-add row (your location + nearby + most stock),
+// and a searchable grid where every state shows its LIVE inventory count. Saves carsStates / homeiqStates.
 
 const ALL_CODES = Object.keys(US_STATES).sort((a, b) =>
   stateName(a).localeCompare(stateName(b)),
@@ -36,7 +40,6 @@ export function StatePicker({
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
 
-  // Seed selection from saved prefs + load live counts each open.
   useEffect(() => {
     if (!open) return;
     setSelected(new Set(((prefs as any)[key] as string[]) || []));
@@ -67,6 +70,7 @@ export function StatePicker({
     );
   };
 
+  const add = (code: string) => setSelected((s) => new Set(s).add(code));
   const toggle = (code: string) =>
     setSelected((s) => {
       const n = new Set(s);
@@ -75,7 +79,30 @@ export function StatePicker({
       return n;
     });
 
-  // Sort: selected first, then by live inventory (most to see up top), then alphabetical.
+  const selectedList = useMemo(
+    () =>
+      Array.from(selected).sort((a, b) =>
+        stateName(a).localeCompare(stateName(b)),
+      ),
+    [selected],
+  );
+
+  // Quick-add "Suggested" row: your location, then nearby states, then the highest-inventory states — minus
+  // anything already selected. A Netflix-style "here's what's worth adding" shortcut.
+  const suggestions = useMemo(() => {
+    const base = detected || selectedList[0];
+    const near = base ? Array.from(nearbyStates(base, 5)) : [];
+    const top = Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([c]) => c);
+    const out: string[] = [];
+    for (const c of [...(detected ? [detected] : []), ...near, ...top]) {
+      if (c && US_STATES[c] && !selected.has(c) && !out.includes(c))
+        out.push(c);
+    }
+    return out.slice(0, 8);
+  }, [detected, selectedList, counts, selected]);
+
   const ordered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return ALL_CODES.filter(
@@ -120,12 +147,15 @@ export function StatePicker({
       aria-modal="true"
     >
       <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-fadeIn"
         onClick={onClose}
       />
-      <div className="relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl border border-[var(--b1)] bg-[var(--s0)] shadow-2xl sm:rounded-3xl animate-popIn">
+      <div className="animate-sheet sm:animate-springPop relative flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl border border-[var(--b1)] bg-[var(--s0)] shadow-2xl sm:rounded-3xl">
+        {/* Drag handle (mobile) */}
+        <div className="mx-auto mt-2.5 h-1.5 w-10 shrink-0 rounded-full bg-[var(--b2)] sm:hidden" />
+
         {/* Header */}
-        <div className="flex items-start justify-between gap-3 px-6 pt-6">
+        <div className="flex items-start justify-between gap-3 px-6 pt-4 sm:pt-6">
           <div>
             <h2 className="serif text-2xl font-bold text-[var(--t1)]">
               Your states
@@ -136,28 +166,71 @@ export function StatePicker({
           </div>
           <button
             onClick={onClose}
-            className="rounded-full p-2 text-[var(--t4)] hover:bg-[var(--s2)]"
+            className="rounded-full p-2 text-[var(--t4)] transition-colors hover:bg-[var(--s2)]"
             aria-label="Close"
           >
             ✕
           </button>
         </div>
 
+        {/* Selected tokens */}
+        {selectedList.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 px-6 pt-4">
+            {selectedList.map((code) => (
+              <button
+                key={code}
+                onClick={() => toggle(code)}
+                className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-bold text-white transition-transform active:scale-95"
+                style={{ background: accent }}
+                title="Remove"
+              >
+                {code} <span className="opacity-70">✕</span>
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Controls */}
         <div className="flex items-center gap-2 px-6 pt-4">
           <button
             onClick={detect}
-            className="shrink-0 rounded-full border border-[var(--b1)] px-3.5 py-2 text-sm font-bold text-[var(--t2)] hover:bg-[var(--s2)]"
+            className="shrink-0 rounded-full border border-[var(--b1)] px-3.5 py-2 text-sm font-bold text-[var(--t2)] transition-colors hover:bg-[var(--s2)]"
           >
-            📍 Use my location
+            📍 Location
           </button>
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search states"
-            className="min-w-0 flex-1 rounded-full border border-[var(--b1)] bg-[var(--s1)] px-4 py-2 text-sm text-[var(--t1)] outline-none focus:border-[var(--brand)]"
+            className="min-w-0 flex-1 rounded-full border border-[var(--b1)] bg-[var(--s1)] px-4 py-2 text-sm text-[var(--t1)] outline-none transition-colors focus:border-[var(--brand)]"
           />
         </div>
+
+        {/* Suggested quick-add row */}
+        {!query && suggestions.length > 0 && (
+          <div className="px-6 pt-4">
+            <div className="mb-1.5 text-[11px] font-black uppercase tracking-widest text-[var(--t4)]">
+              Suggested
+            </div>
+            <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
+              {suggestions.map((code) => (
+                <button
+                  key={code}
+                  onClick={() => add(code)}
+                  className="shrink-0 rounded-full border border-[var(--b1)] bg-[var(--s1)] px-3 py-1.5 text-xs font-bold text-[var(--t2)] transition-colors hover:bg-[var(--s2)]"
+                >
+                  {detected === code ? "📍 " : "+ "}
+                  {stateName(code)}
+                  {counts[code] ? (
+                    <span className="ml-1 text-[var(--t4)]">
+                      {counts[code].toLocaleString()}
+                    </span>
+                  ) : null}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Grid */}
         <div className="mt-4 flex-1 overflow-y-auto px-6 pb-4">
@@ -169,34 +242,42 @@ export function StatePicker({
                 <button
                   key={code}
                   onClick={() => toggle(code)}
-                  className="relative flex flex-col items-start gap-0.5 rounded-2xl border p-3 text-left transition-all"
+                  className="relative flex items-center gap-2.5 rounded-2xl border p-2.5 text-left transition-all active:scale-[0.98]"
                   style={{
                     borderColor: on ? "transparent" : "var(--b1)",
                     background: on ? accent : "var(--s1)",
                     color: on ? "#fff" : "var(--t1)",
                   }}
                 >
-                  <div className="flex w-full items-center justify-between">
-                    <span className="truncate text-sm font-bold">
-                      {stateName(code)}
-                    </span>
-                    {detected === code && (
-                      <span className="text-[11px]" title="Your location">
-                        📍
-                      </span>
-                    )}
-                    {on && detected !== code && (
-                      <span className="text-sm">✓</span>
-                    )}
-                  </div>
+                  {/* Abbreviation badge */}
                   <span
-                    className="text-[11px] font-semibold"
+                    className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-[11px] font-black"
                     style={{
-                      color: on ? "rgba(255,255,255,0.85)" : "var(--t4)",
+                      background: on ? "rgba(255,255,255,0.22)" : "var(--s2)",
+                      color: on ? "#fff" : "var(--t3)",
                     }}
                   >
-                    {n > 0 ? `${n.toLocaleString()} ${noun}` : "—"}
+                    {code}
                   </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-1">
+                      <span className="truncate text-sm font-bold">
+                        {stateName(code)}
+                      </span>
+                      {detected === code && (
+                        <span className="text-[10px]">📍</span>
+                      )}
+                    </span>
+                    <span
+                      className="block text-[11px] font-semibold"
+                      style={{
+                        color: on ? "rgba(255,255,255,0.85)" : "var(--t4)",
+                      }}
+                    >
+                      {n > 0 ? `${n.toLocaleString()} ${noun}` : "—"}
+                    </span>
+                  </span>
+                  {on && <span className="shrink-0 text-sm">✓</span>}
                 </button>
               );
             })}
@@ -212,7 +293,7 @@ export function StatePicker({
             {selected.size > 0 && (
               <button
                 onClick={() => setSelected(new Set())}
-                className="rounded-full px-4 py-2.5 text-sm font-bold text-[var(--t4)] hover:bg-[var(--s2)]"
+                className="rounded-full px-4 py-2.5 text-sm font-bold text-[var(--t4)] transition-colors hover:bg-[var(--s2)]"
               >
                 Clear
               </button>
@@ -220,7 +301,7 @@ export function StatePicker({
             <button
               onClick={done}
               disabled={busy}
-              className="rounded-full px-7 py-2.5 text-sm font-bold text-white disabled:opacity-60"
+              className="rounded-full px-7 py-2.5 text-sm font-bold text-white transition-transform active:scale-95 disabled:opacity-60"
               style={{ background: accent }}
             >
               {busy ? "Saving…" : "Done"}
