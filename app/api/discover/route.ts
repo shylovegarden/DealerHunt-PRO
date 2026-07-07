@@ -94,13 +94,17 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const state = searchParams.get("state")?.toUpperCase();
+    // Multi-state scope (the user's chosen states) — `?states=MO,IL`. Falls back to single `?state`.
+    const scopeStates = (searchParams.get("states")?.split(",") ?? [])
+      .map((s) => s.trim().toUpperCase())
+      .filter(Boolean);
     const maxPrice = parseInt(searchParams.get("maxPrice") || "0");
 
     // Cache the expensive part — the 5k-row pull + cross-source VIN dedup + grading — by state for
     // 45s, so the main feed paints instantly on repeat loads. Personalization (For You) is rebuilt
     // per-request below from this cached, graded set (cheap), so it stays current.
     const { merged, rowCount } = await cached(
-      `discover:${state || "all"}:${maxPrice || 0}`,
+      `discover:${scopeStates.length ? scopeStates.join("-") : state || "all"}:${maxPrice || 0}`,
       45_000,
       async (): Promise<{ merged: any[]; rowCount: number }> => {
         const supabase = createServerComponentClient();
@@ -112,7 +116,8 @@ export async function GET(request: NextRequest) {
         const { data: rpcData, error: rpcErr } = await supabase.rpc(
           "discover_deals",
           {
-            p_state: state ?? null,
+            p_state: scopeStates.length ? null : (state ?? null),
+            p_states: scopeStates.length ? scopeStates : null,
             p_max_price: maxPrice || 0,
             p_limit: 10000,
           },

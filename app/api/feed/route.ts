@@ -42,7 +42,11 @@ export async function GET(req: NextRequest) {
   const sp = new URL(req.url).searchParams;
   const offset = Math.max(0, Number(sp.get("offset")) || 0);
   const limit = Math.min(Math.max(Number(sp.get("limit")) || 12, 1), 30);
-  const state = sp.get("state")?.toUpperCase();
+  // Multi-state scope: `?states=MO,IL` (the user's chosen states) or a single `?state=MO`. Empty = all.
+  const scopeStates = (sp.get("states")?.split(",") ?? [sp.get("state")])
+    .map((s) => s?.trim().toUpperCase())
+    .filter((s): s is string => !!s);
+  const scopeKey = scopeStates.length ? scopeStates.join("-") : "all";
 
   const supabase = createServerComponentClient();
   const {
@@ -52,7 +56,7 @@ export async function GET(req: NextRequest) {
   // ── FOR YOU (signed in): a taste-ranked pool, cached per user for 60s and paginated over. ──
   if (user?.id) {
     const ranked = await cached(
-      `feed:${user.id}:${state || "all"}`,
+      `feed:${user.id}:${scopeKey}`,
       60_000,
       async () => {
         const profile = await buildInterestProfile(supabase, user.id);
@@ -65,7 +69,10 @@ export async function GET(req: NextRequest) {
           .order("profit_score", { ascending: false, nullsFirst: false })
           .order("last_seen_at", { ascending: false })
           .limit(250);
-        if (state) q = q.eq("location_state", state);
+        if (scopeStates.length === 1)
+          q = q.eq("location_state", scopeStates[0]);
+        else if (scopeStates.length > 1)
+          q = q.in("location_state", scopeStates);
         const { data } = await q;
         const items = (data || [])
           .filter((d: any) => Array.isArray(d.images) && d.images[0])
@@ -107,7 +114,8 @@ export async function GET(req: NextRequest) {
     .order("profit_score", { ascending: false, nullsFirst: false })
     .order("last_seen_at", { ascending: false })
     .range(offset, offset + limit - 1);
-  if (state) q = q.eq("location_state", state);
+  if (scopeStates.length === 1) q = q.eq("location_state", scopeStates[0]);
+  else if (scopeStates.length > 1) q = q.in("location_state", scopeStates);
 
   const { data, error } = await q;
   if (error)
