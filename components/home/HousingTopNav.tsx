@@ -10,6 +10,7 @@ import {
   BarChart3,
   Bookmark,
   Columns3,
+  Flame,
   Search,
   Bell,
   Settings,
@@ -23,6 +24,7 @@ import { VerticalSwitch } from "@/components/shared/VerticalSwitch";
 // account/switch/logout menu inline on the right.
 const PRIMARY = [
   { name: "Home", href: "/homeiq", icon: Home },
+  { name: "Feed", href: "/homeiq/feed", icon: Flame },
   { name: "Leads", href: "/homeiq/leads", icon: List },
   { name: "States", href: "/homeiq/states", icon: MapIcon },
   { name: "Market", href: "/homeiq/market", icon: BarChart3 },
