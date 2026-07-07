@@ -17,6 +17,7 @@
 //   ENABLE_HEADED_SCRAPERS=1  + a display (xvfb) → headed tier on
 
 import { spawn } from "node:child_process";
+import "./ai-worker";
 
 const INTERVAL_MS = Number(process.env.SCRAPE_INTERVAL_MS || 30 * 60_000);
 const MIN_GAP_MS = 60_000; // never tight-loop, even if a cycle overruns the interval
