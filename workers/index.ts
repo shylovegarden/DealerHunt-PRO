@@ -92,17 +92,7 @@ async function scheduleJobs() {
         backoff: { type: "exponential", delay: 60_000 },
       },
     );
-    // CARS HARVEST — every 2h. GitHub Actions ingestion is dead (billing); cars must ingest HERE too or
-    // the deals table slowly drains (the nightly prune deletes stale rows with nothing refilling). Needs
-    // the box's headed-Chrome fleet (Dockerfile.scraper / ENABLE_HEADED_SCRAPERS) to clear anti-bot.
-    await maintenanceQueue.add(
-      "cars-harvest",
-      {},
-      {
-        repeat: { pattern: "20 */2 * * *" }, // offset from housing's :00/:30
-        attempts: 1,
-      },
-    );
+
     // HOUSING PRICING — every 6h, harvest recent SOLD comps and write per-ZIP median sold $/sqft so ARV
     // learns from our own live data (the static snapshot becomes the floor, not the ceiling). Sold $/sqft
     // is stable, so 6h is plenty; runs separate from the 30-min lead harvest.
@@ -161,23 +151,7 @@ const worker = new Worker(
         );
         return;
       }
-      case "cars-harvest": {
-        // Ingest the cars `deals` table (the housing-harvest twin). Dynamic import mirrors scrape-ci so
-        // adaptive source setup resolves first; tear down the warm browsers after.
-        const { runScrapers } = await import("../lib/scrapers/runner");
-        const results = await runScrapers({
-          orchestrator: "concurrent",
-          concurrency: 3,
-          dryRun: false,
-        });
-        const { closeSmartFetch } = await import("../lib/scrapers/smart-fetch");
-        await closeSmartFetch().catch(() => {});
-        const found = Array.isArray(results)
-          ? results.reduce((s: number, r: any) => s + (r?.dealsFound || 0), 0)
-          : 0;
-        console.log(`[Worker] Cars harvest: ${found} deals across sources`);
-        return;
-      }
+
       case "housing-pricing": {
         const { refreshSoldPsf } = await import("../lib/housing/live-psf");
         const { closeSmartFetch } = await import("../lib/scrapers/smart-fetch");
