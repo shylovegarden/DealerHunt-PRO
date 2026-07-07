@@ -18,6 +18,8 @@ import {
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { AccountMenu } from "@/components/home/AccountMenu";
 import { VerticalSwitch } from "@/components/shared/VerticalSwitch";
+import { MyStatesButton } from "@/components/shared/MyStatesButton";
+import { useRouter } from "next/navigation";
 
 // The HomeIQ top bar — the housing twin of the cars TopNav. Persistent nav across every housing surface
 // (was hand-rolled per page), teal-themed, with a scroll shadow, active pills, theme toggle, and the
@@ -34,6 +36,7 @@ const PRIMARY = [
 
 export function HousingTopNav() {
   const pathname = usePathname() || "";
+  const router = useRouter();
   const [scrolled, setScrolled] = useState(false);
   const [alertCount, setAlertCount] = useState(0);
 
@@ -191,6 +194,11 @@ export function HousingTopNav() {
         >
           <Settings style={{ width: 17, height: 17 }} />
         </Link>
+        <MyStatesButton
+          vertical="homes"
+          onChange={() => router.refresh()}
+          className="hidden md:inline-flex items-center gap-1.5 rounded-full border border-[var(--b1)] bg-[var(--s0)] px-3 py-1.5 text-[12px] font-bold text-[var(--t3)] hover:text-[var(--t1)]"
+        />
         <ThemeToggle />
         <AccountMenu floating={false} />
       </div>
