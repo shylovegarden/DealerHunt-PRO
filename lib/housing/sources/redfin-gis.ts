@@ -29,6 +29,8 @@ export interface RedfinArea {
   lng: number;
   /** Half-extent of the search box, in miles. */
   radiusMi: number;
+  /** Explicit bounding box (e.g. a whole state) — used verbatim instead of the lat/lng+radius box. */
+  bbox?: BBox;
 }
 
 // Built-in seed: the largest market in (essentially) every state + the top national metros — NATIONWIDE
@@ -151,6 +153,29 @@ export function areaToBBox(a: RedfinArea): BBox {
     east: a.lng + dLng,
     north: a.lat + dLat,
   };
+}
+
+/**
+ * Turn a set of state codes into harvest areas that cover each whole state via its bounding box. The
+ * existing quad-subdivide handles density, so no per-metro curation is needed and it generalizes to any
+ * demanded state. Skips codes without a known bbox.
+ */
+export function statesToAreas(
+  codes: string[],
+  bboxes: Record<string, BBox>,
+): RedfinArea[] {
+  return codes
+    .filter((c) => bboxes[c])
+    .map((c) => {
+      const b = bboxes[c];
+      return {
+        name: c,
+        lat: (b.south + b.north) / 2,
+        lng: (b.west + b.east) / 2,
+        radiusMi: 0,
+        bbox: b,
+      };
+    });
 }
 
 /** Redfin's `poly` param: "lng lat,lng lat,…" closed ring (SW→SE→NE→NW→SW). */
@@ -410,7 +435,7 @@ async function sweep(
   for (const a of order) {
     if (Date.now() > deadline) break;
     try {
-      await harvestBox(areaToBBox(a), byId, { wantSold, deadline });
+      await harvestBox(a.bbox ?? areaToBBox(a), byId, { wantSold, deadline });
       covered++;
     } catch (e) {
       console.warn(

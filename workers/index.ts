@@ -1,3 +1,4 @@
+import "./polyfill";
 import { Worker, Queue } from "bullmq";
 import { checkAlerts } from "../lib/alerts/alert-engine";
 import { trackPriceChanges } from "../lib/alerts/price-tracker";

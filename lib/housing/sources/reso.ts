@@ -93,7 +93,14 @@ export function parseResoProperty(r: Record<string, any>): Property | null {
   };
 }
 
-function cfg() {
+function cfg(states: string[] = []) {
+  // Demand-driven scope: constrain the OData $filter to the active states. StateOrProvince holds the
+  // 2-letter code in the RESO Data Dictionary.
+  const base = process.env.RESO_FILTER || "StandardStatus eq 'Active'";
+  const stateClause = states
+    .map((s) => `StateOrProvince eq '${s.toUpperCase()}'`)
+    .join(" or ");
+  const filter = stateClause ? `(${base}) and (${stateClause})` : base;
   return {
     apiUrl: process.env.RESO_API_URL || "",
     token: process.env.RESO_TOKEN || "",
@@ -101,7 +108,7 @@ function cfg() {
     clientId: process.env.RESO_CLIENT_ID || "",
     clientSecret: process.env.RESO_CLIENT_SECRET || "",
     scope: process.env.RESO_SCOPE || "",
-    filter: process.env.RESO_FILTER || "StandardStatus eq 'Active'",
+    filter,
     max: Math.max(1, parseInt(process.env.RESO_MAX || "5000", 10) || 5000),
   };
 }
@@ -134,8 +141,8 @@ async function getToken(c: ReturnType<typeof cfg>): Promise<string | null> {
  * Harvest MLS listings via the RESO Web API. Returns [] (with a log) when no credentials are configured,
  * so it's safe to wire into the harvest before a feed exists. Paginates $top/$skip up to RESO_MAX.
  */
-export async function harvestReso(): Promise<Property[]> {
-  const c = cfg();
+export async function harvestReso(states: string[] = []): Promise<Property[]> {
+  const c = cfg(states);
   if (!c.apiUrl) {
     console.log(
       "[HomeIQ:RESO] no RESO_API_URL configured — skipping (legit MLS feed not wired yet)",

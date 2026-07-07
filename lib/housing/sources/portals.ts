@@ -15,6 +15,7 @@ import { smartFetch } from "../../scrapers/smart-fetch";
 import { genericExtractProperties } from "../extract-property";
 import { stableId } from "../../db/stable-id";
 import { configuredAreas } from "./redfin-gis";
+import { activeStates } from "../active-states";
 import type { Property } from "../types";
 
 interface Portal {
@@ -32,15 +33,24 @@ const PORTALS: Portal[] = [
 ];
 
 // {city, state} for the top metros (reuses the Redfin nationwide seed — "Atlanta GA" → Atlanta, GA).
-function metros(limit: number): { city: string; state: string }[] {
+// When `states` is given, only metros in those states are kept (demand-driven scope) — filter BEFORE the
+// limit so we get the active states' metros, not the top-N-then-filtered remainder.
+function metros(
+  limit: number,
+  states?: string[],
+): { city: string; state: string }[] {
+  const allow = states?.length
+    ? new Set(states.map((s) => s.toUpperCase()))
+    : null;
   return configuredAreas()
-    .slice(0, limit)
     .map((a) => {
       const parts = a.name.trim().split(/\s+/);
       const state = parts.pop() || "";
       return { city: parts.join(" "), state };
     })
-    .filter((m) => m.city && m.state);
+    .filter((m) => m.city && m.state)
+    .filter((m) => !allow || allow.has(m.state.toUpperCase()))
+    .slice(0, limit);
 }
 
 const dash = (c: string) =>
@@ -48,12 +58,12 @@ const dash = (c: string) =>
 const under = (c: string) => c.replace(/\./g, "").replace(/\s+/g, "-");
 
 // Standard per-portal metro search-URL patterns (verified to resolve). Deterministic — NOT guessed IDs.
-function defaultUrls(source: string): string[] {
+function defaultUrls(source: string, states?: string[]): string[] {
   const max = Math.max(
     0,
     parseInt(process.env.PORTAL_MAX_METROS || "10", 10) || 10,
   );
-  return metros(max)
+  return metros(max, states)
     .map(({ city, state }) => {
       const s = state.toLowerCase();
       switch (source) {
@@ -138,12 +148,15 @@ export async function harvestPortal(
  * (Zillow FSBO, Realtor exclusives) that the gis-csv door doesn't carry.
  */
 export async function harvestPortals(): Promise<Property[]> {
+  // Demand-driven scope: auto-generated metro URLs are limited to the active states (MO+IL by default).
+  // Explicit PORTAL env URLs still win (manual override).
+  const states = await activeStates();
   const results = await Promise.all(
     PORTALS.map((p) => {
       const urls = urlsFor(p.env);
       return harvestPortal(
         p.source,
-        urls.length ? urls : defaultUrls(p.source),
+        urls.length ? urls : defaultUrls(p.source, states),
       ).catch(() => []);
     }),
   );

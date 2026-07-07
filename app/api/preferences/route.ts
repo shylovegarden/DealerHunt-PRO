@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerComponentClient } from "@/lib/supabase";
 import { getServerUser } from "@/lib/server-supabase";
+import { activeStates, addActiveState } from "@/lib/housing/active-states";
 
 export const dynamic = "force-dynamic";
 
@@ -61,5 +62,23 @@ export async function PUT(req: NextRequest) {
   );
   if (error)
     return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // DEMAND HOOK — if the user just picked a housing state (single default or hunt-list) that isn't in the
+  // active harvest scope yet, add it so the next harvest starts covering it. Server power follows demand.
+  try {
+    const demanded = new Set<string>();
+    if (typeof patch.homeiqState === "string" && patch.homeiqState)
+      demanded.add(patch.homeiqState.toUpperCase());
+    for (const s of (patch.homeiqStates as string[] | undefined) ?? [])
+      if (typeof s === "string" && s) demanded.add(s.toUpperCase());
+    if (demanded.size) {
+      const already = new Set(await activeStates());
+      const toAdd = Array.from(demanded).filter((s) => !already.has(s));
+      await Promise.all(toAdd.map((s) => addActiveState(s, user.id)));
+    }
+  } catch {
+    /* non-fatal — the pref still saved */
+  }
+
   return NextResponse.json({ prefs: merged });
 }

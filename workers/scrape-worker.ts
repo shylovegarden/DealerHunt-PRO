@@ -16,6 +16,7 @@
 //   SCRAPE_SOURCES      comma-separated source ids (blank = the enabled default set)
 //   ENABLE_HEADED_SCRAPERS=1  + a display (xvfb) → headed tier on
 
+import "./polyfill";
 import { spawn } from "node:child_process";
 import "./ai-worker";
 
