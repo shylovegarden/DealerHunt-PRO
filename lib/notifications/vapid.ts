@@ -1,6 +1,5 @@
-// The VAPID PUBLIC key — safe to ship to the browser (it's the server's public identity for Web Push).
-// Overridable via env, but this default lets subscriptions work out of the box. The matching PRIVATE key is
-// a secret env var (VAPID_PRIVATE_KEY) set in the deployment — never committed.
+// The VAPID PUBLIC key — safe to ship to the browser (the server public identity for Web Push).
+// Overridable via env. The matching PRIVATE key lives in the locked app_secrets table (or VAPID_PRIVATE_KEY env).
 export const VAPID_PUBLIC_KEY =
   process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ||
-  "BEvkjOTxn6Lubd_AXlZ2n2N4mD9KtzEO4HXILM1mzV2-bPJ1QcbedwcTqWcB7TqXlwDdphdsrMm7fvI2zM2UB30";
+  "BFdgrsRmLC0obx05qPGr_zVtKoSSYfl-KQmvPWZDi4TZBtkaT6IPJ3-7k1myWu0A01jO4YRSbdLVKgp9F0sO6Cc";
