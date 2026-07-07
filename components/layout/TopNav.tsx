@@ -36,6 +36,7 @@ import {
   Store,
   Gavel,
   Flame,
+  ScanLine,
 } from "lucide-react";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { AccountMenu } from "@/components/home/AccountMenu";
@@ -75,6 +76,7 @@ const MORE_GROUPS = [
   {
     group: "Operations",
     items: [
+      { name: "Lane Scanner", href: "/lane", icon: ScanLine },
       { name: "Auctions", href: "/auctions", icon: Gavel },
       { name: "Transport", href: "/move", icon: Truck },
       { name: "Recon", href: "/recon", icon: Hammer },

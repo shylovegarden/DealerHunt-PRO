@@ -5,8 +5,6 @@ const nextConfig = {
   reactStrictMode: false,
   output: 'standalone',
   transpilePackages: ['@supabase/supabase-js'],
-  // Scraping runs on GitHub Actions, not Vercel serverless. Keep heavy browser/scraper
-  // packages external so the Next build never tries to bundle Chromium into functions.
   serverExternalPackages: [
     'playwright',
     'playwright-extra',
@@ -16,6 +14,9 @@ const nextConfig = {
     'bullmq',
     'ioredis',
   ],
+  // Scraping runs on GitHub Actions, not Vercel serverless. Keep heavy browser/scraper
+  // packages external so the Next build never tries to bundle Chromium into functions.
+
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'images.copart.com' },
@@ -99,14 +100,4 @@ const nextConfig = {
   },
 }
 
-module.exports = withSentryConfig(nextConfig, {
-  silent: true,
-  org: process.env.SENTRY_ORG,
-  project: process.env.SENTRY_PROJECT,
-  authToken: process.env.SENTRY_AUTH_TOKEN,
-  widenClientFileUpload: true,
-  tunnelRoute: '/monitoring',
-  disableLogger: true,
-  // Sentry auto-instruments Vercel Cron jobs → missed/failed scheduled jobs (our harvest crons) surface.
-  automaticVercelMonitors: true,
-})
+module.exports = nextConfig

@@ -149,22 +149,30 @@ export default function LaneModePage() {
     try {
       // Prompt user/browser for camera permission
       const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" },
+        video: { facingMode: "environment", focusMode: "continuous" } as any,
       });
       setStream(mediaStream);
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream;
-      }
       setScanLoading(false);
 
-      // Launch standard camera parser loop
-      const scannedVin = await scanVINFromCamera();
-      if (scannedVin) {
-        const cleanVin = normalizeVin(scannedVin);
-        setSearchQuery(cleanVin);
-        toast.success(`Scanned VIN: ${cleanVin}`);
-        stopScan();
-      }
+      // Give React a tick to mount the video element
+      setTimeout(async () => {
+        const videoEl = document.getElementById(
+          "video-preview",
+        ) as HTMLVideoElement;
+        if (videoEl) {
+          videoEl.srcObject = mediaStream;
+          await videoEl.play().catch(() => {});
+        }
+
+        // Launch standard camera parser loop
+        const scannedVin = await scanVINFromCamera();
+        if (scannedVin) {
+          const cleanVin = normalizeVin(scannedVin);
+          setSearchQuery(cleanVin);
+          toast.success(`Scanned VIN: ${cleanVin}`);
+          stopScan();
+        }
+      }, 100);
     } catch (err) {
       console.error("Camera startup failed:", err);
       toast.error("Could not access camera");

@@ -130,7 +130,12 @@ async function upsert(rows: Record<string, unknown>[]): Promise<number> {
 /** Refresh the SOLD half — harvest recent closed comps + write per-ZIP medians. Called by the 6h pricing job. */
 export async function refreshSoldPsf(): Promise<number> {
   try {
-    const sold = await harvestRedfinSold();
+    // Scope sold comps to the active states too (same demand-driven scope as the lead harvest).
+    const { activeStates, STATE_BBOX } = await import("./active-states");
+    const { statesToAreas } = await import("./sources/redfin-gis");
+    const sold = await harvestRedfinSold(
+      statesToAreas(await activeStates(), STATE_BBOX),
+    );
     const rows = aggregateSoldPsf(sold);
     const n = await upsert(rows);
     console.log(`[live-psf] sold comps → ${n} ZIP medians`);

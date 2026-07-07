@@ -10,7 +10,8 @@ import { scrapeHudHomes } from "./sources/hud-homes";
 import { scrapeHomeSteps } from "./sources/homesteps";
 import { scrapeAuctionCom } from "./sources/auctioncom";
 import { scrapeGsaRealEstate } from "./sources/gsa-realestate";
-import { harvestRedfinGis } from "./sources/redfin-gis";
+import { harvestRedfinGis, statesToAreas } from "./sources/redfin-gis";
+import { activeStates, STATE_BBOX } from "./active-states";
 import { harvestHomePath } from "./sources/homepath";
 import { scrapePublicSurplusProperties } from "./sources/publicsurplus-property";
 import { scrapeMunicibidProperties } from "./sources/municibid-property";
@@ -50,6 +51,14 @@ export async function runHousingHarvest(): Promise<HarvestResult> {
   // Inject the learned tier calibration (realized pipeline outcomes) before scoring too — no-op until
   // enough deals have been closed/killed, then stored scores start reflecting what actually converts.
   await loadCalibration().catch(() => {});
+
+  // Demand-driven scope: the on-market MLS sources (Redfin GIS, portals, RESO) only cover the ACTIVE states
+  // (MO+IL by default, + any a user has demanded). Off-market sources stay nationwide. This is the fix for
+  // the harvest dominating Supabase write volume — server power goes where the demand is.
+  const states = await activeStates();
+  const active = new Set(states);
+  const redfinAreas = statesToAreas(states, STATE_BBOX);
+
   const [
     gd,
     ad,
@@ -81,7 +90,11 @@ export async function runHousingHarvest(): Promise<HarvestResult> {
     scrapeHomeSteps().catch(() => []),
     scrapeAuctionCom().catch(() => []),
     scrapeGsaRealEstate().catch(() => []),
-    harvestRedfinGis().catch(() => []), // verified open MLS door: gis-csv bbox, no anti-bot
+    harvestRedfinGis(redfinAreas)
+      .then((rows) =>
+        rows.filter((p) => p.state && active.has(p.state.toUpperCase())),
+      )
+      .catch(() => []), // open MLS door: gis-csv bbox per active state (trims neighbor overshoot)
     harvestHomePath().catch(() => []), // Fannie Mae REO — open JSON, nationwide bank-owned
     scrapePublicSurplusProperties().catch(() => []),
     scrapeMunicibidProperties().catch(() => []),
@@ -93,7 +106,7 @@ export async function runHousingHarvest(): Promise<HarvestResult> {
     fetchPhillyCodeViolations(1500).catch(() => []),
     fetchOpenDataLeads().catch(() => []), // generic open-data registry (nationwide off-market)
     harvestPortals().catch(() => []), // Zillow/Realtor/… (fleet-gated, config-driven)
-    harvestReso().catch(() => []), // MLS via RESO Web API (legit; [] until a member feed is wired)
+    harvestReso(states).catch(() => []), // MLS via RESO Web API (state-scoped; [] until a member feed is wired)
     scrapeFsbo().catch(() => []), // FSBO.com national owner listings (open JSON API, no auth)
     scrapeHubzu().catch(() => []), // Hubzu.com REO/foreclosure auctions (open JSON API, XSSI-prefixed)
     scrapeBid4Assets().catch(() => []), // Bid4Assets.com tax/REO auctions (open JSON API with CSRF token)

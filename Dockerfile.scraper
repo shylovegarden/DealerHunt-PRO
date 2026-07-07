@@ -16,7 +16,6 @@ WORKDIR /app
 
 # Install deps incl. devDeps (tsx/patchright live there). Force dev install in case the base sets NODE_ENV.
 COPY package.json package-lock.json* ./
-RUN npm config set dns-result-order ipv4first
 RUN npm install --include=dev
 
 # Browsers: Patchright's stealth Chromium (stealth tier) + real Google Chrome (headed tier). OS deps are
