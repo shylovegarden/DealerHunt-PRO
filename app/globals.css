@@ -292,6 +292,38 @@ html {
   }
 }
 
+/* Apple-style spring entrances (subtle overshoot). */
+@keyframes springSheet {
+  0% {
+    transform: translateY(100%);
+  }
+  72% {
+    transform: translateY(-1.2%);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+@keyframes springPop {
+  0% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.02);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.animate-sheet {
+  animation: springSheet 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.animate-springPop {
+  animation: springPop 0.34s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
 /* ── View Transitions API ── */
 @supports (view-transition-name: none) {
   ::view-transition-old(root),
