@@ -16,6 +16,7 @@ WORKDIR /app
 
 # Install deps incl. devDeps (tsx/patchright live there). Force dev install in case the base sets NODE_ENV.
 COPY package.json package-lock.json* ./
+COPY scripts/postinstall.js ./scripts/postinstall.js
 RUN npm install --include=dev
 
 # Browsers: Patchright's stealth Chromium (stealth tier) + real Google Chrome (headed tier). OS deps are

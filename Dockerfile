@@ -7,6 +7,7 @@ WORKDIR /app
 
 # Install dependencies
 COPY package.json package-lock.json* ./
+COPY scripts/postinstall.js ./scripts/postinstall.js
 RUN npm install
 
 # Rebuild the source code only when needed
