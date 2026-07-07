@@ -30,5 +30,5 @@ ENV NODE_ENV=production
 ENV ENABLE_HEADED_SCRAPERS=1
 ENV SCRAPE_INTERVAL_MS=1800000
 
-# xvfb-run -a → a virtual X display for headed Chrome; headless/static tiers ignore it.
-CMD ["xvfb-run", "-a", "npx", "tsx", "workers/scrape-worker.ts"]
+# Start Xvfb in the background and run the worker directly (bypasses xvfb-run signal hang when run as PID 1)
+CMD ["sh", "-c", "Xvfb :99 -screen 0 1280x1024x24 -nolisten tcp -ac & export DISPLAY=:99 && npx tsx workers/scrape-worker.ts"]
