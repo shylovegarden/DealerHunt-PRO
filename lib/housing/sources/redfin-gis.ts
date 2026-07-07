@@ -22,6 +22,14 @@ const UA =
 
 const MAX_ROWS = 350; // Redfin's hard cap per gis-csv response
 const CAP_HIT = 300; // ≥ this many rows ⇒ the box is likely truncated; subdivide it
+// Max quad-subdivide depth. Whole-STATE bboxes (demand-driven scope) are far larger than the metro seeds,
+// so a shallow cap left dense metros (Chicago/St. Louis) truncated at the 350-row cap. 6 levels = up to
+// 4096 leaf boxes on the densest path — enough to get a metro core under the cap. The run's time budget
+// (deadline) still bounds total work, so sparse quarters stop early and this never fans out unbounded.
+const MAX_DEPTH = Math.max(
+  3,
+  parseInt(process.env.REDFIN_MAX_DEPTH || "6", 10) || 6,
+);
 
 export interface RedfinArea {
   name: string;
@@ -395,7 +403,7 @@ async function harvestBox(
   // Stop subdividing once the run's time budget is spent so one dense metro can't starve the rest.
   if (
     rows.length >= CAP_HIT &&
-    depth < 3 &&
+    depth < MAX_DEPTH &&
     !(opts.deadline && Date.now() > opts.deadline)
   ) {
     for (const q of quarters(b)) {

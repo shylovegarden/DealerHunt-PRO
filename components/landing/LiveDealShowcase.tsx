@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { unstable_cache } from "next/cache";
 import { createServerComponentClient } from "@/lib/supabase";
 import { proxiedImage } from "@/lib/image-url";
 
@@ -10,9 +11,9 @@ import { proxiedImage } from "@/lib/image-url";
 const money = (n?: number | null) =>
   n != null ? `$${Math.round(n).toLocaleString()}` : "";
 
-export async function LiveDealShowcase() {
-  let deals: any[] = [];
-  try {
+// Cached 5 min so the PUBLIC landing page can't hammer the DB under traffic (the data barely changes).
+const getShowcaseDeals = unstable_cache(
+  async () => {
     const sb = createServerComponentClient();
     const { data } = await sb
       .from("deals")
@@ -25,9 +26,18 @@ export async function LiveDealShowcase() {
       .order("profit_score", { ascending: false, nullsFirst: false })
       .order("last_seen_at", { ascending: false })
       .limit(28);
-    deals = (data || [])
+    return (data || [])
       .filter((d) => Array.isArray(d.images) && d.images[0])
       .slice(0, 8);
+  },
+  ["landing-showcase-deals"],
+  { revalidate: 300 },
+);
+
+export async function LiveDealShowcase() {
+  let deals: any[] = [];
+  try {
+    deals = await getShowcaseDeals();
   } catch {
     return null;
   }

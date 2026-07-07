@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { unstable_cache } from "next/cache";
 import { createServerComponentClient } from "@/lib/supabase";
 import { resolvePropertyImage } from "@/lib/housing/property-image";
 
@@ -8,6 +9,26 @@ import { resolvePropertyImage } from "@/lib/housing/property-image";
 
 const money = (n?: number | null) =>
   n != null ? `$${Math.round(n).toLocaleString()}` : "";
+
+// Cached 5 min so the PUBLIC landing page can't hammer the DB under traffic.
+const getShowcaseHomes = unstable_cache(
+  async () => {
+    const sb = createServerComponentClient();
+    const { data } = await sb
+      .from("properties")
+      .select(
+        "source_listing_id, address, city, state, price, images, lat, lng, lead_score, signals",
+      )
+      .eq("active", true)
+      .eq("lead_tier", "hot")
+      .not("lat", "is", null)
+      .order("lead_score", { ascending: false, nullsFirst: false })
+      .limit(24);
+    return (data || []).slice(0, 8);
+  },
+  ["landing-showcase-homes"],
+  { revalidate: 300 },
+);
 
 function distressLabel(signals: any): string | null {
   const d = signals || {};
@@ -22,18 +43,7 @@ function distressLabel(signals: any): string | null {
 export async function LiveHomeShowcase() {
   let homes: any[] = [];
   try {
-    const sb = createServerComponentClient();
-    const { data } = await sb
-      .from("properties")
-      .select(
-        "source_listing_id, address, city, state, price, images, lat, lng, lead_score, signals",
-      )
-      .eq("active", true)
-      .eq("lead_tier", "hot")
-      .not("lat", "is", null)
-      .order("lead_score", { ascending: false, nullsFirst: false })
-      .limit(24);
-    homes = (data || []).slice(0, 8);
+    homes = await getShowcaseHomes();
   } catch {
     return null;
   }
