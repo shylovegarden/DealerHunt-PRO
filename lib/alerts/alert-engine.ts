@@ -50,7 +50,7 @@ export async function checkAlerts() {
     for (const deal of newDeals) {
       if (vehicleMatchesAlert(deal, alert)) {
         console.log(
-          `[ALERT-ENGINE] Match found! Deal ${deal.id} matches alert ${alert.id} for dealer ${alert.dealer_id}`,
+          `[ALERT-ENGINE] Match found! Deal ${deal.id} matches alert ${alert.id} for user ${alert.user_id}`,
         );
 
         // Check if already matched
@@ -69,7 +69,7 @@ export async function checkAlerts() {
           .insert({
             alert_id: alert.id,
             deal_id: deal.id,
-            dealer_id: alert.dealer_id,
+            dealer_id: alert.user_id,
             // Store the ACCURATE net profit (the engine's number) so the notification shows the real
             // figure, not the crude mmr−ask generated column.
             profit_estimate: deal.true_net_profit ?? deal.profit_estimate,
@@ -103,7 +103,7 @@ export async function checkAlerts() {
             )
               parts.push(`+${money(deal.true_net_profit)} profit`);
             if (deal.location_state) parts.push(deal.location_state);
-            const n = await sendPushToUser(supabase, alert.dealer_id, {
+            const n = await sendPushToUser(supabase, alert.user_id, {
               title,
               body: parts.join(" · "),
               url: `/deal/${deal.id}`,
