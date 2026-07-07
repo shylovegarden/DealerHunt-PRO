@@ -64,10 +64,17 @@ export function CommandPalette() {
       },
       {
         id: "auctions",
-        label: "Auctions & Lane Mode",
+        label: "Auctions",
         icon: "list",
         href: "/auctions",
-        keywords: ["auction", "runlist", "lane", "copart", "vin", "scanner"],
+        keywords: ["auction", "runlist", "copart"],
+      },
+      {
+        id: "lane",
+        label: "Lane Scanner",
+        icon: "scan",
+        href: "/lane",
+        keywords: ["auction", "lane", "barcode", "vin", "scanner", "camera"],
       },
       {
         id: "fleet",
