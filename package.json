@@ -36,7 +36,7 @@
     "data:zip-county": "tsx scripts/build-zip-county.ts",
     "automate": "tsx scripts/automate.ts",
     "prepare": "husky",
-    "postinstall": "node -e \"const fs = require('fs'); const files = ['./node_modules/@supabase/supabase-js/dist/index.mjs', './node_modules/@supabase/supabase-js/dist/index.js']; files.forEach(file => { if (fs.existsSync(file)) { fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace(/process\\\\.version/g, 'undefined')); } });\"",
+    "postinstall": "node scripts/postinstall.js",
     "health": "node scripts/health-check.mjs"
   },
   "lint-staged": {
