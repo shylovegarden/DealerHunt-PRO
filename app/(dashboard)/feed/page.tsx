@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { proxiedImage } from "@/lib/image-url";
+import { usePreferences } from "@/hooks/usePreferences";
+import { MyStatesButton } from "@/components/shared/MyStatesButton";
 
 // The FEED — a full-screen, vertical snap-scroll stream of real car deals (TikTok for flips). Full-bleed
 // photo, price + net-profit + forecast overlaid, a right-side action rail (save / details / source), and
@@ -39,10 +41,13 @@ const money = (n?: number | null) =>
   n != null ? `$${Math.round(n).toLocaleString()}` : "—";
 
 export default function FeedPage() {
+  const { prefs } = usePreferences();
   const [items, setItems] = useState<FeedItem[]>([]);
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
+  // The state scope drives what the feed shows. Seeded from saved prefs; the picker updates it live.
+  const [scope, setScope] = useState<string[] | null>(null);
   const sentinel = useRef<HTMLDivElement>(null);
   const busy = useRef(false);
 
@@ -51,7 +56,8 @@ export default function FeedPage() {
     busy.current = true;
     setLoading(true);
     try {
-      const res = await fetch(`/api/feed?offset=${offset}&limit=12`);
+      const qs = scope && scope.length ? `&states=${scope.join(",")}` : "";
+      const res = await fetch(`/api/feed?offset=${offset}&limit=12${qs}`);
       const data = await res.json();
       const next: FeedItem[] = data.items || [];
       setItems((prev) => {
@@ -66,12 +72,27 @@ export default function FeedPage() {
       setLoading(false);
       busy.current = false;
     }
-  }, [offset, done]);
+  }, [offset, done, scope]);
+
+  // Seed the scope from prefs once loaded (carsStates). Null = not-yet-known; [] = explicitly all.
+  useEffect(() => {
+    if (scope === null && prefs) setScope((prefs.carsStates as string[]) || []);
+  }, [prefs, scope]);
+
+  // Re-scope the feed when the chosen states change (reset the stream, refetch from the top).
+  const rescope = useCallback((states: string[]) => {
+    setScope(states);
+    setItems([]);
+    setOffset(0);
+    setDone(false);
+    busy.current = false;
+  }, []);
 
   useEffect(() => {
+    if (scope === null) return; // wait until we know the scope
     loadMore();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [scope]);
 
   useEffect(() => {
     const el = sentinel.current;
@@ -88,6 +109,17 @@ export default function FeedPage() {
 
   return (
     <div className="fixed inset-0 top-14 overflow-y-scroll snap-y snap-mandatory bg-black scrollbar-hide">
+      {/* Floating "My States" chip — curate the feed to the states you care about. */}
+      <div className="pointer-events-none fixed right-3 top-16 z-50">
+        <div className="pointer-events-auto">
+          <MyStatesButton
+            vertical="cars"
+            onChange={rescope}
+            className="inline-flex items-center gap-1.5 rounded-full bg-black/55 px-3.5 py-2 text-[13px] font-bold text-white backdrop-blur hover:bg-black/70"
+          />
+        </div>
+      </div>
+
       {items.map((it) => (
         <FeedCard key={it.id} it={it} />
       ))}
@@ -95,6 +127,20 @@ export default function FeedPage() {
       {items.length === 0 && loading && (
         <div className="grid h-full place-items-center text-white/50">
           Loading the feed…
+        </div>
+      )}
+      {done && items.length === 0 && (
+        <div className="grid h-full place-items-center px-8 text-center text-white/60">
+          <div>
+            <div className="mb-2 text-4xl">📍</div>
+            <p className="font-bold text-white/80">
+              No cars in your selected states yet
+            </p>
+            <p className="mt-1 text-sm">
+              Tap “{scope?.length ? scope.join(", ") : "states"}” up top to add
+              more.
+            </p>
+          </div>
         </div>
       )}
       {done && items.length > 0 && (

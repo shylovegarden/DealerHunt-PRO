@@ -21,7 +21,10 @@ export async function GET(req: NextRequest) {
   const sp = new URL(req.url).searchParams;
   const offset = Math.max(0, Number(sp.get("offset")) || 0);
   const limit = Math.min(Math.max(Number(sp.get("limit")) || 12, 1), 30);
-  const state = sp.get("state")?.toUpperCase();
+  // Multi-state curation: `?states=MO,IL` (chosen states) or single `?state`. Empty = all.
+  const scopeStates = (sp.get("states")?.split(",") ?? [sp.get("state")])
+    .map((s) => s?.trim().toUpperCase())
+    .filter((s): s is string => !!s);
 
   const supabase = createServerComponentClient();
   let q = supabase
@@ -34,7 +37,8 @@ export async function GET(req: NextRequest) {
     .order("lead_score", { ascending: false, nullsFirst: false })
     .order("scraped_at", { ascending: false })
     .range(offset, offset + limit - 1);
-  if (state) q = q.eq("state", state);
+  if (scopeStates.length === 1) q = q.eq("state", scopeStates[0]);
+  else if (scopeStates.length > 1) q = q.in("state", scopeStates);
 
   const { data, error } = await q;
   if (error)

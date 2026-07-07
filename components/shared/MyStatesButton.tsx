@@ -1,0 +1,49 @@
+"use client";
+
+import { useState } from "react";
+import { usePreferences } from "@/hooks/usePreferences";
+import { StatePicker } from "./StatePicker";
+
+// The nav/feed chip that shows the current state scope ("📍 MO +1" / "All states") and opens the picker.
+// onChange fires with the new state list so the host surface can re-scope its content immediately.
+export function MyStatesButton({
+  vertical,
+  onChange,
+  className,
+}: {
+  vertical: "cars" | "homes";
+  onChange?: (states: string[]) => void;
+  className?: string;
+}) {
+  const { prefs } = usePreferences();
+  const [open, setOpen] = useState(false);
+  const key = vertical === "homes" ? "homeiqStates" : "carsStates";
+  const states = ((prefs as any)[key] as string[] | undefined) || [];
+  const label =
+    states.length === 0
+      ? "All states"
+      : states.length === 1
+        ? states[0]
+        : `${states[0]} +${states.length - 1}`;
+
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className={
+          className ||
+          "inline-flex items-center gap-1.5 rounded-full border border-[var(--b1)] bg-[var(--s0)] px-3.5 py-2 text-[13px] font-bold text-[var(--t2)] shadow-[var(--shadow2)] hover:text-[var(--t1)]"
+        }
+        title="Choose which states to see"
+      >
+        📍 {label}
+      </button>
+      <StatePicker
+        vertical={vertical}
+        open={open}
+        onClose={() => setOpen(false)}
+        onSaved={onChange}
+      />
+    </>
+  );
+}
