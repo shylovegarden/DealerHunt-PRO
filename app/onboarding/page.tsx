@@ -2,7 +2,9 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { US_STATES } from "@/lib/utils/titleRules";
+import { nearestState, stateName } from "@/lib/housing/us-states";
 
 // Focused, skippable post-signup wizard. Captures the few preferences that unlock a personalized
 // feed + sensible cost defaults, then drops the dealer straight into the scanner. Saves via
@@ -61,6 +63,25 @@ export default function OnboardingPage() {
     }
   }
 
+  // Detect the user's state so onboarding is location-aware from the first screen.
+  function detectLocation() {
+    if (!("geolocation" in navigator)) {
+      toast.error("Location isn’t available on this device");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const code = nearestState(pos.coords.latitude, pos.coords.longitude);
+        if (code) {
+          setHomeState(code);
+          toast.success(`📍 ${stateName(code)}`);
+        }
+      },
+      () => toast.error("Couldn’t get your location"),
+      { timeout: 8000 },
+    );
+  }
+
   async function finish() {
     setSaving(true);
     await persist({
@@ -70,6 +91,24 @@ export default function OnboardingPage() {
       budget_max: budgetMax ? Number(budgetMax) : undefined,
       preferred_makes: makes.length ? makes : undefined,
     });
+    // Seed BOTH verticals' state scope with the home state, so the feeds are curated to the user's location
+    // from minute one (and, for homes, the demand hook starts harvesting it). They can add more anytime.
+    if (homeState) {
+      try {
+        await fetch("/api/preferences", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            carsState: homeState,
+            carsStates: [homeState],
+            homeiqState: homeState,
+            homeiqStates: [homeState],
+          }),
+        });
+      } catch {
+        /* non-fatal */
+      }
+    }
     // Land on the vertical selector so the user chooses HomeIQ vs DealerHunt Pro.
     router.push("/welcome");
   }
@@ -86,20 +125,28 @@ export default function OnboardingPage() {
   const steps = [
     {
       title: "Where do you buy & sell?",
-      sub: "We’ll surface deals in your state and price cross-state transport.",
+      sub: "We’ll curate cars & homes to your state — no unrelated markets — and price cross-state transport.",
       body: (
-        <select
-          value={homeState}
-          onChange={(e) => setHomeState(e.target.value)}
-          className={inputClass}
-        >
-          <option value="">Select your home state</option>
-          {US_STATES.map((s: string) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
+        <div className="space-y-3">
+          <button
+            onClick={detectLocation}
+            className="w-full rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-4 py-3 text-sm font-bold text-[var(--t2)] hover:text-[var(--t1)]"
+          >
+            📍 Use my location
+          </button>
+          <select
+            value={homeState}
+            onChange={(e) => setHomeState(e.target.value)}
+            className={inputClass}
+          >
+            <option value="">Select your home state</option>
+            {US_STATES.map((s: string) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </div>
       ),
     },
     {

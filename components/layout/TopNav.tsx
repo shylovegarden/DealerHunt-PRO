@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
+import { MyStatesButton } from "@/components/shared/MyStatesButton";
 import {
   Search,
   Clock,
@@ -138,6 +139,7 @@ function IconBtn({
 
 export function TopNav() {
   const pathname = usePathname();
+  const router = useRouter();
   const { isAdmin } = useIsAdmin();
   // The admin sees everything — their "More" gains the Admin group with the dev/ops surfaces.
   const moreGroups = isAdmin ? [...MORE_GROUPS, ADMIN_GROUP] : MORE_GROUPS;
@@ -335,6 +337,11 @@ export function TopNav() {
 
       {/* RIGHT: Actions */}
       <div className="flex flex-1 items-center justify-end gap-2 min-w-0">
+        <MyStatesButton
+          vertical="cars"
+          onChange={() => router.refresh()}
+          className="hidden md:inline-flex items-center gap-1.5 rounded-full border border-[var(--b1)] bg-[var(--s0)] px-3 py-1.5 text-[12px] font-bold text-[var(--t3)] hover:text-[var(--t1)]"
+        />
         <ThemeToggle />
         <IconBtn href="/saved" title="Saved">
           <Bookmark style={{ width: 17, height: 17 }} />
