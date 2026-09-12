@@ -1,4 +1,4 @@
-# Autoverse (DealerHunt)
+# DealerHunt PRO
 
 Multi-source vehicle-sourcing intelligence platform. Scrapes vehicle auction and
 marketplace listings (Craigslist, Copart, Cars.com, eBay Motors, independent dealers),
