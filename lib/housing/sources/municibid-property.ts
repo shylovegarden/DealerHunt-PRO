@@ -7,6 +7,7 @@
 // make/model/year is ever read, and every row carries an address/location, so a vehicle can't leak in.
 
 import type { Property, PropertyType } from "../types";
+import { MUNICIBID_TZ, parseUsDateTimeInZone } from "../../utils/zoned-time";
 
 const ORIGIN = "https://municibid.com";
 // C169135 = the Real Estate category (verified live). list view · active only · ending-soonest sort.
@@ -26,12 +27,9 @@ const clean = (t: string): string =>
     .replace(/\s+/g, " ")
     .trim();
 
-/** Convert Municibid's "7/9/2026 10:00:00 AM" end date to ISO, or undefined if unparseable. */
-function parseEnd(raw: string | undefined): string | undefined {
-  if (!raw) return undefined;
-  const d = new Date(raw);
-  return isNaN(d.getTime()) ? undefined : d.toISOString();
-}
+/** Convert Municibid's "7/9/2026 10:00:00 AM" end date — published in Eastern Time — to ISO UTC. */
+const parseEnd = (raw: string | undefined): string | undefined =>
+  parseUsDateTimeInZone(raw, MUNICIBID_TZ);
 
 /** Infer a coarse property type from the listing title (surplus RE skews land/parcels). */
 function classify(title: string): PropertyType {
