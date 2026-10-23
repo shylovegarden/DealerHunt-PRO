@@ -40,7 +40,8 @@ describe("parseMunicibidProperties", () => {
     expect(p.seller_type).toBe("gov");
     expect(p.seller).toContain("Richland Township");
     expect(p.bid_count).toBe(0);
-    expect(p.auction_end).toBe("2026-07-09T15:00:00.000Z");
+    // 10:00 AM ET on 2026-07-09 is EDT (UTC-4) => 14:00Z, whatever zone the test runs in.
+    expect(p.auction_end).toBe("2026-07-09T14:00:00.000Z");
     expect(p.images?.[0]).toContain("storagemunicibid");
     expect(p.source_url).toBe("https://municibid.com/Listing/Details/63281618");
   });

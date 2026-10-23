@@ -8,6 +8,7 @@
 
 import type { Deal } from "@/types";
 import { upsertDeals } from "../pipeline";
+import { MUNICIBID_TZ, parseUsDateTimeInZone } from "../../utils/zoned-time";
 
 const ORIGIN = "https://municibid.com";
 // C160883 = the Automotive category (verified live). list view · active only · ending-soonest sort.
@@ -26,12 +27,9 @@ const clean = (t: string): string =>
     .replace(/\s+/g, " ")
     .trim();
 
-/** Convert Municibid's "7/6/2026 11:00:00 AM" end date to ISO, or undefined if unparseable. */
-function parseEnd(raw: string | undefined): string | undefined {
-  if (!raw) return undefined;
-  const d = new Date(raw);
-  return isNaN(d.getTime()) ? undefined : d.toISOString();
-}
+/** Convert Municibid's "7/6/2026 11:00:00 AM" end date — published in Eastern Time — to ISO UTC. */
+const parseEnd = (raw: string | undefined): string | undefined =>
+  parseUsDateTimeInZone(raw, MUNICIBID_TZ);
 
 /** Parse a Municibid Automotive browse page into vehicle auction rows. */
 export function parseMunicibidHtml(html: string): Partial<Deal>[] {
